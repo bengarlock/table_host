@@ -6,7 +6,9 @@ import {
   ChevronRight,
   Clock3,
   LoaderCircle,
+  Lock,
   Plus,
+  Unlock,
   Users,
   X,
 } from "lucide-react";
@@ -143,6 +145,7 @@ export function ReservationGrid() {
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -282,6 +285,29 @@ export function ReservationGrid() {
     }
   }
 
+  async function unlockAssignment() {
+    if (!selected || selected.assignment_type !== "hard") return;
+    setUnlocking(true);
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/grid/reservations/${selected.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ assignment_type: "soft" }),
+      });
+      const payload = (await response.json()) as Reservation | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      setSelected(payload as Reservation);
+      await Promise.all([loadGrid(), loadMoveHistory(selected.id)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to unlock the reservation.");
+    } finally {
+      setSaving(false);
+      setUnlocking(false);
+    }
+  }
+
   function beginReservationDrag(event: DragEvent<HTMLButtonElement>, reservation: Reservation) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(reservation.id));
@@ -309,6 +335,7 @@ export function ReservationGrid() {
 
   async function openReservation(reservation: Reservation) {
     setDraft(null);
+    setUnlocking(false);
     setSelected(reservation);
     setTableMoves([]);
     await loadMoveHistory(reservation.id);
@@ -474,7 +501,7 @@ export function ReservationGrid() {
                           return (
                             <button
                               type="button"
-                              className={`reservation-block status-${reservation.status}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
+                              className={`reservation-block status-${reservation.status}${reservation.assignment_type === "hard" ? " hard-assigned" : ""}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
                               key={reservation.id}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
                               onClick={() => void openReservation(reservation)}
@@ -484,8 +511,11 @@ export function ReservationGrid() {
                                 setDraggedReservationId(null);
                                 setDropTargetTableId(null);
                               }}
-                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}${overCapacity ? `, over table capacity by ${reservation.party_size - table.capacity}` : ""}${timeConflict ? ", double booked at this time" : ""}`}
+                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}${reservation.assignment_type === "hard" ? ", hard assigned" : ""}${overCapacity ? `, over table capacity by ${reservation.party_size - table.capacity}` : ""}${timeConflict ? ", double booked at this time" : ""}`}
                             >
+                              {reservation.assignment_type === "hard" && (
+                                <Lock className="reservation-lock-icon" aria-hidden="true" />
+                              )}
                               <span>{reservation.guest_name}</span>
                               <small>
                                 {reservation.party_size} guests · {reservation.duration_minutes} min
@@ -531,9 +561,30 @@ export function ReservationGrid() {
                 <p className="panel-eyebrow">Reservation</p>
                 <h2>{selected.guest_name}</h2>
                 <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · Table {selected.table_name}</div>
-                <span className={`assignment-pill assignment-${selected.assignment_type}`}>
-                  {selected.assignment_type === "hard" ? "Hard assigned" : "Soft assigned"}
-                </span>
+                <button
+                  type="button"
+                  className={`assignment-lock-button assignment-${selected.assignment_type}${unlocking ? " unlocking" : ""}`}
+                  onClick={() => void unlockAssignment()}
+                  disabled={saving || selected.assignment_type === "soft"}
+                  aria-label={
+                    selected.assignment_type === "hard"
+                      ? "Unlock hard assignment and reflow reservation"
+                      : "Reservation is soft assigned and unlocked"
+                  }
+                >
+                  {selected.assignment_type === "hard" && !unlocking ? (
+                    <Lock aria-hidden="true" />
+                  ) : (
+                    <Unlock className="unlock-icon" aria-hidden="true" />
+                  )}
+                  <span>
+                    {unlocking
+                      ? "Reflowing…"
+                      : selected.assignment_type === "hard"
+                        ? "Hard assigned"
+                        : "Soft assigned"}
+                  </span>
+                </button>
                 <dl className="reservation-details">
                   <div><dt>Party</dt><dd>{selected.party_size} guests</dd></div>
                   <div><dt>Turn</dt><dd>{selected.duration_minutes} minutes</dd></div>
