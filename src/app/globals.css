@@ -541,6 +541,37 @@ textarea {
   position: relative;
 }
 
+.current-time-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 15;
+  width: 2px;
+  pointer-events: none;
+  background: rgba(234, 101, 75, 0.92);
+  box-shadow: 0 0 10px rgba(234, 101, 75, 0.42);
+  transform: translateX(-1px);
+  transition: left 15s linear;
+}
+
+.current-time-indicator span {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  min-width: max-content;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 169, 143, 0.54);
+  border-radius: 999px;
+  background: #9e3f32;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.32);
+  color: #fff5f1;
+  font-size: 0.52rem;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
 .timeline-header,
 .timeline-row {
   display: grid;

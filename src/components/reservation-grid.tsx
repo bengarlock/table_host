@@ -13,7 +13,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookingWizard } from "@/components/booking-wizard";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
@@ -80,6 +80,7 @@ type BookingDraft = {
 
 const SLOT_MINUTES = 15;
 const SLOT_WIDTH = 74;
+const TABLE_COLUMNS_WIDTH = 140;
 
 function minutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -156,6 +157,8 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
   const [historyLoading, setHistoryLoading] = useState(false);
   const [moveHistoryOpen, setMoveHistoryOpen] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -182,6 +185,11 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
     void loadGrid();
   }, [loadGrid]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const slots = useMemo(() => {
     if (!data) return [];
     const start = minutes(data.selected_shift.start_time);
@@ -189,6 +197,44 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
     return Array.from({ length: (end - start) / SLOT_MINUTES }, (_, index) =>
       timeFromMinutes(start + index * SLOT_MINUTES),
     );
+  }, [data]);
+
+  const currentTimeMarker = useMemo(() => {
+    if (!data || data.service_date !== todayLocal()) return null;
+    const shiftStart = minutes(data.selected_shift.start_time);
+    const shiftEnd = minutes(data.selected_shift.end_time);
+    const currentMinutes =
+      currentTime.getHours() * 60 +
+      currentTime.getMinutes() +
+      currentTime.getSeconds() / 60;
+    if (currentMinutes < shiftStart || currentMinutes >= shiftEnd) return null;
+    return {
+      label: displayTime(timeFromMinutes(Math.floor(currentMinutes))),
+      left:
+        TABLE_COLUMNS_WIDTH +
+        ((currentMinutes - shiftStart) / SLOT_MINUTES) * SLOT_WIDTH,
+    };
+  }, [currentTime, data]);
+
+  useEffect(() => {
+    const scroller = timelineScrollRef.current;
+    if (!scroller || !data || data.service_date !== todayLocal()) return;
+    const shiftStart = minutes(data.selected_shift.start_time);
+    const shiftEnd = minutes(data.selected_shift.end_time);
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    if (currentMinutes < shiftStart || currentMinutes >= shiftEnd) return;
+    const markerLeft =
+      TABLE_COLUMNS_WIDTH +
+      ((currentMinutes - shiftStart) / SLOT_MINUTES) * SLOT_WIDTH;
+    const frame = window.requestAnimationFrame(() => {
+      const trackViewportWidth = Math.max(0, scroller.clientWidth - TABLE_COLUMNS_WIDTH);
+      scroller.scrollLeft = Math.max(
+        0,
+        markerLeft - TABLE_COLUMNS_WIDTH - trackViewportWidth * 0.72,
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [data]);
 
   const draggedReservation = useMemo(
@@ -440,8 +486,18 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
           {loading && !data ? (
             <div className="grid-loading"><LoaderCircle aria-hidden="true" /> Loading the book…</div>
           ) : data ? (
-            <div className="timeline-scroll">
-              <div className="timeline" style={{ minWidth: 140 + slots.length * SLOT_WIDTH }}>
+            <div className="timeline-scroll" ref={timelineScrollRef}>
+              <div className="timeline" style={{ minWidth: TABLE_COLUMNS_WIDTH + slots.length * SLOT_WIDTH }}>
+                {currentTimeMarker && (
+                  <div
+                    className="current-time-indicator"
+                    style={{ left: currentTimeMarker.left }}
+                    role="img"
+                    aria-label={`Current time: ${currentTimeMarker.label}`}
+                  >
+                    <span aria-hidden="true">Now · {currentTimeMarker.label}</span>
+                  </div>
+                )}
                 <div className="timeline-header">
                   <div className="table-heading">Table</div>
                   <div className="capacity-heading">Max</div>
