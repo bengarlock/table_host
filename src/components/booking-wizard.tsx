@@ -154,6 +154,7 @@ export function BookingWizard({
   const [durationMinutes, setDurationMinutes] = useState(initialDuration);
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
+  const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [selectedGuest, setSelectedGuest] = useState<GuestRecord | null>(null);
@@ -241,6 +242,19 @@ export function BookingWizard({
   function invalidateTimeSelection() {
     setOptions([]);
     setSelectedOption(null);
+    setPendingOverbookKey(null);
+  }
+
+  function chooseTime(option: AvailabilityOption) {
+    if (option.table_id === null) return;
+    const optionKey = `${option.shift_slug}-${option.start_time}`;
+    if (!option.available && pendingOverbookKey !== optionKey) {
+      setPendingOverbookKey(optionKey);
+      return;
+    }
+    setPendingOverbookKey(null);
+    setSelectedOption(option);
+    advanceTo(selectedGuest ? 5 : 4);
   }
 
   function updatePartySize(nextSize: number) {
@@ -271,6 +285,7 @@ export function BookingWizard({
     setError("");
     setSelectedShiftSlug(shift.slug);
     setSelectedOption(null);
+    setPendingOverbookKey(null);
     setOptions([]);
     const query = new URLSearchParams({
       service_date: serviceDate,
@@ -404,6 +419,7 @@ export function BookingWizard({
           party_size: partySize,
           start_time: selectedOption.start_time,
           duration_minutes: durationMinutes,
+          allow_overbook: !selectedOption.available,
         }),
       });
       const payload = (await response.json()) as Record<string, unknown>;
@@ -546,23 +562,27 @@ export function BookingWizard({
                     <section className="available-hour-group" key={group.hour} aria-labelledby={`time-hour-${group.hour}`}>
                       <h4 id={`time-hour-${group.hour}`}>{group.label}</h4>
                       <div>
-                        {group.options.map((option) => (
-                          <button
-                            type="button"
-                            key={`${option.shift_slug}-${option.start_time}`}
-                            className={option.available ? "" : "is-unavailable"}
-                            disabled={!option.available || option.table_id === null}
-                            aria-label={`${displayTime(option.start_time)}, ${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
-                            onClick={() => {
-                              if (!option.available || option.table_id === null) return;
-                              setSelectedOption(option);
-                              advanceTo(selectedGuest ? 5 : 4);
-                            }}
-                          >
-                            <strong>{displayTime(option.start_time)}</strong>
-                            <span>{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
-                          </button>
-                        ))}
+                        {group.options.map((option) => {
+                          const optionKey = `${option.shift_slug}-${option.start_time}`;
+                          const confirmingOverbook = pendingOverbookKey === optionKey;
+                          return (
+                            <button
+                              type="button"
+                              key={optionKey}
+                              className={[
+                                option.available ? "" : "is-unavailable",
+                                confirmingOverbook ? "confirm-overbook" : "",
+                              ].filter(Boolean).join(" ")}
+                              disabled={option.table_id === null}
+                              aria-pressed={confirmingOverbook}
+                              aria-label={`${displayTime(option.start_time)}, ${confirmingOverbook ? "confirm overbooking" : option.available ? `seats up to ${option.table_capacity}` : `${option.unavailable_reason}; click to request overbooking`}`}
+                              onClick={() => chooseTime(option)}
+                            >
+                              <strong>{displayTime(option.start_time)}</strong>
+                              <span>{confirmingOverbook ? "Confirm overbooking" : option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </section>
                   ))}

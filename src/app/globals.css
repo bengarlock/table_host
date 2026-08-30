@@ -1867,17 +1867,37 @@ textarea {
 }
 
 .available-hour-group button.is-unavailable {
-  cursor: not-allowed;
+  cursor: pointer;
   border-color: #30332f;
   background: #101210;
   color: #626760;
   opacity: 0.72;
 }
 
+.available-hour-group button.is-unavailable:disabled {
+  cursor: not-allowed;
+}
+
 .available-hour-group button.is-unavailable strong {
   color: #747a72;
   text-decoration: line-through;
   text-decoration-color: #4d524c;
+}
+
+.available-hour-group button.confirm-overbook,
+.available-hour-group button.confirm-overbook:hover,
+.available-hour-group button.confirm-overbook:focus-visible {
+  border-color: rgba(222, 91, 77, 0.82);
+  background: rgba(164, 44, 35, 0.28);
+  color: #ffb0a6;
+  box-shadow: inset 0 0 0 1px rgba(222, 91, 77, 0.18);
+  opacity: 1;
+  outline: none;
+}
+
+.available-hour-group button.confirm-overbook strong {
+  color: #ffd0ca;
+  text-decoration: none;
 }
 
 .availability-loading {
