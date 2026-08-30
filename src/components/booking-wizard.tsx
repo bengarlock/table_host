@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Building2,
-  CalendarDays,
   Check,
   Clock3,
   LoaderCircle,
@@ -480,7 +479,6 @@ export function BookingWizard({
         <div className="wizard-body">
           {step === 1 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><CalendarDays aria-hidden="true" /><div><h3>When are they joining us?</h3><p>Choose the reservation date from the calendar.</p></div></div>
               <div className="wizard-date-field">
                 <ServiceDatePicker
                   value={serviceDate}
