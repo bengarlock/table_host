@@ -83,6 +83,8 @@ type NewGuest = {
   company: string;
 };
 
+type NewGuestFocus = "firstName" | "lastName" | "phone";
+
 const PRESET_TAGS = ["VIP", "Birthday", "Anniversary", "First visit", "Business", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -126,6 +128,11 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
+function looksLikePhoneSearch(value: string) {
+  const trimmed = value.trim();
+  return /^[\d\s()+.-]+$/.test(trimmed) && trimmed.replace(/\D/g, "").length >= 7;
+}
+
 export function BookingWizard({
   initialDate,
   initialShiftSlug,
@@ -160,6 +167,7 @@ export function BookingWizard({
     email: "",
     company: "",
   });
+  const [newGuestFocus, setNewGuestFocus] = useState<NewGuestFocus>("firstName");
   const [guestDetails, setGuestDetails] = useState<BookingDetails>({
     reservationNotes: "",
     guestNotes: "",
@@ -318,14 +326,32 @@ export function BookingWizard({
   }
 
   function startCreatingGuest() {
-    const [firstName = "", ...lastNameParts] = guestQuery.trim().split(/\s+/);
+    const query = guestQuery.trim();
+
+    if (looksLikePhoneSearch(query)) {
+      setNewGuest({
+        firstName: "",
+        lastName: "",
+        phone: query,
+        email: "",
+        company: "",
+      });
+      setNewGuestFocus("firstName");
+      setCreatingGuest(true);
+      setGuestSearchError("");
+      return;
+    }
+
+    const [firstName = "", ...lastNameParts] = query.split(/\s+/);
+    const lastName = lastNameParts.join(" ");
     setNewGuest({
       firstName,
-      lastName: lastNameParts.join(" "),
+      lastName,
       phone: "",
       email: "",
       company: "",
     });
+    setNewGuestFocus(lastName ? "phone" : "lastName");
     setCreatingGuest(true);
     setGuestSearchError("");
   }
@@ -612,9 +638,9 @@ export function BookingWizard({
                 <form {...IGNORE_AUTOFILL} className="new-guest-form" onSubmit={createGuest}>
                   <div className="new-guest-heading"><div><h4>Create guest record</h4><p>Add their core contact information. Notes and tags come next.</p></div><button type="button" onClick={() => setCreatingGuest(false)}>Cancel</button></div>
                   <div className="wizard-fields two-column">
-                    <label>First name<input {...IGNORE_AUTOFILL} required autoFocus value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} /></label>
-                    <label>Last name<input {...IGNORE_AUTOFILL} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} /></label>
-                    <label>Phone number<input {...IGNORE_AUTOFILL} type="text" inputMode="tel" value={newGuest.phone} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, phone: value })); }} /></label>
+                    <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} /></label>
+                    <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} /></label>
+                    <label>Phone number<input {...IGNORE_AUTOFILL} type="text" inputMode="tel" autoFocus={newGuestFocus === "phone"} value={newGuest.phone} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, phone: value })); }} /></label>
                     <label>Email<input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={newGuest.email} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, email: value })); }} /></label>
                     <label className="full-width">Company<input {...IGNORE_AUTOFILL} value={newGuest.company} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, company: value })); }} /></label>
                   </div>
