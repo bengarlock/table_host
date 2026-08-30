@@ -483,18 +483,30 @@ textarea {
   color: #d48e79;
 }
 
-.timeline-row.drag-unavailable {
-  opacity: 0.38;
-}
-
-.timeline-row.drag-unavailable .timeline-track {
+.timeline-row.drag-conflict .timeline-track,
+.timeline-row.drag-conflict .table-name,
+.timeline-row.drag-conflict .table-capacity {
+  background-color: rgba(126, 43, 36, 0.25);
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
     transparent 8px,
-    rgba(99, 104, 96, 0.13) 8px,
-    rgba(99, 104, 96, 0.13) 16px
+    rgba(205, 91, 73, 0.13) 8px,
+    rgba(205, 91, 73, 0.13) 16px
   );
+}
+
+.timeline-row.drag-conflict .table-capacity {
+  color: #ed9c89;
+}
+
+.timeline-row.drag-conflict .table-capacity::after {
+  margin-left: 5px;
+  color: #ed9c89;
+  content: "BUSY";
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
 }
 
 .timeline-row.drop-active {
@@ -623,6 +635,27 @@ textarea {
 
 .reservation-block.over-capacity small {
   color: #ffc2b1;
+}
+
+.reservation-block.time-conflict,
+.reservation-block.time-conflict.status-seated,
+.reservation-block.time-conflict.status-complete {
+  border-color: rgba(255, 119, 95, 0.9);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(119, 34, 28, 0.94),
+      rgba(119, 34, 28, 0.94) 8px,
+      rgba(144, 49, 38, 0.94) 8px,
+      rgba(144, 49, 38, 0.94) 16px
+    );
+  box-shadow: 0 5px 22px rgba(139, 37, 29, 0.58);
+  color: #fff1ed;
+  opacity: 1;
+}
+
+.reservation-block.time-conflict small {
+  color: #ffc0b2;
 }
 
 .grid-loading {

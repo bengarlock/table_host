@@ -368,14 +368,13 @@ export function ReservationGrid() {
                   const isTooSmall = Boolean(
                     draggedReservation &&
                     !isOriginalTable &&
-                    !hasConflict &&
                     table.capacity < draggedReservation.party_size,
                   );
                   const rowClassName = [
                     "timeline-row",
                     isSuggested ? "drag-suggested" : "",
                     isTooSmall ? "drag-too-small" : "",
-                    draggedReservation && hasConflict ? "drag-unavailable" : "",
+                    draggedReservation && hasConflict ? "drag-conflict" : "",
                     dropTargetTableId === table.id ? "drop-active" : "",
                   ].filter(Boolean).join(" ");
                   return (
@@ -383,7 +382,7 @@ export function ReservationGrid() {
                       className={rowClassName}
                       key={table.id}
                       onDragOver={(event) => {
-                        if (!draggedReservation || hasConflict) return;
+                        if (!draggedReservation) return;
                         event.preventDefault();
                         event.dataTransfer.dropEffect = "move";
                         setDropTargetTableId(table.id);
@@ -395,7 +394,7 @@ export function ReservationGrid() {
                       }}
                       onDrop={(event) => {
                         event.preventDefault();
-                        if (draggedReservation && !hasConflict) {
+                        if (draggedReservation) {
                           void moveReservation(draggedReservation, table);
                         }
                       }}
@@ -422,10 +421,19 @@ export function ReservationGrid() {
                           const offset = (minutes(reservation.start_time) - minutes(data.selected_shift.start_time)) / SLOT_MINUTES;
                           const width = (reservation.duration_minutes / SLOT_MINUTES) * SLOT_WIDTH;
                           const overCapacity = reservation.party_size > table.capacity;
+                          const timeConflict = tableReservations.some(
+                            (item) =>
+                              item.id !== reservation.id &&
+                              reservationsOverlap(item, reservation),
+                          );
+                          const warnings = [
+                            overCapacity ? `Over by ${reservation.party_size - table.capacity}` : "",
+                            timeConflict ? "Double booked" : "",
+                          ].filter(Boolean);
                           return (
                             <button
                               type="button"
-                              className={`reservation-block status-${reservation.status}${overCapacity ? " over-capacity" : ""}`}
+                              className={`reservation-block status-${reservation.status}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
                               key={reservation.id}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
                               onClick={() => { setDraft(null); setSelected(reservation); }}
@@ -435,12 +443,12 @@ export function ReservationGrid() {
                                 setDraggedReservationId(null);
                                 setDropTargetTableId(null);
                               }}
-                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}${overCapacity ? `, over table capacity by ${reservation.party_size - table.capacity}` : ""}`}
+                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}${overCapacity ? `, over table capacity by ${reservation.party_size - table.capacity}` : ""}${timeConflict ? ", double booked at this time" : ""}`}
                             >
                               <span>{reservation.guest_name}</span>
                               <small>
                                 {reservation.party_size} guests · {reservation.duration_minutes} min
-                                {overCapacity ? ` · Over by ${reservation.party_size - table.capacity}` : ""}
+                                {warnings.length ? ` · ${warnings.join(" · ")}` : ""}
                               </small>
                             </button>
                           );
