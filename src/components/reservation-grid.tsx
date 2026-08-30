@@ -699,8 +699,9 @@ export function ReservationGrid() {
       {wizardOpen && (
         <BookingWizard
           initialDate={serviceDate}
-          initialTime={data?.selected_shift.start_time || "18:00"}
+          initialShiftSlug={data?.selected_shift.slug || shiftSlug}
           initialDuration={data?.selected_shift.default_turn_minutes || 90}
+          shifts={data?.shifts || []}
           onClose={() => setWizardOpen(false)}
           onBooked={finishWizardBooking}
         />

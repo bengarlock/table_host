@@ -1296,47 +1296,142 @@ textarea {
   margin: 0 auto;
 }
 
-.availability-options {
+.wizard-date-field {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 0.67rem;
+  font-weight: 650;
 }
 
-.availability-options button {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+.wizard-date-field .date-picker-shell {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+}
+
+.wizard-date-field .date-picker-shell.open {
+  margin-bottom: 330px;
+}
+
+.wizard-date-field .date-picker-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
-  padding: 13px;
+  padding: 0 14px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #111411;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.wizard-date-field .date-picker-trigger svg {
+  width: 17px;
+  color: var(--accent);
+}
+
+.wizard-date-field .calendar-popover {
+  left: 0;
+  transform: none;
+}
+
+.wizard-shift-picker {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.wizard-shift-picker button {
+  display: grid;
+  min-width: 130px;
+  gap: 4px;
+  padding: 11px 14px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #141714;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.wizard-shift-picker button:hover:not(:disabled),
+.wizard-shift-picker button:focus-visible,
+.wizard-shift-picker button.selected {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: #e8c58f;
+  outline: none;
+}
+
+.wizard-shift-picker button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.wizard-shift-picker strong {
+  color: inherit;
+  font-size: 0.72rem;
+}
+
+.wizard-shift-picker span {
+  font-size: 0.58rem;
+}
+
+.available-time-row {
+  display: flex;
+  gap: 9px;
+  overflow-x: auto;
+  padding: 2px 1px 8px;
+}
+
+.available-time-row button {
+  display: grid;
+  min-width: 116px;
+  gap: 5px;
+  padding: 13px 12px;
   cursor: pointer;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #141714;
-  color: var(--text-soft);
-  font-size: 0.66rem;
+  color: var(--text-muted);
   text-align: left;
 }
 
-.availability-options button:hover,
-.availability-options button:focus-visible {
+.available-time-row button:hover,
+.available-time-row button:focus-visible {
   border-color: var(--accent-line);
   background: var(--accent-soft);
   outline: none;
 }
 
-.availability-time {
+.available-time-row strong {
   color: var(--text);
-  font-size: 0.88rem;
-  font-weight: 720;
+  font-size: 0.82rem;
 }
 
-.availability-options small {
+.available-time-row span {
+  font-size: 0.57rem;
+}
+
+.availability-loading {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
   color: var(--text-muted);
-  font-size: 0.58rem;
+  font-size: 0.68rem;
 }
 
-.availability-options small.exact {
-  color: #80bd96;
+.availability-loading svg {
+  width: 17px;
 }
 
 .no-availability {
@@ -1763,8 +1858,7 @@ textarea {
     font-size: 0;
   }
 
-  .wizard-fields.two-column,
-  .availability-options {
+  .wizard-fields.two-column {
     grid-template-columns: 1fr;
   }
 

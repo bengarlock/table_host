@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 
 type AvailabilityOption = {
@@ -25,8 +26,6 @@ type AvailabilityOption = {
   table_id: number;
   table_name: string;
   table_capacity: number;
-  is_exact: boolean;
-  difference_minutes: number;
 };
 
 type AvailabilityResponse = {
@@ -35,10 +34,19 @@ type AvailabilityResponse = {
 
 type BookingWizardProps = {
   initialDate: string;
-  initialTime: string;
+  initialShiftSlug: string;
   initialDuration: number;
+  shifts: ShiftChoice[];
   onClose: () => void;
   onBooked: (serviceDate: string, shiftSlug: string) => void;
+};
+
+type ShiftChoice = {
+  id: number;
+  name: string;
+  slug: string;
+  start_time: string;
+  end_time: string;
 };
 
 const PRESET_TAGS = ["VIP", "Birthday", "Anniversary", "First visit", "Business", "Accessibility"];
@@ -55,23 +63,19 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
-function nearbyLabel(minutes: number) {
-  if (minutes === 0) return "Exact time";
-  const direction = minutes > 0 ? "later" : "earlier";
-  const distance = Math.abs(minutes);
-  return `${distance >= 60 ? `${distance / 60} hr` : `${distance} min`} ${direction}`;
-}
-
 export function BookingWizard({
   initialDate,
-  initialTime,
+  initialShiftSlug,
   initialDuration,
+  shifts,
   onClose,
   onBooked,
 }: BookingWizardProps) {
   const [step, setStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(initialDate);
-  const [desiredTime, setDesiredTime] = useState(initialTime);
+  const [selectedShiftSlug, setSelectedShiftSlug] = useState(
+    initialShiftSlug || shifts[0]?.slug || "",
+  );
   const [partySize, setPartySize] = useState(2);
   const [durationMinutes, setDurationMinutes] = useState(initialDuration);
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
@@ -89,12 +93,17 @@ export function BookingWizard({
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
 
-  async function findTimes() {
+  async function findTimes(shiftSlug = selectedShiftSlug) {
+    const shift = shifts.find((item) => item.slug === shiftSlug);
+    if (!shift) return;
     setLoading(true);
     setError("");
+    setSelectedShiftSlug(shift.slug);
+    setSelectedOption(null);
+    setOptions([]);
     const query = new URLSearchParams({
       service_date: serviceDate,
-      desired_time: desiredTime,
+      desired_time: shift.start_time,
       party_size: String(partySize),
       duration_minutes: String(durationMinutes),
     });
@@ -102,7 +111,11 @@ export function BookingWizard({
       const response = await fetch(`${appPath("/api/grid/availability")}?${query}`, { cache: "no-store" });
       const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      setOptions((payload as AvailabilityResponse).options);
+      setOptions(
+        (payload as AvailabilityResponse).options.filter(
+          (option) => option.shift_slug === shift.slug,
+        ),
+      );
       setStep(3);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to search available times.");
@@ -183,10 +196,19 @@ export function BookingWizard({
         <div className="wizard-body">
           {step === 1 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><CalendarDays aria-hidden="true" /><div><h3>When are they joining us?</h3><p>Start with the requested day and arrival time.</p></div></div>
-              <div className="wizard-fields two-column">
-                <label>Service date<input type="date" value={serviceDate} onChange={(event) => setServiceDate(event.target.value)} autoFocus /></label>
-                <label>Requested time<input type="time" step="900" value={desiredTime} onChange={(event) => setDesiredTime(event.target.value)} /></label>
+              <div className="wizard-step-heading"><CalendarDays aria-hidden="true" /><div><h3>When are they joining us?</h3><p>Choose the reservation date from the calendar.</p></div></div>
+              <div className="wizard-date-field">
+                <span>Reservation Date</span>
+                <ServiceDatePicker
+                  value={serviceDate}
+                  onChange={(value) => {
+                    setServiceDate(value);
+                    setOptions([]);
+                    setSelectedOption(null);
+                  }}
+                  fieldLabel="Reservation Date"
+                  useRelativeLabel={false}
+                />
               </div>
             </div>
           )}
@@ -207,19 +229,35 @@ export function BookingWizard({
 
           {step === 3 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Closest matches to {displayTime(desiredTime)} on {serviceDate}.</p></div></div>
+              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Select a shift, then choose from the available reservation times.</p></div></div>
+              <div className="wizard-shift-picker" aria-label="Reservation shift">
+                {shifts.map((shift) => (
+                  <button
+                    type="button"
+                    key={shift.id}
+                    className={shift.slug === selectedShiftSlug ? "selected" : ""}
+                    aria-pressed={shift.slug === selectedShiftSlug}
+                    onClick={() => void findTimes(shift.slug)}
+                    disabled={loading}
+                  >
+                    <strong>{shift.name}</strong>
+                    <span>{displayTime(shift.start_time)}–{displayTime(shift.end_time)}</span>
+                  </button>
+                ))}
+              </div>
               {options.length ? (
-                <div className="availability-options">
+                <div className="available-time-row" aria-label="Available times">
                   {options.map((option) => (
-                    <button type="button" key={`${option.shift_slug}-${option.start_time}`} onClick={() => { setSelectedOption(option); setStep(4); }}>
-                      <span className="availability-time">{displayTime(option.start_time)}</span>
-                      <span>{option.shift_name} · Table {option.table_name}</span>
-                      <small className={option.is_exact ? "exact" : ""}>{nearbyLabel(option.difference_minutes)}</small>
+                    <button type="button" key={`${option.shift_slug}-${option.start_time}-${option.table_id}`} onClick={() => { setSelectedOption(option); setStep(4); }}>
+                      <strong>{displayTime(option.start_time)}</strong>
+                      <span>Seats up to {option.table_capacity}</span>
                     </button>
                   ))}
                 </div>
+              ) : loading ? (
+                <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking this shift…</div>
               ) : (
-                <div className="no-availability"><Search aria-hidden="true" /><h4>No comfortable tables found</h4><p>Try another day, time, party size, or a shorter turn.</p></div>
+                <div className="no-availability"><Search aria-hidden="true" /><h4>No comfortable tables found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
               )}
             </div>
           )}
@@ -249,9 +287,9 @@ export function BookingWizard({
 
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
-          {step === 1 && <button type="button" className="wizard-next" onClick={() => setStep(2)} disabled={!serviceDate || !desiredTime}>Party size <ArrowRight aria-hidden="true" /></button>}
+          {step === 1 && <button type="button" className="wizard-next" onClick={() => setStep(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={loading}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Find times</button>}
-          {step === 3 && !options.length && <button type="button" className="wizard-next" onClick={() => setStep(1)}>Change search <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && !options.length && !loading && <button type="button" className="wizard-next" onClick={() => setStep(1)}>Change search <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && <button type="submit" form="booking-guest-form" className="wizard-next" disabled={loading}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
       </section>

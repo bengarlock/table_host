@@ -6,6 +6,8 @@ import { useRef, useState } from "react";
 type ServiceDatePickerProps = {
   value: string;
   onChange: (value: string) => void;
+  fieldLabel?: string;
+  useRelativeLabel?: boolean;
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -45,7 +47,12 @@ function calendarDays(month: Date) {
   });
 }
 
-export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
+export function ServiceDatePicker({
+  value,
+  onChange,
+  fieldLabel = "Service date",
+  useRelativeLabel = true,
+}: ServiceDatePickerProps) {
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value));
   const shellRef = useRef<HTMLDivElement>(null);
@@ -61,7 +68,7 @@ export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
 
   return (
     <div
-      className="date-picker-shell"
+      className={`date-picker-shell${open ? " open" : ""}`}
       ref={shellRef}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
@@ -79,13 +86,14 @@ export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
         onClick={toggleCalendar}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={`${fieldLabel}: ${dateLabel(value)}`}
       >
         <CalendarDays aria-hidden="true" />
-        <span>{value === todayLocal() ? "Today" : dateLabel(value)}</span>
+        <span>{useRelativeLabel && value === todayLocal() ? "Today" : dateLabel(value)}</span>
       </button>
 
       {open && (
-        <div className="calendar-popover" role="dialog" aria-label="Choose a service date">
+        <div className="calendar-popover" role="dialog" aria-label={`Choose ${fieldLabel.toLowerCase()}`}>
           <div className="calendar-header">
             <button type="button" onClick={() => moveMonth(-1)} aria-label="Previous month">
               <ChevronLeft aria-hidden="true" />
