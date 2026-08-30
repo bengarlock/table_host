@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { PhoneInput } from "@/components/phone-input";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
@@ -640,7 +641,7 @@ export function BookingWizard({
                   <div className="wizard-fields two-column">
                     <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} /></label>
                     <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} /></label>
-                    <label>Phone number<input {...IGNORE_AUTOFILL} type="text" inputMode="tel" autoFocus={newGuestFocus === "phone"} value={newGuest.phone} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, phone: value })); }} /></label>
+                    <label>Phone number<PhoneInput autoFocus={newGuestFocus === "phone"} normalizeInitialValue value={newGuest.phone} onChange={(value) => setNewGuest((current) => ({ ...current, phone: value }))} /></label>
                     <label>Email<input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={newGuest.email} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, email: value })); }} /></label>
                     <label className="full-width">Company<input {...IGNORE_AUTOFILL} value={newGuest.company} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, company: value })); }} /></label>
                   </div>

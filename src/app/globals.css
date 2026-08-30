@@ -1253,6 +1253,31 @@ textarea {
   resize: vertical;
 }
 
+.phone-field-control {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(112px, 0.7fr) minmax(0, 1.3fr);
+  gap: 8px;
+}
+
+.phone-field-control select {
+  min-width: 0;
+  width: 100%;
+  padding: 0 9px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #111411;
+  color: var(--text);
+  font-size: 0.7rem;
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.phone-field-control select:focus {
+  border-color: var(--accent);
+}
+
 .guest-selection-step {
   gap: 18px;
 }
@@ -2536,6 +2561,20 @@ textarea {
 .guest-record-fields input:focus,
 .guest-record-fields textarea:focus,
 .guest-custom-tag input:focus {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px rgba(217, 170, 98, 0.07);
+}
+
+.guest-record-fields .phone-field-control {
+  grid-template-columns: minmax(126px, 0.85fr) minmax(0, 1.15fr);
+}
+
+.guest-record-fields .phone-field-control select {
+  height: 42px;
+  border-radius: 9px;
+}
+
+.guest-record-fields .phone-field-control select:focus {
   border-color: var(--accent-line);
   box-shadow: 0 0 0 3px rgba(217, 170, 98, 0.07);
 }

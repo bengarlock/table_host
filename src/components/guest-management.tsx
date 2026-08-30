@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { PhoneInput } from "@/components/phone-input";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 
@@ -269,7 +270,7 @@ export function GuestManagement() {
               <div className="guest-record-fields">
                 <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={creating} value={draft.firstName} onChange={(event) => updateDraft("firstName", event.currentTarget.value)} /></label>
                 <label>Last name<input {...IGNORE_AUTOFILL} value={draft.lastName} onChange={(event) => updateDraft("lastName", event.currentTarget.value)} /></label>
-                <label><span><Phone aria-hidden="true" /> Phone</span><input {...IGNORE_AUTOFILL} type="text" inputMode="tel" value={draft.phone} onChange={(event) => updateDraft("phone", event.currentTarget.value)} /></label>
+                <label><span><Phone aria-hidden="true" /> Phone</span><PhoneInput value={draft.phone} onChange={(value) => updateDraft("phone", value)} /></label>
                 <label><span><Mail aria-hidden="true" /> Email</span><input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={draft.email} onChange={(event) => updateDraft("email", event.currentTarget.value)} /></label>
                 <label className="guest-field-wide"><span><Building2 aria-hidden="true" /> Company</span><input {...IGNORE_AUTOFILL} value={draft.company} onChange={(event) => updateDraft("company", event.currentTarget.value)} /></label>
                 <label className="guest-field-wide">Guest notes<textarea {...IGNORE_AUTOFILL} rows={5} value={draft.notes} onChange={(event) => updateDraft("notes", event.currentTarget.value)} placeholder="Preferences and details to remember for future visits…" /></label>
