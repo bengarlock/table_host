@@ -1578,14 +1578,19 @@ textarea {
 .party-size-options button {
   display: grid;
   min-height: 52px;
+  padding: 0;
   cursor: pointer;
   place-items: center;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-soft);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: inherit;
   font-size: 1.15rem;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 720;
+  line-height: 1;
+  text-align: center;
 }
 
 .party-size-options button:hover,
