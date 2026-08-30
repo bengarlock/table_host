@@ -63,6 +63,14 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+function displayDateSummary(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${value}T12:00:00`));
+}
+
 function readError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Something went wrong.";
   const first = Object.values(payload as Record<string, unknown>)[0];
@@ -119,6 +127,13 @@ export function BookingWizard({
     if (stage === 2) return partySize > 0 && durationMinutes > 0;
     if (stage === 3) return Boolean(selectedOption);
     return Boolean(selectedOption && guestDetails.guestName.trim());
+  }
+
+  function stageValue(stage: number) {
+    if (stage === 1) return serviceDate ? displayDateSummary(serviceDate) : "";
+    if (stage === 2) return partySize > 0 ? `${partySize} ${partySize === 1 ? "guest" : "guests"}` : "";
+    if (stage === 3) return selectedOption ? displayTime(selectedOption.start_time) : "";
+    return guestDetails.guestName.trim();
   }
 
   function invalidateTimeSelection() {
@@ -243,6 +258,7 @@ export function BookingWizard({
             const filled = stageIsFilled(stage);
             const visited = stage <= furthestStep;
             const navigable = stage !== step && visited && filled;
+            const selectedValue = stageValue(stage);
             return (
               <li key={label} className={step === stage ? "active" : visited && filled ? "complete" : ""}>
                 <button
@@ -255,10 +271,13 @@ export function BookingWizard({
                   }}
                   disabled={!navigable}
                   aria-current={step === stage ? "step" : undefined}
-                  aria-label={`${label}${visited && filled ? ", completed" : ""}`}
+                  aria-label={`${label}${selectedValue ? `: ${selectedValue}` : ""}${visited && filled ? ", completed" : ""}`}
                 >
                   <span className="wizard-progress-number">{visited && filled && step !== stage ? <Check aria-hidden="true" /> : stage}</span>
-                  <span className="wizard-progress-label">{label}</span>
+                  <span className="wizard-progress-copy">
+                    <span className="wizard-progress-label">{label}</span>
+                    <span className="wizard-progress-value">{selectedValue}</span>
+                  </span>
                 </button>
               </li>
             );

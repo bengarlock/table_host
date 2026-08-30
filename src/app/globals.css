@@ -1104,7 +1104,7 @@ textarea {
 .wizard-progress li {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   color: var(--text-muted);
   font-size: 0.65rem;
@@ -1114,7 +1114,8 @@ textarea {
 .wizard-progress-button {
   display: flex;
   width: 100%;
-  align-items: center;
+  min-width: 0;
+  align-items: flex-start;
   gap: 8px;
   padding: 0;
   cursor: pointer;
@@ -1142,7 +1143,7 @@ textarea {
 
 .wizard-progress li:not(:last-child)::after {
   position: absolute;
-  top: 50%;
+  top: 12px;
   right: 12px;
   left: 40px;
   height: 1px;
@@ -1178,9 +1179,34 @@ textarea {
 .wizard-progress-label {
   position: relative;
   z-index: 1;
-  padding-right: 10px;
   background: #181b18;
   transition: color 140ms ease;
+}
+
+.wizard-progress-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding-right: 10px;
+  background: #181b18;
+}
+
+.wizard-progress-value {
+  min-height: 0.7rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  font-weight: 560;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wizard-progress li.active .wizard-progress-value,
+.wizard-progress li.complete .wizard-progress-value {
+  color: var(--text-soft);
 }
 
 .wizard-progress svg {
@@ -1963,7 +1989,15 @@ textarea {
 
   .wizard-progress li {
     gap: 5px;
+  }
+
+  .wizard-progress-label {
     font-size: 0;
+  }
+
+  .wizard-progress-value {
+    max-width: 60px;
+    font-size: 0.52rem;
   }
 
   .wizard-fields.two-column {
