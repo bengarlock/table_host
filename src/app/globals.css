@@ -1178,7 +1178,7 @@ textarea {
 .booking-wizard.date-step .wizard-step {
   height: 100%;
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .wizard-step {
