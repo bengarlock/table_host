@@ -49,6 +49,14 @@ type ShiftChoice = {
   end_time: string;
 };
 
+type GuestDetails = {
+  guestName: string;
+  phone: string;
+  email: string;
+  reservationNotes: string;
+  guestNotes: string;
+};
+
 const PRESET_TAGS = ["VIP", "Birthday", "Anniversary", "First visit", "Business", "Accessibility"];
 
 function displayTime(time: string) {
@@ -72,6 +80,7 @@ export function BookingWizard({
   onBooked,
 }: BookingWizardProps) {
   const [step, setStep] = useState(1);
+  const [furthestStep, setFurthestStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(initialDate);
   const [selectedShiftSlug, setSelectedShiftSlug] = useState(
     initialShiftSlug || shifts[0]?.slug || "",
@@ -82,6 +91,13 @@ export function BookingWizard({
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
+  const [guestDetails, setGuestDetails] = useState<GuestDetails>({
+    guestName: "",
+    phone: "",
+    email: "",
+    reservationNotes: "",
+    guestNotes: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -92,6 +108,23 @@ export function BookingWizard({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
+
+  function advanceTo(nextStep: number) {
+    setStep(nextStep);
+    setFurthestStep((current) => Math.max(current, nextStep));
+  }
+
+  function stageIsFilled(stage: number) {
+    if (stage === 1) return Boolean(serviceDate);
+    if (stage === 2) return partySize > 0 && durationMinutes > 0;
+    if (stage === 3) return Boolean(selectedOption);
+    return Boolean(selectedOption && guestDetails.guestName.trim());
+  }
+
+  function invalidateTimeSelection() {
+    setOptions([]);
+    setSelectedOption(null);
+  }
 
   async function findTimes(shiftSlug = selectedShiftSlug) {
     const shift = shifts.find((item) => item.slug === shiftSlug);
@@ -116,7 +149,7 @@ export function BookingWizard({
           (option) => option.shift_slug === shift.slug,
         ),
       );
-      setStep(3);
+      advanceTo(3);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to search available times.");
     } finally {
@@ -141,7 +174,6 @@ export function BookingWizard({
     if (!selectedOption) return;
     setLoading(true);
     setError("");
-    const values = new FormData(event.currentTarget);
     try {
       const response = await fetch(appPath("/api/grid"), {
         method: "POST",
@@ -150,11 +182,11 @@ export function BookingWizard({
           service_date: serviceDate,
           shift_slug: selectedOption.shift_slug,
           table_id: selectedOption.table_id,
-          guest_name: values.get("guest_name"),
-          guest_phone: values.get("guest_phone"),
-          guest_email: values.get("guest_email"),
-          guest_notes: values.get("guest_notes"),
-          notes: values.get("notes"),
+          guest_name: guestDetails.guestName,
+          guest_phone: guestDetails.phone,
+          guest_email: guestDetails.email,
+          guest_notes: guestDetails.guestNotes,
+          notes: guestDetails.reservationNotes,
           tags: selectedTags,
           party_size: partySize,
           start_time: selectedOption.start_time,
@@ -185,12 +217,31 @@ export function BookingWizard({
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
-          {["When", "Party", "Time", "Guest"].map((label, index) => (
-            <li key={label} className={step === index + 1 ? "active" : step > index + 1 ? "complete" : ""}>
-              <span className="wizard-progress-number">{step > index + 1 ? <Check aria-hidden="true" /> : index + 1}</span>
-              <span className="wizard-progress-label">{label}</span>
-            </li>
-          ))}
+          {["When", "Party", "Time", "Guest"].map((label, index) => {
+            const stage = index + 1;
+            const filled = stageIsFilled(stage);
+            const visited = stage <= furthestStep;
+            const navigable = stage !== step && visited && filled;
+            return (
+              <li key={label} className={step === stage ? "active" : visited && filled ? "complete" : ""}>
+                <button
+                  type="button"
+                  className="wizard-progress-button"
+                  onClick={() => {
+                    if (!navigable) return;
+                    setError("");
+                    setStep(stage);
+                  }}
+                  disabled={!navigable}
+                  aria-current={step === stage ? "step" : undefined}
+                  aria-label={`${label}${visited && filled ? ", completed" : ""}`}
+                >
+                  <span className="wizard-progress-number">{visited && filled && step !== stage ? <Check aria-hidden="true" /> : stage}</span>
+                  <span className="wizard-progress-label">{label}</span>
+                </button>
+              </li>
+            );
+          })}
         </ol>
 
         <div className="wizard-body">
@@ -202,8 +253,7 @@ export function BookingWizard({
                   value={serviceDate}
                   onChange={(value) => {
                     setServiceDate(value);
-                    setOptions([]);
-                    setSelectedOption(null);
+                    invalidateTimeSelection();
                   }}
                   fieldLabel="Reservation Date"
                   inline
@@ -216,11 +266,11 @@ export function BookingWizard({
             <div className="wizard-step">
               <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
               <div className="party-picker" aria-label="Party size">
-                <button type="button" onClick={() => setPartySize((value) => Math.max(1, value - 1))} disabled={partySize === 1} aria-label="Decrease party size"><Minus aria-hidden="true" /></button>
+                <button type="button" onClick={() => { setPartySize((value) => Math.max(1, value - 1)); invalidateTimeSelection(); }} disabled={partySize === 1} aria-label="Decrease party size"><Minus aria-hidden="true" /></button>
                 <div><strong>{partySize}</strong><span>{partySize === 1 ? "guest" : "guests"}</span></div>
-                <button type="button" onClick={() => setPartySize((value) => Math.min(40, value + 1))} disabled={partySize === 40} aria-label="Increase party size"><Plus aria-hidden="true" /></button>
+                <button type="button" onClick={() => { setPartySize((value) => Math.min(40, value + 1)); invalidateTimeSelection(); }} disabled={partySize === 40} aria-label="Increase party size"><Plus aria-hidden="true" /></button>
               </div>
-              <label className="turn-time-field">Expected turn<select value={durationMinutes} onChange={(event) => setDurationMinutes(Number(event.target.value))}>
+              <label className="turn-time-field">Expected turn<select value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
                 {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
               </select></label>
             </div>
@@ -247,7 +297,7 @@ export function BookingWizard({
               {options.length ? (
                 <div className="available-time-row" aria-label="Available times">
                   {options.map((option) => (
-                    <button type="button" key={`${option.shift_slug}-${option.start_time}-${option.table_id}`} onClick={() => { setSelectedOption(option); setStep(4); }}>
+                    <button type="button" key={`${option.shift_slug}-${option.start_time}-${option.table_id}`} onClick={() => { setSelectedOption(option); advanceTo(4); }}>
                       <strong>{displayTime(option.start_time)}</strong>
                       <span>Seats up to {option.table_capacity}</span>
                     </button>
@@ -265,11 +315,11 @@ export function BookingWizard({
             <form id="booking-guest-form" className="wizard-step" onSubmit={bookReservation}>
               <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Who are we welcoming?</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · Table {selectedOption.table_name}</p></div></div>
               <div className="wizard-fields two-column">
-                <label className="full-width">Guest name<input name="guest_name" required autoFocus placeholder="Full name" /></label>
-                <label>Phone<input name="guest_phone" type="tel" placeholder="Phone number" /></label>
-                <label>Email<input name="guest_email" type="email" placeholder="Email address" /></label>
-                <label className="full-width">Reservation notes<textarea name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" /></label>
-                <label className="full-width">Guest notes<textarea name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" /></label>
+                <label className="full-width">Guest name<input name="guest_name" required autoFocus placeholder="Full name" value={guestDetails.guestName} onChange={(event) => setGuestDetails((current) => ({ ...current, guestName: event.target.value }))} /></label>
+                <label>Phone<input name="guest_phone" type="tel" placeholder="Phone number" value={guestDetails.phone} onChange={(event) => setGuestDetails((current) => ({ ...current, phone: event.target.value }))} /></label>
+                <label>Email<input name="guest_email" type="email" placeholder="Email address" value={guestDetails.email} onChange={(event) => setGuestDetails((current) => ({ ...current, email: event.target.value }))} /></label>
+                <label className="full-width">Reservation notes<textarea name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
+                <label className="full-width">Guest notes<textarea name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
               </div>
               <fieldset className="tag-picker">
                 <legend><Tag aria-hidden="true" /> Guest tags</legend>
@@ -286,10 +336,10 @@ export function BookingWizard({
 
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
-          {step === 1 && <button type="button" className="wizard-next" onClick={() => setStep(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
+          {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={loading}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Find times</button>}
           {step === 3 && !options.length && !loading && <button type="button" className="wizard-next" onClick={() => setStep(1)}>Change search <ArrowRight aria-hidden="true" /></button>}
-          {step === 4 && <button type="submit" form="booking-guest-form" className="wizard-next" disabled={loading}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
+          {step === 4 && <button type="submit" form="booking-guest-form" className="wizard-next" disabled={loading || !guestDetails.guestName.trim()}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
       </section>
     </div>

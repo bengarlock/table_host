@@ -1111,12 +1111,42 @@ textarea {
   font-weight: 680;
 }
 
+.wizard-progress-button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.wizard-progress-button:disabled {
+  cursor: default;
+}
+
+.wizard-progress-button:not(:disabled):hover .wizard-progress-label,
+.wizard-progress-button:not(:disabled):focus-visible .wizard-progress-label {
+  color: #f1d4a8;
+}
+
+.wizard-progress-button:focus-visible {
+  border-radius: 6px;
+  outline: 1px solid var(--accent-line);
+  outline-offset: 4px;
+}
+
 .wizard-progress li:not(:last-child)::after {
   position: absolute;
   top: 50%;
   right: 12px;
   left: 40px;
   height: 1px;
+  pointer-events: none;
   background: var(--line-strong);
   content: "";
 }
@@ -1150,6 +1180,7 @@ textarea {
   z-index: 1;
   padding-right: 10px;
   background: #181b18;
+  transition: color 140ms ease;
 }
 
 .wizard-progress svg {
