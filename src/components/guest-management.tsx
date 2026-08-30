@@ -16,6 +16,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { PhoneInput } from "@/components/phone-input";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
+import { capitalizeNameInitial } from "@/lib/guest-names";
 
 type GuestRecord = {
   id: number;
@@ -179,8 +180,8 @@ export function GuestManagement() {
           method: creating ? "POST" : "PATCH",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            first_name: draft.firstName.trim(),
-            last_name: draft.lastName.trim(),
+            first_name: capitalizeNameInitial(draft.firstName.trim()),
+            last_name: capitalizeNameInitial(draft.lastName.trim()),
             phone_number: draft.phone.trim(),
             email: draft.email.trim(),
             company: draft.company.trim(),
@@ -268,8 +269,8 @@ export function GuestManagement() {
               </div>
 
               <div className="guest-record-fields">
-                <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={creating} value={draft.firstName} onChange={(event) => updateDraft("firstName", event.currentTarget.value)} /></label>
-                <label>Last name<input {...IGNORE_AUTOFILL} value={draft.lastName} onChange={(event) => updateDraft("lastName", event.currentTarget.value)} /></label>
+                <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={creating} value={draft.firstName} onChange={(event) => updateDraft("firstName", event.currentTarget.value)} onBlur={() => updateDraft("firstName", capitalizeNameInitial(draft.firstName))} /></label>
+                <label>Last name<input {...IGNORE_AUTOFILL} value={draft.lastName} onChange={(event) => updateDraft("lastName", event.currentTarget.value)} onBlur={() => updateDraft("lastName", capitalizeNameInitial(draft.lastName))} /></label>
                 <label><span><Phone aria-hidden="true" /> Phone</span><PhoneInput value={draft.phone} onChange={(value) => updateDraft("phone", value)} /></label>
                 <label><span><Mail aria-hidden="true" /> Email</span><input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={draft.email} onChange={(event) => updateDraft("email", event.currentTarget.value)} /></label>
                 <label className="guest-field-wide"><span><Building2 aria-hidden="true" /> Company</span><input {...IGNORE_AUTOFILL} value={draft.company} onChange={(event) => updateDraft("company", event.currentTarget.value)} /></label>
