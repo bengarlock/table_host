@@ -830,6 +830,74 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
+.assignment-pill {
+  display: inline-flex;
+  margin: -13px 0 20px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.assignment-pill.assignment-hard {
+  border-color: rgba(217, 170, 98, 0.42);
+  background: var(--accent-soft);
+  color: #e6c18a;
+}
+
+.move-history {
+  margin: 0 0 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.move-history h3 {
+  margin: 0 0 11px;
+  color: var(--text-soft);
+  font-size: 0.67rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.move-history p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.move-history ol {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.move-history li {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #131613;
+}
+
+.move-history li > span {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 680;
+}
+
+.move-history small,
+.move-history time {
+  color: var(--text-muted);
+  font-size: 0.58rem;
+}
+
 .reservation-details div {
   display: flex;
   justify-content: space-between;

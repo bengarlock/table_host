@@ -32,7 +32,19 @@ type Reservation = {
   start_time: string;
   duration_minutes: number;
   status: "confirmed" | "seated" | "complete" | "cancelled";
+  assignment_type: "soft" | "hard";
   notes: string;
+};
+
+type TableMove = {
+  id: number;
+  from_table_name: string;
+  to_table_name: string;
+  move_type: "manual" | "reflow";
+  reason: string;
+  triggered_by_id: number | null;
+  triggered_by_guest_name: string | null;
+  created_at: string;
 };
 
 type GridData = {
@@ -129,6 +141,8 @@ export function ReservationGrid() {
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
+  const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -256,7 +270,10 @@ export function ReservationGrid() {
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      if (selected?.id === reservation.id) setSelected(payload as Reservation);
+      if (selected?.id === reservation.id) {
+        setSelected(payload as Reservation);
+        await loadMoveHistory(reservation.id);
+      }
       await loadGrid();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to move the reservation.");
@@ -271,6 +288,30 @@ export function ReservationGrid() {
     setDraft(null);
     setSelected(null);
     setDraggedReservationId(reservation.id);
+  }
+
+  async function loadMoveHistory(reservationId: number) {
+    setHistoryLoading(true);
+    try {
+      const response = await fetch(`/api/grid/reservations/${reservationId}/moves`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as TableMove[] | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      setTableMoves(payload as TableMove[]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load table movement history.");
+      setTableMoves([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openReservation(reservation: Reservation) {
+    setDraft(null);
+    setSelected(reservation);
+    setTableMoves([]);
+    await loadMoveHistory(reservation.id);
   }
 
   async function cancelReservation() {
@@ -436,7 +477,7 @@ export function ReservationGrid() {
                               className={`reservation-block status-${reservation.status}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
                               key={reservation.id}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
-                              onClick={() => { setDraft(null); setSelected(reservation); }}
+                              onClick={() => void openReservation(reservation)}
                               draggable={!saving}
                               onDragStart={(event) => beginReservationDrag(event, reservation)}
                               onDragEnd={() => {
@@ -490,6 +531,9 @@ export function ReservationGrid() {
                 <p className="panel-eyebrow">Reservation</p>
                 <h2>{selected.guest_name}</h2>
                 <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · Table {selected.table_name}</div>
+                <span className={`assignment-pill assignment-${selected.assignment_type}`}>
+                  {selected.assignment_type === "hard" ? "Hard assigned" : "Soft assigned"}
+                </span>
                 <dl className="reservation-details">
                   <div><dt>Party</dt><dd>{selected.party_size} guests</dd></div>
                   <div><dt>Turn</dt><dd>{selected.duration_minutes} minutes</dd></div>
@@ -513,6 +557,36 @@ export function ReservationGrid() {
                     ))}
                   </select>
                 </label>
+                <section className="move-history" aria-label="Table movement history">
+                  <h3>Table moves</h3>
+                  {historyLoading ? (
+                    <p>Loading history…</p>
+                  ) : tableMoves.length ? (
+                    <ol>
+                      {tableMoves.map((move) => (
+                        <li key={move.id}>
+                          <span>Table {move.from_table_name} → {move.to_table_name}</span>
+                          <small>
+                            {move.move_type === "manual" ? "Manual · hard assigned" : "Automatic reflow"}
+                            {move.triggered_by_guest_name && move.move_type === "reflow"
+                              ? ` · triggered by ${move.triggered_by_guest_name}`
+                              : ""}
+                          </small>
+                          <time dateTime={move.created_at}>
+                            {new Intl.DateTimeFormat("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            }).format(new Date(move.created_at))}
+                          </time>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p>No table moves yet.</p>
+                  )}
+                </section>
                 <div className="status-actions">
                   {selected.status !== "seated" && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving}>Mark seated</button>}
                   {selected.status !== "complete" && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving}>Complete</button>}
