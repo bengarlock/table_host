@@ -7,8 +7,6 @@ import {
   Check,
   Clock3,
   LoaderCircle,
-  Minus,
-  Plus,
   Search,
   Tag,
   Users,
@@ -58,6 +56,7 @@ type GuestDetails = {
 };
 
 const PRESET_TAGS = ["VIP", "Birthday", "Anniversary", "First visit", "Business", "Accessibility"];
+const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -86,6 +85,7 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [partySize, setPartySize] = useState(2);
+  const [partySizeInput, setPartySizeInput] = useState("2");
   const [durationMinutes, setDurationMinutes] = useState(initialDuration);
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
@@ -124,6 +124,27 @@ export function BookingWizard({
   function invalidateTimeSelection() {
     setOptions([]);
     setSelectedOption(null);
+  }
+
+  function updatePartySize(nextSize: number) {
+    const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
+    setPartySizeInput(String(normalizedSize));
+    if (normalizedSize === partySize) return;
+    setPartySize(normalizedSize);
+    invalidateTimeSelection();
+  }
+
+  function updateManualPartySize(value: string) {
+    setPartySizeInput(value);
+    const nextSize = Number(value);
+    if (!Number.isInteger(nextSize) || nextSize < 1 || nextSize > 40) {
+      if (partySize !== 0) invalidateTimeSelection();
+      setPartySize(0);
+      return;
+    }
+    if (nextSize === partySize) return;
+    setPartySize(nextSize);
+    invalidateTimeSelection();
   }
 
   async function findTimes(shiftSlug = selectedShiftSlug) {
@@ -265,11 +286,35 @@ export function BookingWizard({
           {step === 2 && (
             <div className="wizard-step">
               <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
-              <div className="party-picker" aria-label="Party size">
-                <button type="button" onClick={() => { setPartySize((value) => Math.max(1, value - 1)); invalidateTimeSelection(); }} disabled={partySize === 1} aria-label="Decrease party size"><Minus aria-hidden="true" /></button>
-                <div><strong>{partySize}</strong><span>{partySize === 1 ? "guest" : "guests"}</span></div>
-                <button type="button" onClick={() => { setPartySize((value) => Math.min(40, value + 1)); invalidateTimeSelection(); }} disabled={partySize === 40} aria-label="Increase party size"><Plus aria-hidden="true" /></button>
-              </div>
+              <fieldset className="party-size-picker">
+                <legend>Quick select</legend>
+                <div className="party-size-options">
+                  {PARTY_SIZE_PRESETS.map((size) => (
+                    <button
+                      type="button"
+                      key={size}
+                      className={partySize === size ? "selected" : ""}
+                      aria-pressed={partySize === size}
+                      onClick={() => updatePartySize(size)}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="party-size-manual">
+                Enter party size
+                <input
+                  type="number"
+                  min={1}
+                  max={40}
+                  inputMode="numeric"
+                  value={partySizeInput}
+                  aria-invalid={!stageIsFilled(2)}
+                  onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                />
+                <span>1–40 guests</span>
+              </label>
               <label className="turn-time-field">Expected turn<select value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
                 {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
               </select></label>
@@ -337,7 +382,7 @@ export function BookingWizard({
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={loading}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Find times</button>}
+          {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={loading || !stageIsFilled(2)}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Find times</button>}
           {step === 3 && !options.length && !loading && <button type="button" className="wizard-next" onClick={() => setStep(1)}>Change search <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && <button type="submit" form="booking-guest-form" className="wizard-next" disabled={loading || !guestDetails.guestName.trim()}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>

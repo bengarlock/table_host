@@ -1275,59 +1275,87 @@ textarea {
   resize: vertical;
 }
 
-.party-picker {
+.party-size-picker {
   display: grid;
-  grid-template-columns: 48px 150px 48px;
-  align-items: stretch;
-  justify-content: center;
-  gap: 10px;
+  gap: 9px;
+  width: min(100%, 520px);
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
 }
 
-.party-picker button {
+.party-size-picker legend,
+.party-size-manual,
+.turn-time-field {
+  color: var(--text-soft);
+  font-size: 0.67rem;
+  font-weight: 650;
+}
+
+.party-size-picker legend {
+  margin-bottom: 9px;
+}
+
+.party-size-options {
   display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.party-size-options button {
+  display: grid;
+  min-height: 52px;
   cursor: pointer;
   place-items: center;
   border: 1px solid var(--line-strong);
   border-radius: 10px;
   background: var(--surface-raised);
   color: var(--text-soft);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.15rem;
 }
 
-.party-picker button:hover:not(:disabled),
-.party-picker button:focus-visible {
+.party-size-options button:hover,
+.party-size-options button:focus-visible,
+.party-size-options button.selected {
   border-color: var(--accent-line);
   color: var(--accent);
   outline: none;
 }
 
-.party-picker button:disabled {
-  cursor: default;
-  opacity: 0.35;
-}
-
-.party-picker svg {
-  width: 17px;
-}
-
-.party-picker div {
-  display: grid;
-  min-height: 82px;
-  place-content: center;
-  border: 1px solid var(--accent-line);
-  border-radius: 12px;
+.party-size-options button.selected {
   background: var(--accent-soft);
-  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(201, 145, 62, 0.12);
 }
 
-.party-picker strong {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 2rem;
-  font-weight: 400;
+.party-size-manual {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  align-items: center;
+  gap: 7px 12px;
+  width: min(100%, 260px);
+  margin: 0 auto;
 }
 
-.party-picker span {
+.party-size-manual input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: #111411;
+  color: var(--text);
+  font-size: 0.76rem;
+  outline: none;
+}
+
+.party-size-manual input:focus {
+  border-color: var(--accent);
+}
+
+.party-size-manual span {
+  grid-column: 2;
   color: var(--text-muted);
-  font-size: 0.63rem;
+  font-size: 0.6rem;
 }
 
 .turn-time-field {
