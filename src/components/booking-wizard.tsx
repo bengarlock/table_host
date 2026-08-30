@@ -420,7 +420,7 @@ export function BookingWizard({
     <div className="wizard-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section className="booking-wizard" role="dialog" aria-modal="true" aria-labelledby="booking-wizard-title">
+      <section className={`booking-wizard${step === 1 ? " date-step" : ""}`} role="dialog" aria-modal="true" aria-labelledby="booking-wizard-title">
         <header className="wizard-header">
           <div>
             <p>New reservation</p>
