@@ -1120,7 +1120,7 @@ textarea {
   content: "";
 }
 
-.wizard-progress li > span {
+.wizard-progress-number {
   position: relative;
   z-index: 1;
   display: grid;
@@ -1138,10 +1138,17 @@ textarea {
   color: #e8c58f;
 }
 
-.wizard-progress li.active > span,
-.wizard-progress li.complete > span {
+.wizard-progress li.active .wizard-progress-number,
+.wizard-progress li.complete .wizard-progress-number {
   border-color: var(--accent-line);
   background: var(--accent-soft);
+}
+
+.wizard-progress-label {
+  position: relative;
+  z-index: 1;
+  padding-right: 10px;
+  background: #181b18;
 }
 
 .wizard-progress svg {
@@ -1310,10 +1317,6 @@ textarea {
   border: 0;
 }
 
-.wizard-date-field .date-picker-shell.open {
-  margin-bottom: 330px;
-}
-
 .wizard-date-field .date-picker-trigger {
   display: flex;
   width: 100%;
@@ -1339,6 +1342,21 @@ textarea {
 .wizard-date-field .calendar-popover {
   left: 0;
   transform: none;
+}
+
+.wizard-date-field .date-picker-inline {
+  display: block;
+}
+
+.wizard-date-field .calendar-inline {
+  position: static;
+  width: min(100%, 420px);
+  padding: 18px;
+  transform: none;
+}
+
+.wizard-date-field .calendar-inline .calendar-days button {
+  width: 100%;
 }
 
 .wizard-shift-picker {

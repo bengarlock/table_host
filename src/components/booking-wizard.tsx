@@ -187,8 +187,8 @@ export function BookingWizard({
         <ol className="wizard-progress" aria-label="Booking progress">
           {["When", "Party", "Time", "Guest"].map((label, index) => (
             <li key={label} className={step === index + 1 ? "active" : step > index + 1 ? "complete" : ""}>
-              <span>{step > index + 1 ? <Check aria-hidden="true" /> : index + 1}</span>
-              {label}
+              <span className="wizard-progress-number">{step > index + 1 ? <Check aria-hidden="true" /> : index + 1}</span>
+              <span className="wizard-progress-label">{label}</span>
             </li>
           ))}
         </ol>
@@ -207,6 +207,7 @@ export function BookingWizard({
                     setSelectedOption(null);
                   }}
                   fieldLabel="Reservation Date"
+                  inline
                   useRelativeLabel={false}
                 />
               </div>
