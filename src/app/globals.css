@@ -130,6 +130,11 @@ textarea {
   transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
 }
 
+.nav-action {
+  cursor: pointer;
+  background: transparent;
+}
+
 .nav-link::before {
   position: absolute;
   top: 50%;
@@ -389,59 +394,6 @@ textarea {
   min-width: 0;
   align-items: center;
   gap: 10px;
-}
-
-.booking-launcher {
-  position: relative;
-  display: grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  cursor: pointer;
-  place-items: center;
-  border: 1px solid var(--accent-line);
-  border-radius: 10px;
-  background: var(--accent-soft);
-  color: #e8c58f;
-}
-
-.booking-launcher:hover,
-.booking-launcher:focus-visible {
-  border-color: rgba(217, 170, 98, 0.62);
-  background: rgba(217, 170, 98, 0.18);
-  color: #f5d9ad;
-  outline: none;
-}
-
-.booking-launcher::after {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 30;
-  padding: 6px 8px;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
-  background: var(--surface-raised);
-  color: var(--text);
-  content: attr(data-tooltip);
-  font-size: 0.65rem;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-3px);
-  transition: opacity 120ms ease, transform 120ms ease;
-  white-space: nowrap;
-}
-
-.booking-launcher:hover::after,
-.booking-launcher:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.booking-launcher svg {
-  width: 19px;
-  height: 19px;
-  stroke-width: 1.8;
 }
 
 .shift-tabs {

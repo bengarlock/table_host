@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CalendarPlus2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -133,7 +132,12 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
-export function ReservationGrid() {
+type ReservationGridProps = {
+  bookingOpen: boolean;
+  onBookingOpenChange: (open: boolean) => void;
+};
+
+export function ReservationGrid({ bookingOpen, onBookingOpenChange }: ReservationGridProps) {
   const [serviceDate, setServiceDate] = useState(todayLocal);
   const [shiftSlug, setShiftSlug] = useState("dinner");
   const [data, setData] = useState<GridData | null>(null);
@@ -148,7 +152,6 @@ export function ReservationGrid() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [moveHistoryOpen, setMoveHistoryOpen] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
-  const [wizardOpen, setWizardOpen] = useState(false);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -209,7 +212,7 @@ export function ReservationGrid() {
   }
 
   function finishWizardBooking(bookedDate: string, bookedShift: string) {
-    setWizardOpen(false);
+    onBookingOpenChange(false);
     setDraft(null);
     setSelected(null);
     if (bookedDate === serviceDate && bookedShift === shiftSlug) {
@@ -377,15 +380,6 @@ export function ReservationGrid() {
     <div className="reservation-page">
       <section className="grid-toolbar" aria-label="Reservation grid controls">
         <div className="toolbar-leading">
-          <button
-            type="button"
-            className="booking-launcher"
-            onClick={() => { setDraft(null); setSelected(null); setWizardOpen(true); }}
-            aria-label="Book a reservation"
-            data-tooltip="Book a reservation"
-          >
-            <CalendarPlus2 aria-hidden="true" />
-          </button>
           <div className="shift-tabs" aria-label="Shift">
             {data?.shifts.map((shift) => (
               <button
@@ -698,13 +692,13 @@ export function ReservationGrid() {
           </aside>
         )}
       </div>
-      {wizardOpen && (
+      {bookingOpen && (
         <BookingWizard
           initialDate={serviceDate}
           initialShiftSlug={data?.selected_shift.slug || shiftSlug}
           initialDuration={data?.selected_shift.default_turn_minutes || 90}
           shifts={data?.shifts || []}
-          onClose={() => setWizardOpen(false)}
+          onClose={() => onBookingOpenChange(false)}
           onBooked={finishWizardBooking}
         />
       )}

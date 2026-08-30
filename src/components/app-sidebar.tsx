@@ -1,9 +1,15 @@
-import { BookOpenText } from "lucide-react";
+"use client";
+
+import { BookOpenText, CalendarPlus2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import hostStandIcon from "@/app/icon.png";
 
-export function AppSidebar() {
+type AppSidebarProps = {
+  onBookReservation: () => void;
+};
+
+export function AppSidebar({ onBookReservation }: AppSidebarProps) {
   return (
     <aside className="sidebar" aria-label="Primary navigation">
       <Link className="brand" href="/reservations" aria-label="Table Host home">
@@ -19,6 +25,17 @@ export function AppSidebar() {
 
       <nav className="sidebar-nav">
         <ul className="nav-list">
+          <li>
+            <button
+              type="button"
+              className="nav-link nav-action"
+              onClick={onBookReservation}
+              aria-label="Book a reservation"
+              data-tooltip="Book a reservation"
+            >
+              <CalendarPlus2 className="nav-icon" aria-hidden="true" />
+            </button>
+          </li>
           <li>
             <Link
               className="nav-link"

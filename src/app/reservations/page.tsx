@@ -1,13 +1,5 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { ReservationGrid } from "@/components/reservation-grid";
+import { ReservationsWorkspace } from "@/components/reservations-workspace";
 
 export default function ReservationsPage() {
-  return (
-    <div className="app-shell">
-      <AppSidebar />
-      <main className="main-content">
-        <ReservationGrid />
-      </main>
-    </div>
-  );
+  return <ReservationsWorkspace />;
 }
