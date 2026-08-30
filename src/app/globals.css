@@ -1461,12 +1461,49 @@ textarea {
   border-top: 1px solid var(--line);
 }
 
-.move-history h3 {
-  margin: 0 0 11px;
+.move-history-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 0;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
   color: var(--text-soft);
   font-size: 0.67rem;
+  font-weight: 700;
   letter-spacing: 0.06em;
+  text-align: left;
   text-transform: uppercase;
+}
+
+.move-history-toggle:hover,
+.move-history-toggle:focus-visible {
+  color: var(--text);
+  outline: none;
+}
+
+.move-history-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 0.6rem;
+}
+
+.move-history-summary svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 160ms ease;
+}
+
+.move-history-toggle[aria-expanded="true"] .move-history-summary svg {
+  transform: rotate(180deg);
+}
+
+.move-history-content {
+  margin-top: 12px;
 }
 
 .move-history p {

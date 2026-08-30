@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   CalendarPlus2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -151,6 +152,7 @@ export function ReservationGrid() {
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [moveHistoryOpen, setMoveHistoryOpen] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
 
@@ -355,6 +357,7 @@ export function ReservationGrid() {
   async function openReservation(reservation: Reservation) {
     setDraft(null);
     setUnlocking(false);
+    setMoveHistoryOpen(false);
     setSelected(reservation);
     setTableMoves([]);
     await loadMoveHistory(reservation.id);
@@ -649,33 +652,49 @@ export function ReservationGrid() {
                   </select>
                 </label>
                 <section className="move-history" aria-label="Table movement history">
-                  <h3>Table moves</h3>
-                  {historyLoading ? (
-                    <p>Loading history…</p>
-                  ) : tableMoves.length ? (
-                    <ol>
-                      {tableMoves.map((move) => (
-                        <li key={move.id}>
-                          <span>Table {move.from_table_name} → {move.to_table_name}</span>
-                          <small>
-                            {move.move_type === "manual" ? "Manual · hard assigned" : "Automatic reflow"}
-                            {move.triggered_by_guest_name && move.move_type === "reflow"
-                              ? ` · triggered by ${move.triggered_by_guest_name}`
-                              : ""}
-                          </small>
-                          <time dateTime={move.created_at}>
-                            {new Intl.DateTimeFormat("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              hour: "numeric",
-                              minute: "2-digit",
-                            }).format(new Date(move.created_at))}
-                          </time>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p>No table moves yet.</p>
+                  <button
+                    type="button"
+                    className="move-history-toggle"
+                    onClick={() => setMoveHistoryOpen((open) => !open)}
+                    aria-expanded={moveHistoryOpen}
+                    aria-controls="table-move-history-content"
+                  >
+                    <span>Table moves</span>
+                    <span className="move-history-summary">
+                      {!historyLoading && tableMoves.length > 0 && tableMoves.length}
+                      <ChevronDown aria-hidden="true" />
+                    </span>
+                  </button>
+                  {moveHistoryOpen && (
+                    <div id="table-move-history-content" className="move-history-content">
+                      {historyLoading ? (
+                        <p>Loading history…</p>
+                      ) : tableMoves.length ? (
+                        <ol>
+                          {tableMoves.map((move) => (
+                            <li key={move.id}>
+                              <span>Table {move.from_table_name} → Table {move.to_table_name}</span>
+                              <small>
+                                {move.move_type === "manual" ? "Manual · hard assigned" : "Automatic reflow"}
+                                {move.triggered_by_guest_name && move.move_type === "reflow"
+                                  ? ` · triggered by ${move.triggered_by_guest_name}`
+                                  : ""}
+                              </small>
+                              <time dateTime={move.created_at}>
+                                {new Intl.DateTimeFormat("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                }).format(new Date(move.created_at))}
+                              </time>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p>No table moves yet.</p>
+                      )}
+                    </div>
                   )}
                 </section>
                 <div className="status-actions">
