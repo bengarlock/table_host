@@ -147,7 +147,7 @@ export function BookingWizard({
     invalidateTimeSelection();
   }
 
-  async function findTimes(shiftSlug = selectedShiftSlug) {
+  async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
     const shift = shifts.find((item) => item.slug === shiftSlug);
     if (!shift) return;
     setLoading(true);
@@ -158,7 +158,7 @@ export function BookingWizard({
     const query = new URLSearchParams({
       service_date: serviceDate,
       desired_time: shift.start_time,
-      party_size: String(partySize),
+      party_size: String(requestedPartySize),
       duration_minutes: String(durationMinutes),
     });
     try {
@@ -301,6 +301,10 @@ export function BookingWizard({
                       className={partySize === size ? "selected" : ""}
                       aria-pressed={partySize === size}
                       onClick={() => updatePartySize(size)}
+                      onDoubleClick={() => {
+                        updatePartySize(size);
+                        void findTimes(selectedShiftSlug, size);
+                      }}
                     >
                       {size}
                     </button>
