@@ -1877,6 +1877,54 @@ textarea {
   border: 0;
 }
 
+.booking-detail-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.booking-detail-section {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.reservation-detail-section {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.booking-detail-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.booking-detail-section-heading > svg {
+  width: 16px;
+  color: var(--accent);
+}
+
+.booking-detail-section-heading h4,
+.booking-detail-section-heading p {
+  margin: 0;
+}
+
+.booking-detail-section-heading h4 {
+  color: var(--text);
+  font-size: 0.76rem;
+}
+
+.booking-detail-section-heading p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.61rem;
+}
+
 .tag-picker legend {
   display: flex;
   align-items: center;
@@ -1940,6 +1988,12 @@ textarea {
 .custom-tag button:disabled {
   cursor: default;
   opacity: 0.4;
+}
+
+@media (max-width: 720px) {
+  .booking-detail-sections {
+    grid-template-columns: 1fr;
+  }
 }
 
 .wizard-error {

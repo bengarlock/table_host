@@ -44,7 +44,7 @@ type GuestDraft = {
   tags: string[];
 };
 
-const PRESET_TAGS = ["VIP", "Birthday", "Anniversary", "First visit", "Business", "Accessibility"];
+const PRESET_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 
 const EMPTY_GUEST: GuestDraft = {
   firstName: "",
