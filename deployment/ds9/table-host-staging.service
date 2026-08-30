@@ -1,0 +1,17 @@
+[Unit]
+Description=Table Host staging frontend
+After=network.target portfolio-database-daphne.service
+Wants=portfolio-database-daphne.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/Projects/table_host
+Environment=NODE_ENV=production
+ExecStart=/home/deploy/.local/bin/table-host-staging-run ./node_modules/.bin/next start -p 6435
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

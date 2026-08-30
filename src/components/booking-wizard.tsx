@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
+import { appPath } from "@/lib/app-paths";
 
 type AvailabilityOption = {
   service_date: string;
@@ -98,7 +99,7 @@ export function BookingWizard({
       duration_minutes: String(durationMinutes),
     });
     try {
-      const response = await fetch(`/api/grid/availability?${query}`, { cache: "no-store" });
+      const response = await fetch(`${appPath("/api/grid/availability")}?${query}`, { cache: "no-store" });
       const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       setOptions((payload as AvailabilityResponse).options);
@@ -129,7 +130,7 @@ export function BookingWizard({
     setError("");
     const values = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/grid", {
+      const response = await fetch(appPath("/api/grid"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

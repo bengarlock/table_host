@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /home/deploy/.local/bin/ds9-staging-op-exec \
+  /usr/bin/env \
+  PATH=/home/deploy/.local/node-v22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  NEXT_PUBLIC_BACKEND_URL=http://ds9 \
+  NEXT_PUBLIC_API_BASE_URL=http://ds9 \
+  "$@"

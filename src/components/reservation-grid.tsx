@@ -16,6 +16,7 @@ import {
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BookingWizard } from "@/components/booking-wizard";
 import { ServiceDatePicker } from "@/components/service-date-picker";
+import { appPath } from "@/lib/app-paths";
 
 type Shift = {
   id: number;
@@ -154,7 +155,7 @@ export function ReservationGrid() {
     const query = new URLSearchParams({ date: serviceDate });
     if (shiftSlug) query.set("shift", shiftSlug);
     try {
-      const response = await fetch(`/api/grid?${query}`, { cache: "no-store" });
+      const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
       const payload = (await response.json()) as GridData | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       const next = payload as GridData;
@@ -235,7 +236,7 @@ export function ReservationGrid() {
       notes: values.get("notes"),
     };
     try {
-      const response = await fetch("/api/grid", {
+      const response = await fetch(appPath("/api/grid"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -256,7 +257,7 @@ export function ReservationGrid() {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/grid/reservations/${selected.id}`, {
+      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ status }),
@@ -279,7 +280,7 @@ export function ReservationGrid() {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/grid/reservations/${reservation.id}`, {
+      const response = await fetch(appPath(`/api/grid/reservations/${reservation.id}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ table_id: table.id }),
@@ -304,7 +305,7 @@ export function ReservationGrid() {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/grid/reservations/${selected.id}`, {
+      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ assignment_type: "soft" }),
@@ -332,7 +333,7 @@ export function ReservationGrid() {
   async function loadMoveHistory(reservationId: number) {
     setHistoryLoading(true);
     try {
-      const response = await fetch(`/api/grid/reservations/${reservationId}/moves`, {
+      const response = await fetch(appPath(`/api/grid/reservations/${reservationId}/moves`), {
         cache: "no-store",
       });
       const payload = (await response.json()) as TableMove[] | Record<string, unknown>;
@@ -360,7 +361,7 @@ export function ReservationGrid() {
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`/api/grid/reservations/${selected.id}`, { method: "DELETE" });
+      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), { method: "DELETE" });
       if (!response.ok) throw new Error("Unable to cancel the reservation.");
       setSelected(null);
       await loadGrid();
