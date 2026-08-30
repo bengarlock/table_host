@@ -9,6 +9,7 @@ type ServiceDatePickerProps = {
   fieldLabel?: string;
   inline?: boolean;
   useRelativeLabel?: boolean;
+  minDate?: string;
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -54,10 +55,12 @@ export function ServiceDatePicker({
   fieldLabel = "Service date",
   inline = false,
   useRelativeLabel = true,
+  minDate,
 }: ServiceDatePickerProps) {
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value));
   const shellRef = useRef<HTMLDivElement>(null);
+  const today = todayLocal();
 
   function toggleCalendar() {
     if (!open) setVisibleMonth(parseDate(value));
@@ -90,12 +93,16 @@ export function ServiceDatePicker({
         {calendarDays(visibleMonth).map((date) => {
           const dateString = dateValue(date);
           const outsideMonth = date.getMonth() !== visibleMonth.getMonth();
+          const pastDate = dateString < today;
+          const unavailable = Boolean(minDate && dateString < minDate);
           return (
             <button
               type="button"
               key={dateString}
-              className={`${outsideMonth ? "outside-month " : ""}${dateString === value ? "selected " : ""}${dateString === todayLocal() ? "today" : ""}`.trim()}
+              className={`${outsideMonth ? "outside-month " : ""}${pastDate ? "past-date " : ""}${dateString === value ? "selected " : ""}${dateString === today ? "today" : ""}`.trim()}
+              disabled={unavailable}
               onClick={() => {
+                if (unavailable) return;
                 onChange(dateString);
                 if (inline) {
                   setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1, 12));
@@ -103,8 +110,9 @@ export function ServiceDatePicker({
                   setOpen(false);
                 }
               }}
-              aria-label={dateLabel(dateString)}
-              aria-current={dateString === todayLocal() ? "date" : undefined}
+              aria-label={`${dateLabel(dateString)}${unavailable ? ", unavailable for booking" : pastDate ? ", past date, view only" : ""}`}
+              aria-current={dateString === today ? "date" : undefined}
+              title={unavailable ? "Past dates cannot be booked" : pastDate ? "Past date · view only" : undefined}
             >
               {date.getDate()}
             </button>
@@ -138,10 +146,11 @@ export function ServiceDatePicker({
         onClick={toggleCalendar}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`${fieldLabel}: ${dateLabel(value)}`}
+        aria-label={`${fieldLabel}: ${dateLabel(value)}${value < today ? ", past date, view only" : ""}`}
       >
         <CalendarDays aria-hidden="true" />
-        <span>{useRelativeLabel && value === todayLocal() ? "Today" : dateLabel(value)}</span>
+        <span>{useRelativeLabel && value === today ? "Today" : dateLabel(value)}</span>
+        {value < today && <small>View only</small>}
       </button>
 
       {open && calendar}
