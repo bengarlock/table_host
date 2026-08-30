@@ -6,7 +6,6 @@ import { useRef, useState } from "react";
 type ServiceDatePickerProps = {
   value: string;
   onChange: (value: string) => void;
-  onDateDoubleClick?: (value: string) => void;
   fieldLabel?: string;
   inline?: boolean;
   useRelativeLabel?: boolean;
@@ -52,7 +51,6 @@ function calendarDays(month: Date) {
 export function ServiceDatePicker({
   value,
   onChange,
-  onDateDoubleClick,
   fieldLabel = "Service date",
   inline = false,
   useRelativeLabel = true,
@@ -105,7 +103,6 @@ export function ServiceDatePicker({
                   setOpen(false);
                 }
               }}
-              onDoubleClick={() => onDateDoubleClick?.(dateString)}
               aria-label={dateLabel(dateString)}
               aria-current={dateString === todayLocal() ? "date" : undefined}
             >

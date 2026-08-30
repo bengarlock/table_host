@@ -443,10 +443,6 @@ export function BookingWizard({
                   onChange={(value) => {
                     setServiceDate(value);
                     invalidateTimeSelection();
-                  }}
-                  onDateDoubleClick={(value) => {
-                    setServiceDate(value);
-                    invalidateTimeSelection();
                     advanceTo(2);
                   }}
                   fieldLabel="Reservation Date"
@@ -468,8 +464,7 @@ export function BookingWizard({
                       key={size}
                       className={partySize === size ? "selected" : ""}
                       aria-pressed={partySize === size}
-                      onClick={() => updatePartySize(size)}
-                      onDoubleClick={() => {
+                      onClick={() => {
                         updatePartySize(size);
                         void findTimes(selectedShiftSlug, size);
                       }}
