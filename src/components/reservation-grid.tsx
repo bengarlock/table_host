@@ -28,7 +28,15 @@ type Shift = {
   default_turn_minutes: number;
 };
 
-type DiningTable = { id: number; name: string; capacity: number; sort_order: number };
+type DiningTable = {
+  id: number;
+  name: string;
+  capacity: number;
+  sort_order: number;
+  shape: "rectangle" | "round";
+  position_x: number;
+  position_y: number;
+};
 
 type Reservation = {
   id: number;
@@ -38,7 +46,15 @@ type Reservation = {
   party_size: number;
   start_time: string;
   duration_minutes: number;
-  status: "confirmed" | "seated" | "complete" | "cancelled";
+  status:
+    | "confirmed"
+    | "seated"
+    | "entree"
+    | "dessert"
+    | "check_dropped"
+    | "paid"
+    | "complete"
+    | "cancelled";
   assignment_type: "soft" | "hard";
   guest_phone: string;
   guest_email: string;
