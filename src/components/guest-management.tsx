@@ -210,11 +210,7 @@ export function GuestManagement() {
   return (
     <section className="guest-management-page" aria-labelledby="guest-management-title">
       <header className="guest-management-header">
-        <div>
-          <span className="guest-management-kicker">Guest database</span>
-          <h1 id="guest-management-title">Guests</h1>
-          <p>Find guest preferences and keep contact details current.</p>
-        </div>
+        <h1 className="guest-management-kicker" id="guest-management-title">Guest database</h1>
         <button type="button" className="guest-add-button" onClick={startGuest}>
           <Plus aria-hidden="true" /> New guest
         </button>

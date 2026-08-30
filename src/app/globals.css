@@ -2237,15 +2237,18 @@ textarea {
 }
 
 .guest-main-content {
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .guest-management-page {
   display: flex;
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
   gap: 22px;
+  overflow: hidden;
   padding: 28px;
   background:
     radial-gradient(circle at 15% 10%, rgba(180, 126, 57, 0.08), transparent 28%),
@@ -2260,27 +2263,8 @@ textarea {
   gap: 24px;
 }
 
-.guest-management-header h1,
-.guest-management-header p {
-  margin: 0;
-}
-
-.guest-management-header h1 {
-  margin-top: 4px;
-  color: var(--text);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(2rem, 4vw, 3.2rem);
-  font-weight: 560;
-  letter-spacing: -0.035em;
-}
-
-.guest-management-header p {
-  margin-top: 5px;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
 .guest-management-kicker {
+  margin: 0;
   color: var(--accent);
   font-size: 0.62rem;
   font-weight: 760;
@@ -2848,13 +2832,13 @@ textarea {
   }
 
   .guest-management-page {
-    min-height: 100vh;
     padding: 20px;
   }
 
   .guest-management-layout {
     grid-template-columns: 1fr;
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .guest-directory {
