@@ -21,6 +21,7 @@ import { PhoneInput } from "@/components/phone-input";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
+import { capitalizeNameInitial } from "@/lib/guest-names";
 
 type AvailabilityOption = {
   service_date: string;
@@ -346,8 +347,8 @@ export function BookingWizard({
     const [firstName = "", ...lastNameParts] = query.split(/\s+/);
     const lastName = lastNameParts.join(" ");
     setNewGuest({
-      firstName,
-      lastName,
+      firstName: capitalizeNameInitial(firstName),
+      lastName: capitalizeNameInitial(lastName),
       phone: "",
       email: "",
       company: "",
@@ -366,8 +367,8 @@ export function BookingWizard({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          first_name: newGuest.firstName,
-          last_name: newGuest.lastName,
+          first_name: capitalizeNameInitial(newGuest.firstName.trim()),
+          last_name: capitalizeNameInitial(newGuest.lastName.trim()),
           phone_number: newGuest.phone,
           email: newGuest.email,
           company: newGuest.company,
@@ -639,8 +640,8 @@ export function BookingWizard({
                 <form {...IGNORE_AUTOFILL} className="new-guest-form" onSubmit={createGuest}>
                   <div className="new-guest-heading"><div><h4>Create guest record</h4><p>Add their core contact information. Notes and tags come next.</p></div><button type="button" onClick={() => setCreatingGuest(false)}>Cancel</button></div>
                   <div className="wizard-fields two-column">
-                    <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} /></label>
-                    <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} /></label>
+                    <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, firstName: capitalizeNameInitial(current.firstName) }))} /></label>
+                    <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, lastName: capitalizeNameInitial(current.lastName) }))} /></label>
                     <label>Phone number<PhoneInput autoFocus={newGuestFocus === "phone"} normalizeInitialValue value={newGuest.phone} onChange={(value) => setNewGuest((current) => ({ ...current, phone: value }))} /></label>
                     <label>Email<input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={newGuest.email} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, email: value })); }} /></label>
                     <label className="full-width">Company<input {...IGNORE_AUTOFILL} value={newGuest.company} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, company: value })); }} /></label>
