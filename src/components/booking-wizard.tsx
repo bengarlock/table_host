@@ -122,6 +122,11 @@ function displayDateSummary(value: string) {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+function todayLocal() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function readError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Something went wrong.";
   const first = Object.values(payload as Record<string, unknown>)[0];
@@ -142,9 +147,12 @@ export function BookingWizard({
   onClose,
   onBooked,
 }: BookingWizardProps) {
+  const minimumBookingDate = todayLocal();
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
-  const [serviceDate, setServiceDate] = useState(initialDate);
+  const [serviceDate, setServiceDate] = useState(
+    initialDate < minimumBookingDate ? minimumBookingDate : initialDate,
+  );
   const [selectedShiftSlug, setSelectedShiftSlug] = useState(
     initialShiftSlug || shifts[0]?.slug || "",
   );
@@ -489,6 +497,7 @@ export function BookingWizard({
                   }}
                   fieldLabel="Reservation Date"
                   inline
+                  minDate={minimumBookingDate}
                 />
               </div>
             </div>

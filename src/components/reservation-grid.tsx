@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CalendarX2,
   Clock3,
   LoaderCircle,
   Lock,
@@ -60,6 +61,7 @@ type TableMove = {
 type GridData = {
   restaurant: { id: number; name: string };
   service_date: string;
+  booking_allowed: boolean;
   shifts: Shift[];
   selected_shift: Shift;
   tables: DiningTable[];
@@ -191,6 +193,9 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
     () => data?.reservations.find((item) => item.id === draggedReservationId) || null,
     [data, draggedReservationId],
   );
+  const bookingAllowed = data?.service_date === serviceDate && typeof data.booking_allowed === "boolean"
+    ? data.booking_allowed
+    : serviceDate >= todayLocal();
 
   function chooseDate(next: string) {
     setDraft(null);
@@ -225,7 +230,7 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
 
   async function createReservation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft || !data) return;
+    if (!draft || !data || !bookingAllowed) return;
     setSaving(true);
     setError("");
     const values = new FormData(event.currentTarget);
@@ -421,6 +426,13 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
 
       {error && <div className="grid-alert" role="alert">{error}</div>}
 
+      {!bookingAllowed && (
+        <div className="grid-read-only-notice" role="status">
+          <CalendarX2 aria-hidden="true" />
+          <span><strong>Past service · view only</strong> New reservations cannot be added to a previous day.</span>
+        </div>
+      )}
+
       <div className={`grid-and-panel ${draft || selected ? "has-panel" : ""}`}>
         <section className="grid-card" aria-label="Table reservation timeline">
           {loading && !data ? (
@@ -499,11 +511,16 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
                             key={slot}
                             className="empty-slot"
                             style={{ width: SLOT_WIDTH }}
+                            disabled={!bookingAllowed}
                             onClick={() => {
+                              if (!bookingAllowed) return;
                               setSelected(null);
                               setDraft({ tableId: table.id, tableName: table.name, capacity: table.capacity, time: slot });
                             }}
-                            aria-label={`Book table ${table.name} at ${displayTime(slot)}`}
+                            aria-label={bookingAllowed
+                              ? `Book table ${table.name} at ${displayTime(slot)}`
+                              : `Past date, table ${table.name} at ${displayTime(slot)} is view only`}
+                            title={!bookingAllowed ? "Past dates are view only" : undefined}
                           >
                             <Plus aria-hidden="true" />
                           </button>

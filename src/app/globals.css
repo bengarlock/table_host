@@ -265,6 +265,7 @@ textarea {
 }
 
 .date-control .date-picker-trigger {
+  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
@@ -273,6 +274,20 @@ textarea {
   cursor: pointer;
   font-size: 0.78rem;
   font-weight: 650;
+}
+
+.date-picker-trigger small {
+  position: absolute;
+  right: 8px;
+  padding: 3px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: rgba(116, 122, 113, 0.1);
+  color: var(--text-muted);
+  font-size: 0.48rem;
+  font-weight: 760;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .calendar-popover {
@@ -353,8 +368,8 @@ textarea {
   font-size: 0.68rem;
 }
 
-.calendar-days button:hover,
-.calendar-days button:focus-visible {
+.calendar-days button:hover:not(:disabled),
+.calendar-days button:focus-visible:not(:disabled) {
   border-color: var(--accent-line);
   background: var(--accent-soft);
   color: var(--text);
@@ -363,6 +378,15 @@ textarea {
 
 .calendar-days button.outside-month {
   color: #50564e;
+}
+
+.calendar-days button.past-date:not(.selected) {
+  color: #5d625b;
+}
+
+.calendar-days button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
 }
 
 .calendar-days button.today {
@@ -374,6 +398,12 @@ textarea {
   border-color: #d3a45c;
   background: #9b6b2e;
   color: #fff8eb;
+}
+
+.calendar-days button.past-date.selected {
+  border-color: #596058;
+  background: #343934;
+  color: #c2c6be;
 }
 
 .grid-toolbar {
@@ -453,6 +483,31 @@ textarea {
   background: rgba(127, 52, 35, 0.22);
   color: #eab9aa;
   font-size: 0.78rem;
+}
+
+.grid-read-only-notice {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 8px 14px;
+  border-top: 1px solid rgba(123, 132, 119, 0.24);
+  border-bottom: 1px solid rgba(123, 132, 119, 0.24);
+  background: rgba(91, 98, 89, 0.12);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.grid-read-only-notice svg {
+  width: 16px;
+  height: 16px;
+  color: #9da298;
+}
+
+.grid-read-only-notice strong {
+  margin-right: 6px;
+  color: var(--text-soft);
 }
 
 .grid-and-panel {
@@ -666,12 +721,17 @@ textarea {
   height: 14px;
 }
 
-.empty-slot:hover,
-.empty-slot:focus-visible {
+.empty-slot:hover:not(:disabled),
+.empty-slot:focus-visible:not(:disabled) {
   background: rgba(217, 170, 98, 0.07);
   color: var(--accent);
   outline: 1px solid var(--accent-line);
   outline-offset: -1px;
+}
+
+.empty-slot:disabled {
+  cursor: default;
+  background: rgba(8, 10, 8, 0.16);
 }
 
 .reservation-block {
