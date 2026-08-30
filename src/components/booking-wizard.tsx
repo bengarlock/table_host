@@ -380,7 +380,7 @@ export function BookingWizard({
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
-          {["When", "Party", "Time", "Guest", "Details"].map((label, index) => {
+          {["Date", "Party", "Time", "Guest", "Details"].map((label, index) => {
             const stage = index + 1;
             const filled = stageIsFilled(stage);
             const visited = stage <= furthestStep;
