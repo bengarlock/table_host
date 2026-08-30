@@ -2,7 +2,7 @@
 
 :root {
   color-scheme: dark;
-  --sidebar-width: 244px;
+  --sidebar-width: 78px;
   --canvas: #101210;
   --surface: #161916;
   --surface-raised: #1c201c;
@@ -61,8 +61,8 @@ textarea {
   z-index: 20;
   display: grid;
   width: var(--sidebar-width);
-  grid-template-rows: auto 1fr auto;
-  padding: 24px 16px 18px;
+  grid-template-rows: auto 1fr;
+  padding: 22px 11px;
   border-right: 1px solid var(--line);
   background: rgba(20, 23, 20, 0.96);
   box-shadow: 18px 0 52px rgba(0, 0, 0, 0.12);
@@ -70,66 +70,39 @@ textarea {
 }
 
 .brand {
+  position: relative;
   display: flex;
+  width: 56px;
+  height: 56px;
   align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 0 10px;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 14px;
   text-decoration: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.brand:hover,
+.brand:focus-visible {
+  border-color: var(--line);
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.brand:focus-visible {
+  border-color: var(--accent-line);
 }
 
 .brand-mark {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  place-items: center;
-  border: 1px solid var(--accent-line);
-  border-radius: 11px;
-  background: linear-gradient(145deg, rgba(217, 170, 98, 0.12), rgba(217, 170, 98, 0.03));
-  color: var(--accent);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: -0.08em;
-}
-
-.brand-copy {
-  display: grid;
-  gap: 1px;
-}
-
-.brand-name {
-  color: var(--text);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.1rem;
-  letter-spacing: 0.01em;
-}
-
-.brand-label,
-.nav-eyebrow,
-.venue-label,
-.page-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-}
-
-.brand-label {
-  color: var(--text-muted);
-  font-size: 0.58rem;
-  font-weight: 700;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
 }
 
 .sidebar-nav {
   align-self: start;
-  margin-top: 46px;
-}
-
-.nav-eyebrow {
-  margin: 0 12px 10px;
-  color: var(--text-muted);
-  font-size: 0.62rem;
-  font-weight: 700;
+  margin-top: 28px;
 }
 
 .nav-list {
@@ -144,9 +117,10 @@ textarea {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 46px;
-  padding: 0 13px;
+  width: 56px;
+  height: 56px;
+  justify-content: center;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 10px;
   color: var(--text-soft);
@@ -159,7 +133,7 @@ textarea {
 .nav-link::before {
   position: absolute;
   top: 50%;
-  left: -17px;
+  left: -12px;
   width: 2px;
   height: 22px;
   border-radius: 999px;
@@ -168,10 +142,39 @@ textarea {
   transform: translateY(-50%);
 }
 
-.nav-link:hover {
+.nav-link::after {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  z-index: 30;
+  padding: 7px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  content: attr(data-tooltip);
+  font-size: 0.72rem;
+  font-weight: 650;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+}
+
+.nav-link:hover::after,
+.nav-link:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.nav-link:hover,
+.nav-link:focus-visible {
   border-color: var(--line);
   background: var(--surface-hover);
   color: var(--text);
+  outline: none;
 }
 
 .nav-link[aria-current="page"] {
@@ -185,34 +188,10 @@ textarea {
 }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   stroke-width: 1.55;
-}
-
-.venue-card {
-  display: grid;
-  gap: 5px;
-  padding: 13px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.015);
-}
-
-.venue-label {
-  color: var(--text-muted);
-  font-size: 0.55rem;
-  font-weight: 700;
-}
-
-.venue-name {
-  overflow: hidden;
-  color: var(--text-soft);
-  font-size: 0.76rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .main-content {
@@ -230,6 +209,8 @@ textarea {
   color: var(--accent);
   font-size: 0.65rem;
   font-weight: 750;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
 }
 
 .page-title {
@@ -318,39 +299,6 @@ textarea {
 }
 
 @media (max-width: 700px) {
-  :root {
-    --sidebar-width: 78px;
-  }
-
-  .sidebar {
-    padding-inline: 11px;
-  }
-
-  .brand {
-    justify-content: center;
-    padding: 0;
-  }
-
-  .brand-copy,
-  .nav-eyebrow,
-  .nav-text,
-  .venue-card {
-    display: none;
-  }
-
-  .sidebar-nav {
-    margin-top: 38px;
-  }
-
-  .nav-link {
-    justify-content: center;
-    padding: 0;
-  }
-
-  .nav-link::before {
-    left: -12px;
-  }
-
   .main-content {
     padding: 34px 20px;
   }

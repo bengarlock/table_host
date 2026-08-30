@@ -1,33 +1,37 @@
 import { BookOpenText } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
+import hostStandIcon from "@/app/icon.png";
 
 export function AppSidebar() {
   return (
     <aside className="sidebar" aria-label="Primary navigation">
       <Link className="brand" href="/reservations" aria-label="Table Host home">
-        <span className="brand-mark" aria-hidden="true">TH</span>
-        <span className="brand-copy">
-          <span className="brand-name">Table Host</span>
-          <span className="brand-label">Service console</span>
-        </span>
+        <Image
+          className="brand-mark"
+          src={hostStandIcon}
+          width={46}
+          height={46}
+          alt=""
+          priority
+        />
       </Link>
 
       <nav className="sidebar-nav">
-        <p className="nav-eyebrow">Workspace</p>
         <ul className="nav-list">
           <li>
-            <Link className="nav-link" href="/reservations" aria-current="page">
+            <Link
+              className="nav-link"
+              href="/reservations"
+              aria-label="Reservations"
+              aria-current="page"
+              data-tooltip="Reservations"
+            >
               <BookOpenText className="nav-icon" aria-hidden="true" />
-              <span className="nav-text">Reservations</span>
             </Link>
           </li>
         </ul>
       </nav>
-
-      <div className="venue-card" aria-label="Current venue">
-        <span className="venue-label">Current venue</span>
-        <span className="venue-name">No restaurant selected</span>
-      </div>
     </aside>
   );
 }
