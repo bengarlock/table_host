@@ -215,14 +215,14 @@ textarea {
   background: var(--surface);
 }
 
-.date-control button,
-.date-control label {
+.date-control > button,
+.date-picker-trigger {
   border: 0;
   background: transparent;
   color: var(--text-soft);
 }
 
-.date-control button {
+.date-control > button {
   display: grid;
   width: 42px;
   cursor: pointer;
@@ -237,8 +237,10 @@ textarea {
   color: #e2bc7f;
 }
 
-.date-control button:hover,
-.date-control button:focus-visible {
+.date-control > button:hover,
+.date-control > button:focus-visible,
+.date-picker-trigger:hover,
+.date-picker-trigger:focus-visible {
   background: var(--surface-hover);
   color: var(--text);
   outline: none;
@@ -249,25 +251,124 @@ textarea {
   height: 17px;
 }
 
-.date-control label {
+.date-picker-shell {
   position: relative;
   display: flex;
   min-width: 210px;
+  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.date-control .date-picker-trigger {
+  display: flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  border-right: 1px solid var(--line);
-  border-left: 1px solid var(--line);
+  cursor: pointer;
   font-size: 0.78rem;
   font-weight: 650;
 }
 
-.date-control input {
+.calendar-popover {
   position: absolute;
-  inset: 0;
-  width: 100%;
+  top: calc(100% + 10px);
+  left: 50%;
+  z-index: 70;
+  width: 292px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #1a1e1a;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.calendar-header strong {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 680;
+  text-align: center;
+}
+
+.calendar-header button {
+  display: grid;
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  opacity: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.calendar-header button:hover,
+.calendar-header button:focus-visible {
+  background: var(--surface-hover);
+  color: var(--text);
+  outline: none;
+}
+
+.calendar-weekdays,
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-weekdays span {
+  padding: 5px 0 7px;
+  color: var(--text-muted);
+  font-size: 0.56rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.calendar-days {
+  gap: 3px;
+}
+
+.calendar-days button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.68rem;
+}
+
+.calendar-days button:hover,
+.calendar-days button:focus-visible {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text);
+  outline: none;
+}
+
+.calendar-days button.outside-month {
+  color: #50564e;
+}
+
+.calendar-days button.today {
+  border-color: var(--line-strong);
+  color: #e6c18a;
+}
+
+.calendar-days button.selected {
+  border-color: #d3a45c;
+  background: #9b6b2e;
+  color: #fff8eb;
 }
 
 .grid-toolbar {
@@ -1611,8 +1712,13 @@ textarea {
 
 @media (max-width: 700px) {
   .date-control,
-  .date-control label {
+  .date-picker-shell {
     width: 100%;
+  }
+
+  .calendar-popover {
+    left: 0;
+    transform: none;
   }
 
   .shift-tabs {

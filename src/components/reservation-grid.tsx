@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  CalendarDays,
   CalendarPlus2,
   ChevronDown,
   ChevronLeft,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BookingWizard } from "@/components/booking-wizard";
+import { ServiceDatePicker } from "@/components/service-date-picker";
 
 type Shift = {
   id: number;
@@ -90,14 +90,6 @@ function displayTime(time: string) {
   const suffix = hour >= 12 ? "PM" : "AM";
   const clockHour = hour % 12 || 12;
   return `${clockHour}:${String(minute).padStart(2, "0")} ${suffix}`;
-}
-
-function dateLabel(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(`${value}T12:00:00`));
 }
 
 function todayLocal() {
@@ -410,11 +402,7 @@ export function ReservationGrid() {
           <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
             <ChevronLeft aria-hidden="true" />
           </button>
-          <label>
-            <CalendarDays aria-hidden="true" />
-            <span>{serviceDate === todayLocal() ? "Today" : dateLabel(serviceDate)}</span>
-            <input type="date" value={serviceDate} onChange={(event) => chooseDate(event.target.value)} />
-          </label>
+          <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
           <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
           </button>
