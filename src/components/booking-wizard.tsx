@@ -5,7 +5,6 @@ import {
   ArrowRight,
   Building2,
   Check,
-  Clock3,
   LoaderCircle,
   Mail,
   Phone,
@@ -563,7 +562,6 @@ export function BookingWizard({
 
           {step === 3 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Select a shift, then choose from the available reservation times.</p></div></div>
               <div className="wizard-shift-picker" aria-label="Reservation shift">
                 {shifts.map((shift) => (
                   <button
