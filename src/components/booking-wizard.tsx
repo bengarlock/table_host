@@ -198,7 +198,6 @@ export function BookingWizard({
             <div className="wizard-step">
               <div className="wizard-step-heading"><CalendarDays aria-hidden="true" /><div><h3>When are they joining us?</h3><p>Choose the reservation date from the calendar.</p></div></div>
               <div className="wizard-date-field">
-                <span>Reservation Date</span>
                 <ServiceDatePicker
                   value={serviceDate}
                   onChange={(value) => {
@@ -208,7 +207,6 @@ export function BookingWizard({
                   }}
                   fieldLabel="Reservation Date"
                   inline
-                  useRelativeLabel={false}
                 />
               </div>
             </div>
