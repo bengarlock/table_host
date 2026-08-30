@@ -2,6 +2,7 @@
 
 import {
   CalendarDays,
+  CalendarPlus2,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { BookingWizard } from "@/components/booking-wizard";
 
 type Shift = {
   id: number;
@@ -35,6 +37,10 @@ type Reservation = {
   duration_minutes: number;
   status: "confirmed" | "seated" | "complete" | "cancelled";
   assignment_type: "soft" | "hard";
+  guest_phone: string;
+  guest_email: string;
+  guest_notes: string;
+  tags: string[];
   notes: string;
 };
 
@@ -146,6 +152,7 @@ export function ReservationGrid() {
   const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -203,6 +210,18 @@ export function ReservationGrid() {
     setSelected(null);
     setServiceDate(todayLocal());
     setShiftSlug(shiftForNow(data?.shifts || []));
+  }
+
+  function finishWizardBooking(bookedDate: string, bookedShift: string) {
+    setWizardOpen(false);
+    setDraft(null);
+    setSelected(null);
+    if (bookedDate === serviceDate && bookedShift === shiftSlug) {
+      void loadGrid();
+      return;
+    }
+    setServiceDate(bookedDate);
+    setShiftSlug(bookedShift);
   }
 
   async function createReservation(event: FormEvent<HTMLFormElement>) {
@@ -360,18 +379,29 @@ export function ReservationGrid() {
   return (
     <div className="reservation-page">
       <section className="grid-toolbar" aria-label="Reservation grid controls">
-        <div className="shift-tabs" aria-label="Shift">
-          {data?.shifts.map((shift) => (
-            <button
-              type="button"
-              key={shift.id}
-              className={shift.slug === data.selected_shift.slug ? "active" : ""}
-              onClick={() => chooseShift(shift.slug)}
-            >
-              {shift.name}
-              <span>{displayTime(shift.start_time)}</span>
-            </button>
-          ))}
+        <div className="toolbar-leading">
+          <button
+            type="button"
+            className="booking-launcher"
+            onClick={() => { setDraft(null); setSelected(null); setWizardOpen(true); }}
+            aria-label="Book a reservation"
+            data-tooltip="Book a reservation"
+          >
+            <CalendarPlus2 aria-hidden="true" />
+          </button>
+          <div className="shift-tabs" aria-label="Shift">
+            {data?.shifts.map((shift) => (
+              <button
+                type="button"
+                key={shift.id}
+                className={shift.slug === data.selected_shift.slug ? "active" : ""}
+                onClick={() => chooseShift(shift.slug)}
+              >
+                {shift.name}
+                <span>{displayTime(shift.start_time)}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="date-control" aria-label="Choose service date">
           <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
@@ -589,8 +619,12 @@ export function ReservationGrid() {
                   <div><dt>Party</dt><dd>{selected.party_size} guests</dd></div>
                   <div><dt>Turn</dt><dd>{selected.duration_minutes} minutes</dd></div>
                   <div><dt>Status</dt><dd>{selected.status}</dd></div>
+                  {selected.guest_phone && <div><dt>Phone</dt><dd>{selected.guest_phone}</dd></div>}
+                  {selected.guest_email && <div><dt>Email</dt><dd>{selected.guest_email}</dd></div>}
                   {selected.notes && <div><dt>Notes</dt><dd>{selected.notes}</dd></div>}
+                  {selected.guest_notes && <div><dt>Guest notes</dt><dd>{selected.guest_notes}</dd></div>}
                 </dl>
+                {selected.tags.length > 0 && <div className="reservation-tags" aria-label="Guest tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
                 <label className="table-assignment">
                   Assigned table
                   <select
@@ -648,6 +682,15 @@ export function ReservationGrid() {
           </aside>
         )}
       </div>
+      {wizardOpen && (
+        <BookingWizard
+          initialDate={serviceDate}
+          initialTime={data?.selected_shift.start_time || "18:00"}
+          initialDuration={data?.selected_shift.default_turn_minutes || 90}
+          onClose={() => setWizardOpen(false)}
+          onBooked={finishWizardBooking}
+        />
+      )}
     </div>
   );
 }
