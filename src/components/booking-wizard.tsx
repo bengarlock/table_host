@@ -276,6 +276,11 @@ export function BookingWizard({
                     setServiceDate(value);
                     invalidateTimeSelection();
                   }}
+                  onDateDoubleClick={(value) => {
+                    setServiceDate(value);
+                    invalidateTimeSelection();
+                    advanceTo(2);
+                  }}
                   fieldLabel="Reservation Date"
                   inline
                 />
