@@ -17,6 +17,7 @@ import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 
 import { BookingWizard } from "@/components/booking-wizard";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import { IGNORE_AUTOFILL } from "@/lib/autofill";
 
 type Shift = {
   id: number;
@@ -569,18 +570,18 @@ export function ReservationGrid() {
               <X aria-hidden="true" />
             </button>
             {draft && data && (
-              <form onSubmit={createReservation}>
+              <form {...IGNORE_AUTOFILL} onSubmit={createReservation}>
                 <p className="panel-eyebrow">New reservation</p>
                 <h2>Table {draft.tableName}</h2>
                 <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(draft.time)} · seats {draft.capacity}</div>
-                <label>Guest name<input name="guest_name" required autoFocus placeholder="Guest name" /></label>
+                <label>Guest name<input {...IGNORE_AUTOFILL} name="guest_name" required autoFocus placeholder="Guest name" /></label>
                 <div className="form-pair">
-                  <label>Party size<input name="party_size" type="number" min="1" max={draft.capacity} defaultValue={Math.min(2, draft.capacity)} required /></label>
-                  <label>Turn time<select name="duration_minutes" defaultValue={data.selected_shift.default_turn_minutes}>
+                  <label>Party size<input {...IGNORE_AUTOFILL} name="party_size" type="number" min="1" max={draft.capacity} defaultValue={Math.min(2, draft.capacity)} required /></label>
+                  <label>Turn time<select {...IGNORE_AUTOFILL} name="duration_minutes" defaultValue={data.selected_shift.default_turn_minutes}>
                     {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} min</option>)}
                   </select></label>
                 </div>
-                <label>Notes<textarea name="notes" rows={3} placeholder="Occasion, preferences, accessibility…" /></label>
+                <label>Notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={3} placeholder="Occasion, preferences, accessibility…" /></label>
                 <button className="primary-action" type="submit" disabled={saving}>{saving ? "Saving…" : "Hold this table"}</button>
               </form>
             )}
@@ -626,6 +627,7 @@ export function ReservationGrid() {
                 <label className="table-assignment">
                   Assigned table
                   <select
+                    {...IGNORE_AUTOFILL}
                     value={selected.table_id}
                     disabled={saving}
                     onChange={(event) => {

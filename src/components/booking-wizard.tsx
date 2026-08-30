@@ -15,6 +15,7 @@ import {
 import { FormEvent, useEffect, useState } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import { IGNORE_AUTOFILL } from "@/lib/autofill";
 
 type AvailabilityOption = {
   service_date: string;
@@ -333,6 +334,7 @@ export function BookingWizard({
               <label className="party-size-manual">
                 Enter party size
                 <input
+                  {...IGNORE_AUTOFILL}
                   type="number"
                   min={1}
                   max={40}
@@ -343,7 +345,7 @@ export function BookingWizard({
                 />
                 <span>1–40 guests</span>
               </label>
-              <label className="turn-time-field">Expected turn<select value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
+              <label className="turn-time-field">Expected turn<select {...IGNORE_AUTOFILL} value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
                 {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
               </select></label>
             </div>
@@ -385,21 +387,21 @@ export function BookingWizard({
           )}
 
           {step === 4 && selectedOption && (
-            <form id="booking-guest-form" className="wizard-step" onSubmit={bookReservation}>
+            <form {...IGNORE_AUTOFILL} id="booking-guest-form" className="wizard-step" onSubmit={bookReservation}>
               <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Who are we welcoming?</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · Table {selectedOption.table_name}</p></div></div>
               <div className="wizard-fields two-column">
-                <label className="full-width">Guest name<input name="guest_name" required autoFocus placeholder="Full name" value={guestDetails.guestName} onChange={(event) => setGuestDetails((current) => ({ ...current, guestName: event.target.value }))} /></label>
-                <label>Phone<input name="guest_phone" type="tel" placeholder="Phone number" value={guestDetails.phone} onChange={(event) => setGuestDetails((current) => ({ ...current, phone: event.target.value }))} /></label>
-                <label>Email<input name="guest_email" type="email" placeholder="Email address" value={guestDetails.email} onChange={(event) => setGuestDetails((current) => ({ ...current, email: event.target.value }))} /></label>
-                <label className="full-width">Reservation notes<textarea name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
-                <label className="full-width">Guest notes<textarea name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
+                <label className="full-width">Guest name<input {...IGNORE_AUTOFILL} name="guest_name" required autoFocus placeholder="Full name" value={guestDetails.guestName} onChange={(event) => setGuestDetails((current) => ({ ...current, guestName: event.target.value }))} /></label>
+                <label>Phone<input {...IGNORE_AUTOFILL} name="guest_phone" type="tel" placeholder="Phone number" value={guestDetails.phone} onChange={(event) => setGuestDetails((current) => ({ ...current, phone: event.target.value }))} /></label>
+                <label>Email<input {...IGNORE_AUTOFILL} name="guest_email" type="email" placeholder="Email address" value={guestDetails.email} onChange={(event) => setGuestDetails((current) => ({ ...current, email: event.target.value }))} /></label>
+                <label className="full-width">Reservation notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
+                <label className="full-width">Guest notes<textarea {...IGNORE_AUTOFILL} name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
               </div>
               <fieldset className="tag-picker">
                 <legend><Tag aria-hidden="true" /> Guest tags</legend>
                 <div className="tag-options">
                   {PRESET_TAGS.map((tag) => <button type="button" key={tag} className={selectedTags.includes(tag) ? "selected" : ""} onClick={() => toggleTag(tag)}>{selectedTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
                 </div>
-                <div className="custom-tag"><input value={customTag} onChange={(event) => setCustomTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomTag(); } }} placeholder="Add a custom tag" /><button type="button" onClick={addCustomTag} disabled={!customTag.trim()}>Add</button></div>
+                <div className="custom-tag"><input {...IGNORE_AUTOFILL} value={customTag} onChange={(event) => setCustomTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomTag(); } }} placeholder="Add a custom tag" /><button type="button" onClick={addCustomTag} disabled={!customTag.trim()}>Add</button></div>
               </fieldset>
             </form>
           )}
