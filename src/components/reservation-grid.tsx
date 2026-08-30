@@ -415,8 +415,14 @@ export function ReservationGrid() {
           <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
           </button>
-          <button className="now-button" type="button" onClick={returnToNow}>
-            Now
+          <button
+            className="now-button"
+            type="button"
+            onClick={returnToNow}
+            aria-label="Return to current day and shift"
+            title="Return to current day and shift"
+          >
+            <Clock3 aria-hidden="true" />
           </button>
         </div>
         <div className="service-summary" aria-label="Service summary">

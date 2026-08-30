@@ -230,15 +230,11 @@ textarea {
 }
 
 .date-control .now-button {
-  width: auto;
-  min-width: 58px;
-  padding: 0 13px;
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
   border-left: 1px solid var(--line);
   color: #e2bc7f;
-  font-size: 0.7rem;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .date-control button:hover,
