@@ -226,27 +226,6 @@ export function ReservationGrid() {
 
   return (
     <div className="reservation-page">
-      <header className="reservation-header">
-        <div>
-          <p className="page-eyebrow">Reservations</p>
-          <h1 className="page-title">{data?.restaurant.name || "The reservation book"}</h1>
-          <p className="service-date-label">{dateLabel(serviceDate)}</p>
-        </div>
-        <div className="date-control" aria-label="Choose service date">
-          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
-            <ChevronLeft aria-hidden="true" />
-          </button>
-          <label>
-            <CalendarDays aria-hidden="true" />
-            <span>{serviceDate === todayLocal() ? "Today" : dateLabel(serviceDate)}</span>
-            <input type="date" value={serviceDate} onChange={(event) => chooseDate(event.target.value)} />
-          </label>
-          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-
       <section className="grid-toolbar" aria-label="Reservation grid controls">
         <div className="shift-tabs" aria-label="Shift">
           {data?.shifts.map((shift) => (
@@ -260,6 +239,19 @@ export function ReservationGrid() {
               <span>{displayTime(shift.start_time)}</span>
             </button>
           ))}
+        </div>
+        <div className="date-control" aria-label="Choose service date">
+          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
+            <ChevronLeft aria-hidden="true" />
+          </button>
+          <label>
+            <CalendarDays aria-hidden="true" />
+            <span>{serviceDate === todayLocal() ? "Today" : dateLabel(serviceDate)}</span>
+            <input type="date" value={serviceDate} onChange={(event) => chooseDate(event.target.value)} />
+          </label>
+          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
+            <ChevronRight aria-hidden="true" />
+          </button>
         </div>
         <div className="service-summary" aria-label="Service summary">
           <span><strong>{data?.summary.reservations ?? 0}</strong> bookings</span>

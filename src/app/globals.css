@@ -195,45 +195,15 @@ textarea {
 }
 
 .main-content {
-  min-height: 100vh;
-  padding: 34px clamp(22px, 3.5vw, 54px) 46px;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .reservation-page {
-  width: min(100%, 1660px);
-  margin: 0 auto;
-}
-
-.reservation-header {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 28px;
-}
-
-.page-eyebrow {
-  margin: 0 0 11px;
-  color: var(--accent);
-  font-size: 0.65rem;
-  font-weight: 750;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.page-title {
-  margin: 0;
-  color: var(--text);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.9rem, 3.2vw, 2.85rem);
-  font-weight: 400;
-  letter-spacing: -0.025em;
-  line-height: 1.05;
-}
-
-.service-date-label {
-  margin: 9px 0 0;
-  color: var(--text-soft);
-  font-size: 0.85rem;
+  width: 100%;
+  height: 100vh;
+  flex-direction: column;
 }
 
 .date-control {
@@ -293,16 +263,15 @@ textarea {
 }
 
 .grid-toolbar {
-  display: flex;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 64px;
   align-items: center;
-  justify-content: space-between;
   gap: 22px;
-  margin-top: 28px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-bottom: 0;
-  border-radius: 14px 14px 0 0;
   background: var(--surface);
 }
 
@@ -343,6 +312,7 @@ textarea {
 
 .service-summary {
   display: flex;
+  justify-self: end;
   gap: 22px;
   padding-right: 12px;
   color: var(--text-muted);
@@ -366,6 +336,8 @@ textarea {
 
 .grid-and-panel {
   display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -375,7 +347,8 @@ textarea {
 
 .grid-card {
   min-width: 0;
-  min-height: 520px;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
   background: #131613;
@@ -383,8 +356,8 @@ textarea {
 }
 
 .timeline-scroll {
-  max-height: calc(100vh - 250px);
-  min-height: 520px;
+  height: 100%;
+  min-height: 0;
   overflow: auto;
 }
 
@@ -575,7 +548,8 @@ textarea {
 
 .grid-loading {
   display: flex;
-  min-height: 520px;
+  height: 100%;
+  min-height: 320px;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -594,7 +568,9 @@ textarea {
 
 .booking-panel {
   position: relative;
-  min-height: 520px;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
   padding: 28px 24px;
   border: 1px solid var(--line);
   border-left: 0;
@@ -773,17 +749,17 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .reservation-header,
   .grid-toolbar {
+    grid-template-columns: 1fr;
     align-items: stretch;
-    flex-direction: column;
   }
 
   .date-control {
-    width: fit-content;
+    width: 100%;
   }
 
   .service-summary {
+    justify-self: start;
     padding: 0 10px 5px;
   }
 
@@ -798,10 +774,6 @@ textarea {
 }
 
 @media (max-width: 700px) {
-  .main-content {
-    padding: 25px 14px 34px;
-  }
-
   .date-control,
   .date-control label {
     width: 100%;
@@ -819,9 +791,6 @@ textarea {
     gap: 12px;
   }
 
-  .timeline-scroll {
-    max-height: 60vh;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
