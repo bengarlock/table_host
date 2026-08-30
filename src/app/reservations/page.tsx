@@ -1,13 +1,10 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { ReservationGrid } from "@/components/reservation-grid";
+import { ReservationsWorkspace } from "@/components/reservations-workspace";
 
-export default function ReservationsPage() {
-  return (
-    <div className="app-shell">
-      <AppSidebar />
-      <main className="main-content">
-        <ReservationGrid />
-      </main>
-    </div>
-  );
+type ReservationsPageProps = {
+  searchParams: Promise<{ book?: string }>;
+};
+
+export default async function ReservationsPage({ searchParams }: ReservationsPageProps) {
+  const params = await searchParams;
+  return <ReservationsWorkspace initiallyBookingOpen={params.book === "1"} />;
 }

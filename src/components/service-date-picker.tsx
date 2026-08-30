@@ -6,6 +6,9 @@ import { useRef, useState } from "react";
 type ServiceDatePickerProps = {
   value: string;
   onChange: (value: string) => void;
+  fieldLabel?: string;
+  inline?: boolean;
+  useRelativeLabel?: boolean;
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -45,7 +48,13 @@ function calendarDays(month: Date) {
   });
 }
 
-export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
+export function ServiceDatePicker({
+  value,
+  onChange,
+  fieldLabel = "Service date",
+  inline = false,
+  useRelativeLabel = true,
+}: ServiceDatePickerProps) {
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value));
   const shellRef = useRef<HTMLDivElement>(null);
@@ -59,9 +68,59 @@ export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1, 12));
   }
 
+  const calendar = (
+    <div
+      className={`calendar-popover${inline ? " calendar-inline" : ""}`}
+      role={inline ? "group" : "dialog"}
+      aria-label={`Choose ${fieldLabel.toLowerCase()}`}
+    >
+      <div className="calendar-header">
+        <button type="button" onClick={() => moveMonth(-1)} aria-label="Previous month">
+          <ChevronLeft aria-hidden="true" />
+        </button>
+        <strong>{monthLabel(visibleMonth)}</strong>
+        <button type="button" onClick={() => moveMonth(1)} aria-label="Next month">
+          <ChevronRight aria-hidden="true" />
+        </button>
+      </div>
+      <div className="calendar-weekdays" aria-hidden="true">
+        {WEEKDAYS.map((day) => <span key={day}>{day.slice(0, 1)}</span>)}
+      </div>
+      <div className="calendar-days">
+        {calendarDays(visibleMonth).map((date) => {
+          const dateString = dateValue(date);
+          const outsideMonth = date.getMonth() !== visibleMonth.getMonth();
+          return (
+            <button
+              type="button"
+              key={dateString}
+              className={`${outsideMonth ? "outside-month " : ""}${dateString === value ? "selected " : ""}${dateString === todayLocal() ? "today" : ""}`.trim()}
+              onClick={() => {
+                onChange(dateString);
+                if (inline) {
+                  setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1, 12));
+                } else {
+                  setOpen(false);
+                }
+              }}
+              aria-label={dateLabel(dateString)}
+              aria-current={dateString === todayLocal() ? "date" : undefined}
+            >
+              {date.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  if (inline) {
+    return <div className="date-picker-shell date-picker-inline">{calendar}</div>;
+  }
+
   return (
     <div
-      className="date-picker-shell"
+      className={`date-picker-shell${open ? " open" : ""}`}
       ref={shellRef}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
@@ -79,48 +138,13 @@ export function ServiceDatePicker({ value, onChange }: ServiceDatePickerProps) {
         onClick={toggleCalendar}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={`${fieldLabel}: ${dateLabel(value)}`}
       >
         <CalendarDays aria-hidden="true" />
-        <span>{value === todayLocal() ? "Today" : dateLabel(value)}</span>
+        <span>{useRelativeLabel && value === todayLocal() ? "Today" : dateLabel(value)}</span>
       </button>
 
-      {open && (
-        <div className="calendar-popover" role="dialog" aria-label="Choose a service date">
-          <div className="calendar-header">
-            <button type="button" onClick={() => moveMonth(-1)} aria-label="Previous month">
-              <ChevronLeft aria-hidden="true" />
-            </button>
-            <strong>{monthLabel(visibleMonth)}</strong>
-            <button type="button" onClick={() => moveMonth(1)} aria-label="Next month">
-              <ChevronRight aria-hidden="true" />
-            </button>
-          </div>
-          <div className="calendar-weekdays" aria-hidden="true">
-            {WEEKDAYS.map((day) => <span key={day}>{day.slice(0, 1)}</span>)}
-          </div>
-          <div className="calendar-days">
-            {calendarDays(visibleMonth).map((date) => {
-              const dateString = dateValue(date);
-              const outsideMonth = date.getMonth() !== visibleMonth.getMonth();
-              return (
-                <button
-                  type="button"
-                  key={dateString}
-                  className={`${outsideMonth ? "outside-month " : ""}${dateString === value ? "selected " : ""}${dateString === todayLocal() ? "today" : ""}`.trim()}
-                  onClick={() => {
-                    onChange(dateString);
-                    setOpen(false);
-                  }}
-                  aria-label={dateLabel(dateString)}
-                  aria-current={dateString === todayLocal() ? "date" : undefined}
-                >
-                  {date.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {open && calendar}
     </div>
   );
 }
