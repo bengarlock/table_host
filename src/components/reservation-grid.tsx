@@ -90,6 +90,17 @@ function moveDate(value: string, amount: number) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function shiftForNow(shifts: Shift[]) {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const activeShift = shifts.find(
+    (shift) =>
+      minutes(shift.start_time) <= currentMinutes && currentMinutes < minutes(shift.end_time),
+  );
+  const upcomingShift = shifts.find((shift) => minutes(shift.start_time) > currentMinutes);
+  return activeShift?.slug || upcomingShift?.slug || shifts.at(-1)?.slug || "dinner";
+}
+
 function readError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Something went wrong.";
   const entries = Object.values(payload as Record<string, unknown>);
@@ -152,6 +163,13 @@ export function ReservationGrid() {
     setDraft(null);
     setSelected(null);
     setShiftSlug(next);
+  }
+
+  function returnToNow() {
+    setDraft(null);
+    setSelected(null);
+    setServiceDate(todayLocal());
+    setShiftSlug(shiftForNow(data?.shifts || []));
   }
 
   async function createReservation(event: FormEvent<HTMLFormElement>) {
@@ -251,6 +269,9 @@ export function ReservationGrid() {
           </label>
           <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
+          </button>
+          <button className="now-button" type="button" onClick={returnToNow}>
+            Now
           </button>
         </div>
         <div className="service-summary" aria-label="Service summary">
