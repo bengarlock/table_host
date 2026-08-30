@@ -26,9 +26,11 @@ type AvailabilityOption = {
   shift_slug: string;
   shift_name: string;
   start_time: string;
-  table_id: number;
-  table_name: string;
-  table_capacity: number;
+  table_id: number | null;
+  table_name: string | null;
+  table_capacity: number | null;
+  available: boolean;
+  unavailable_reason: string;
 };
 
 type AvailabilityResponse = {
@@ -87,6 +89,26 @@ const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function displayHour(time: string) {
+  const hour = Number(time.split(":")[0]);
+  return `${hour % 12 || 12} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function groupTimesByHour(options: AvailabilityOption[]) {
+  const groups = new Map<string, AvailabilityOption[]>();
+  [...options]
+    .sort((left, right) => left.start_time.localeCompare(right.start_time))
+    .forEach((option) => {
+      const hour = option.start_time.slice(0, 2);
+      groups.set(hour, [...(groups.get(hour) || []), option]);
+    });
+  return [...groups.entries()].map(([hour, hourOptions]) => ({
+    hour,
+    label: displayHour(`${hour}:00`),
+    options: hourOptions,
+  }));
 }
 
 function displayDateSummary(value: string) {
@@ -496,12 +518,30 @@ export function BookingWizard({
                 ))}
               </div>
               {options.length ? (
-                <div className="available-time-row" aria-label="Available times">
-                  {options.map((option) => (
-                    <button type="button" key={`${option.shift_slug}-${option.start_time}-${option.table_id}`} onClick={() => { setSelectedOption(option); advanceTo(selectedGuest ? 5 : 4); }}>
-                      <strong>{displayTime(option.start_time)}</strong>
-                      <span>Seats up to {option.table_capacity}</span>
-                    </button>
+                <div className="available-time-columns" aria-label="Reservation times grouped by hour">
+                  {groupTimesByHour(options).map((group) => (
+                    <section className="available-hour-group" key={group.hour} aria-labelledby={`time-hour-${group.hour}`}>
+                      <h4 id={`time-hour-${group.hour}`}>{group.label}</h4>
+                      <div>
+                        {group.options.map((option) => (
+                          <button
+                            type="button"
+                            key={`${option.shift_slug}-${option.start_time}`}
+                            className={option.available ? "" : "is-unavailable"}
+                            disabled={!option.available || option.table_id === null}
+                            aria-label={`${displayTime(option.start_time)}, ${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
+                            onClick={() => {
+                              if (!option.available || option.table_id === null) return;
+                              setSelectedOption(option);
+                              advanceTo(selectedGuest ? 5 : 4);
+                            }}
+                          >
+                            <strong>{displayTime(option.start_time)}</strong>
+                            <span>{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               ) : loading ? (

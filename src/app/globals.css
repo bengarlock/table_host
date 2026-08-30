@@ -1777,18 +1777,41 @@ textarea {
   font-size: 0.58rem;
 }
 
-.available-time-row {
-  display: flex;
-  gap: 9px;
-  overflow-x: auto;
+.available-time-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 10px;
   padding: 2px 1px 8px;
 }
 
-.available-time-row button {
+.available-hour-group {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(14, 16, 14, 0.72);
+}
+
+.available-hour-group h4 {
+  margin: 0 0 9px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.available-hour-group > div {
   display: grid;
-  min-width: 116px;
+  gap: 7px;
+}
+
+.available-hour-group button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
   gap: 5px;
-  padding: 13px 12px;
+  padding: 11px 10px;
   cursor: pointer;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1797,20 +1820,34 @@ textarea {
   text-align: left;
 }
 
-.available-time-row button:hover,
-.available-time-row button:focus-visible {
+.available-hour-group button:hover:not(:disabled),
+.available-hour-group button:focus-visible:not(:disabled) {
   border-color: var(--accent-line);
   background: var(--accent-soft);
   outline: none;
 }
 
-.available-time-row strong {
+.available-hour-group strong {
   color: var(--text);
   font-size: 0.82rem;
 }
 
-.available-time-row span {
+.available-hour-group span {
   font-size: 0.57rem;
+}
+
+.available-hour-group button.is-unavailable {
+  cursor: not-allowed;
+  border-color: #30332f;
+  background: #101210;
+  color: #626760;
+  opacity: 0.72;
+}
+
+.available-hour-group button.is-unavailable strong {
+  color: #747a72;
+  text-decoration: line-through;
+  text-decoration-color: #4d524c;
 }
 
 .availability-loading {
