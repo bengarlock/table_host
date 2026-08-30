@@ -10,7 +10,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type Shift = {
   id: number;
@@ -101,6 +101,15 @@ function shiftForNow(shifts: Shift[]) {
   return activeShift?.slug || upcomingShift?.slug || shifts.at(-1)?.slug || "dinner";
 }
 
+function reservationsOverlap(left: Reservation, right: Reservation) {
+  const leftStart = minutes(left.start_time);
+  const rightStart = minutes(right.start_time);
+  return (
+    leftStart < rightStart + right.duration_minutes &&
+    leftStart + left.duration_minutes > rightStart
+  );
+}
+
 function readError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Something went wrong.";
   const entries = Object.values(payload as Record<string, unknown>);
@@ -118,6 +127,8 @@ export function ReservationGrid() {
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [selected, setSelected] = useState<Reservation | null>(null);
   const [saving, setSaving] = useState(false);
+  const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
+  const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -152,6 +163,11 @@ export function ReservationGrid() {
       timeFromMinutes(start + index * SLOT_MINUTES),
     );
   }, [data]);
+
+  const draggedReservation = useMemo(
+    () => data?.reservations.find((item) => item.id === draggedReservationId) || null,
+    [data, draggedReservationId],
+  );
 
   function chooseDate(next: string) {
     setDraft(null);
@@ -224,6 +240,37 @@ export function ReservationGrid() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function moveReservation(reservation: Reservation, table: DiningTable) {
+    setDraggedReservationId(null);
+    setDropTargetTableId(null);
+    if (reservation.table_id === table.id) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/grid/reservations/${reservation.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ table_id: table.id }),
+      });
+      const payload = (await response.json()) as Reservation | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      if (selected?.id === reservation.id) setSelected(payload as Reservation);
+      await loadGrid();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to move the reservation.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function beginReservationDrag(event: DragEvent<HTMLButtonElement>, reservation: Reservation) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(reservation.id));
+    setDraft(null);
+    setSelected(null);
+    setDraggedReservationId(reservation.id);
   }
 
   async function cancelReservation() {
@@ -303,8 +350,56 @@ export function ReservationGrid() {
                 </div>
                 {data.tables.map((table) => {
                   const tableReservations = data.reservations.filter((item) => item.table_id === table.id);
+                  const hasConflict = Boolean(
+                    draggedReservation &&
+                    tableReservations.some(
+                      (item) =>
+                        item.id !== draggedReservation.id &&
+                        reservationsOverlap(item, draggedReservation),
+                    ),
+                  );
+                  const isOriginalTable = draggedReservation?.table_id === table.id;
+                  const isSuggested = Boolean(
+                    draggedReservation &&
+                    !isOriginalTable &&
+                    !hasConflict &&
+                    table.capacity >= draggedReservation.party_size,
+                  );
+                  const isTooSmall = Boolean(
+                    draggedReservation &&
+                    !isOriginalTable &&
+                    !hasConflict &&
+                    table.capacity < draggedReservation.party_size,
+                  );
+                  const rowClassName = [
+                    "timeline-row",
+                    isSuggested ? "drag-suggested" : "",
+                    isTooSmall ? "drag-too-small" : "",
+                    draggedReservation && hasConflict ? "drag-unavailable" : "",
+                    dropTargetTableId === table.id ? "drop-active" : "",
+                  ].filter(Boolean).join(" ");
                   return (
-                    <div className="timeline-row" key={table.id}>
+                    <div
+                      className={rowClassName}
+                      key={table.id}
+                      onDragOver={(event) => {
+                        if (!draggedReservation || hasConflict) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setDropTargetTableId(table.id);
+                      }}
+                      onDragLeave={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                          setDropTargetTableId(null);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        if (draggedReservation && !hasConflict) {
+                          void moveReservation(draggedReservation, table);
+                        }
+                      }}
+                    >
                       <div className="table-name">{table.name}</div>
                       <div className="table-capacity"><Users aria-hidden="true" />{table.capacity}</div>
                       <div className="timeline-track" style={{ width: slots.length * SLOT_WIDTH }}>
@@ -326,17 +421,27 @@ export function ReservationGrid() {
                         {tableReservations.map((reservation) => {
                           const offset = (minutes(reservation.start_time) - minutes(data.selected_shift.start_time)) / SLOT_MINUTES;
                           const width = (reservation.duration_minutes / SLOT_MINUTES) * SLOT_WIDTH;
+                          const overCapacity = reservation.party_size > table.capacity;
                           return (
                             <button
                               type="button"
-                              className={`reservation-block status-${reservation.status}`}
+                              className={`reservation-block status-${reservation.status}${overCapacity ? " over-capacity" : ""}`}
                               key={reservation.id}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
                               onClick={() => { setDraft(null); setSelected(reservation); }}
-                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}`}
+                              draggable={!saving}
+                              onDragStart={(event) => beginReservationDrag(event, reservation)}
+                              onDragEnd={() => {
+                                setDraggedReservationId(null);
+                                setDropTargetTableId(null);
+                              }}
+                              aria-label={`${reservation.guest_name}, party of ${reservation.party_size}, ${displayTime(reservation.start_time)}${overCapacity ? `, over table capacity by ${reservation.party_size - table.capacity}` : ""}`}
                             >
                               <span>{reservation.guest_name}</span>
-                              <small>{reservation.party_size} guests · {reservation.duration_minutes} min</small>
+                              <small>
+                                {reservation.party_size} guests · {reservation.duration_minutes} min
+                                {overCapacity ? ` · Over by ${reservation.party_size - table.capacity}` : ""}
+                              </small>
                             </button>
                           );
                         })}
@@ -383,6 +488,23 @@ export function ReservationGrid() {
                   <div><dt>Status</dt><dd>{selected.status}</dd></div>
                   {selected.notes && <div><dt>Notes</dt><dd>{selected.notes}</dd></div>}
                 </dl>
+                <label className="table-assignment">
+                  Assigned table
+                  <select
+                    value={selected.table_id}
+                    disabled={saving}
+                    onChange={(event) => {
+                      const table = data?.tables.find((item) => item.id === Number(event.target.value));
+                      if (table) void moveReservation(selected, table);
+                    }}
+                  >
+                    {data?.tables.map((table) => (
+                      <option key={table.id} value={table.id}>
+                        Table {table.name} · {table.capacity} seats
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="status-actions">
                   {selected.status !== "seated" && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving}>Mark seated</button>}
                   {selected.status !== "complete" && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving}>Complete</button>}
