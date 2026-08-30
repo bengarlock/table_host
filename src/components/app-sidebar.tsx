@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpenText, CalendarPlus2, ContactRound } from "lucide-react";
+import { Armchair, BookOpenText, CalendarPlus2, ContactRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -57,6 +57,17 @@ export function AppSidebar({ onBookReservation }: AppSidebarProps) {
               data-tooltip="Reservations"
             >
               <BookOpenText className="nav-icon" aria-hidden="true" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="nav-link"
+              href="/floor"
+              aria-label="Floor plan"
+              aria-current={pathname.startsWith("/floor") ? "page" : undefined}
+              data-tooltip="Floor plan"
+            >
+              <Armchair className="nav-icon" aria-hidden="true" />
             </Link>
           </li>
           <li>
