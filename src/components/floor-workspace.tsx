@@ -14,10 +14,18 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import {
+  closestServiceOccurrence,
+  localDateValue,
+  moveServiceDate,
+  serviceStateFromSearch,
+  todayLocal,
+  writeServiceUrl,
+} from "@/lib/service-navigation";
 
 type Shift = {
   id: number;
@@ -107,48 +115,9 @@ const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "complete", label: "Done" },
 ];
 
-function localDateValue(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function todayLocal() {
-  return localDateValue(new Date());
-}
-
-function moveDate(value: string, amount: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + amount);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
-}
-
-function closestServiceOccurrence(shifts: Shift[], now = new Date()) {
-  const candidates = shifts.flatMap((shift) => {
-    const [hour, minute] = shift.start_time.split(":").map(Number);
-    return [-1, 0, 1].map((dayOffset) => {
-      const startsAt = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + dayOffset,
-        hour,
-        minute,
-      );
-      return {
-        date: localDateValue(startsAt),
-        shiftSlug: shift.slug,
-        distance: Math.abs(startsAt.getTime() - now.getTime()),
-      };
-    });
-  });
-
-  return candidates.reduce<(typeof candidates)[number] | null>(
-    (closest, candidate) => !closest || candidate.distance < closest.distance ? candidate : closest,
-    null,
-  );
 }
 
 function statusLabel(status: ServiceStatus) {
@@ -162,9 +131,14 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
-export function FloorWorkspace() {
-  const [serviceDate, setServiceDate] = useState(todayLocal);
-  const [shiftSlug, setShiftSlug] = useState("dinner");
+type FloorWorkspaceProps = {
+  initialServiceDate?: string;
+  initialShiftSlug?: string;
+};
+
+export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
+  const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
+  const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -184,18 +158,33 @@ export function FloorWorkspace() {
   const [walkInDraft, setWalkInDraft] = useState<WalkInDraft | null>(null);
   const [guestSearchLoading, setGuestSearchLoading] = useState(false);
   const [creatingGuest, setCreatingGuest] = useState(false);
+  const resolveCurrentService = useRef(!initialServiceDate);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
     setError("");
-    const query = new URLSearchParams({ date: serviceDate, shift: shiftSlug });
+    const query = new URLSearchParams({ date: serviceDate });
+    if (shiftSlug) query.set("shift", shiftSlug);
     try {
       const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
       const payload = (await response.json()) as GridData | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       const next = payload as GridData;
+      if (resolveCurrentService.current) {
+        resolveCurrentService.current = false;
+        const closest = closestServiceOccurrence(next.shifts);
+        const currentDate = closest?.date || todayLocal();
+        const currentShift = closest?.shiftSlug || next.selected_shift.slug;
+        writeServiceUrl(currentDate, currentShift, "replace");
+        if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
+          setServiceDate(currentDate);
+          setShiftSlug(currentShift);
+          return;
+        }
+      }
       setData(next);
       setShiftSlug(next.selected_shift.slug);
+      writeServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load the floor plan.");
     } finally {
@@ -208,6 +197,24 @@ export function FloorWorkspace() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadFloor();
   }, [loadFloor]);
+
+  useEffect(() => {
+    function restoreServiceFromUrl() {
+      const next = serviceStateFromSearch(window.location.search);
+      if (next.serviceDate) {
+        resolveCurrentService.current = false;
+        setServiceDate(next.serviceDate);
+        setShiftSlug(next.shiftSlug || "");
+      } else {
+        resolveCurrentService.current = true;
+        setServiceDate(todayLocal());
+        setShiftSlug("");
+      }
+    }
+
+    window.addEventListener("popstate", restoreServiceFromUrl);
+    return () => window.removeEventListener("popstate", restoreServiceFromUrl);
+  }, []);
 
   useEffect(() => {
     if (!walkInOpen) return;
@@ -273,6 +280,7 @@ export function FloorWorkspace() {
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
+    writeServiceUrl(value, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(value);
   }
 
@@ -280,6 +288,7 @@ export function FloorWorkspace() {
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
+    writeServiceUrl(serviceDate, value);
     setShiftSlug(value);
   }
 
@@ -289,8 +298,11 @@ export function FloorWorkspace() {
     setFocusedReservationId(null);
     const now = new Date();
     const closest = closestServiceOccurrence(data?.shifts || [], now);
-    setServiceDate(closest?.date || localDateValue(now));
-    if (closest) setShiftSlug(closest.shiftSlug);
+    const currentDate = closest?.date || localDateValue(now);
+    const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
+    writeServiceUrl(currentDate, currentShift);
+    setServiceDate(currentDate);
+    setShiftSlug(currentShift);
   }
 
   async function updateReservation(
@@ -485,11 +497,11 @@ export function FloorWorkspace() {
               ))}
             </div>
             <div className="date-control" aria-label="Choose service date">
-              <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
+              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
                 <ChevronLeft aria-hidden="true" />
               </button>
               <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
-              <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
+              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
                 <ChevronRight aria-hidden="true" />
               </button>
               <button className="now-button" type="button" onClick={jumpToNow} aria-label="Go to the closest service now">

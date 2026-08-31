@@ -18,6 +18,13 @@ import { BookingWizard } from "@/components/booking-wizard";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
+import {
+  closestServiceOccurrence,
+  moveServiceDate,
+  serviceStateFromSearch,
+  todayLocal,
+  writeServiceUrl,
+} from "@/lib/service-navigation";
 
 type Shift = {
   id: number;
@@ -116,28 +123,6 @@ function displayTime(time: string) {
   return `${clockHour}:${String(minute).padStart(2, "0")} ${suffix}`;
 }
 
-function todayLocal() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-function moveDate(value: string, amount: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + amount);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function shiftForNow(shifts: Shift[]) {
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const activeShift = shifts.find(
-    (shift) =>
-      minutes(shift.start_time) <= currentMinutes && currentMinutes < minutes(shift.end_time),
-  );
-  const upcomingShift = shifts.find((shift) => minutes(shift.start_time) > currentMinutes);
-  return activeShift?.slug || upcomingShift?.slug || shifts.at(-1)?.slug || "dinner";
-}
-
 function reservationsOverlap(left: Reservation, right: Reservation) {
   const leftStart = minutes(left.start_time);
   const rightStart = minutes(right.start_time);
@@ -158,11 +143,18 @@ function readError(payload: unknown) {
 type ReservationGridProps = {
   bookingOpen: boolean;
   onBookingOpenChange: (open: boolean) => void;
+  initialServiceDate?: string;
+  initialShiftSlug?: string;
 };
 
-export function ReservationGrid({ bookingOpen, onBookingOpenChange }: ReservationGridProps) {
-  const [serviceDate, setServiceDate] = useState(todayLocal);
-  const [shiftSlug, setShiftSlug] = useState("dinner");
+export function ReservationGrid({
+  bookingOpen,
+  onBookingOpenChange,
+  initialServiceDate,
+  initialShiftSlug,
+}: ReservationGridProps) {
+  const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
+  const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -177,6 +169,7 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
   const [unlocking, setUnlocking] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const resolveCurrentService = useRef(!initialServiceDate);
 
   const loadGrid = useCallback(async () => {
     setLoading(true);
@@ -188,8 +181,21 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
       const payload = (await response.json()) as GridData | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       const next = payload as GridData;
+      if (resolveCurrentService.current) {
+        resolveCurrentService.current = false;
+        const closest = closestServiceOccurrence(next.shifts);
+        const currentDate = closest?.date || todayLocal();
+        const currentShift = closest?.shiftSlug || next.selected_shift.slug;
+        writeServiceUrl(currentDate, currentShift, "replace");
+        if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
+          setServiceDate(currentDate);
+          setShiftSlug(currentShift);
+          return;
+        }
+      }
       setData(next);
       setShiftSlug(next.selected_shift.slug);
+      writeServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load the reservation grid.");
     } finally {
@@ -202,6 +208,24 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadGrid();
   }, [loadGrid]);
+
+  useEffect(() => {
+    function restoreServiceFromUrl() {
+      const next = serviceStateFromSearch(window.location.search);
+      if (next.serviceDate) {
+        resolveCurrentService.current = false;
+        setServiceDate(next.serviceDate);
+        setShiftSlug(next.shiftSlug || "");
+      } else {
+        resolveCurrentService.current = true;
+        setServiceDate(todayLocal());
+        setShiftSlug("");
+      }
+    }
+
+    window.addEventListener("popstate", restoreServiceFromUrl);
+    return () => window.removeEventListener("popstate", restoreServiceFromUrl);
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 15_000);
@@ -266,20 +290,26 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
   function chooseDate(next: string) {
     setDraft(null);
     setSelected(null);
+    writeServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(next);
   }
 
   function chooseShift(next: string) {
     setDraft(null);
     setSelected(null);
+    writeServiceUrl(serviceDate, next);
     setShiftSlug(next);
   }
 
   function returnToNow() {
     setDraft(null);
     setSelected(null);
-    setServiceDate(todayLocal());
-    setShiftSlug(shiftForNow(data?.shifts || []));
+    const closest = closestServiceOccurrence(data?.shifts || []);
+    const currentDate = closest?.date || todayLocal();
+    const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
+    writeServiceUrl(currentDate, currentShift);
+    setServiceDate(currentDate);
+    setShiftSlug(currentShift);
   }
 
   function finishWizardBooking(bookedDate: string, bookedShift: string) {
@@ -290,6 +320,7 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
       void loadGrid();
       return;
     }
+    writeServiceUrl(bookedDate, bookedShift);
     setServiceDate(bookedDate);
     setShiftSlug(bookedShift);
   }
@@ -466,11 +497,11 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
           </div>
         </div>
         <div className="date-control" aria-label="Choose service date">
-          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
+          <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
             <ChevronLeft aria-hidden="true" />
           </button>
           <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
-          <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
+          <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
           </button>
           <button
