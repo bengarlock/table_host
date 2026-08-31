@@ -200,6 +200,21 @@ type FloorTableDrag = {
   origins: Array<{ id: number; positionX: number; positionY: number }>;
 };
 
+type FloorMarqueeDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  initialSelectedIds: number[];
+};
+
+type FloorMarqueeBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
   const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
   const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
@@ -226,9 +241,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [editedTables, setEditedTables] = useState<DiningTable[]>([]);
   const [editorSelectedTableIds, setEditorSelectedTableIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
+  const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
   const floorCanvasRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
+  const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
   const suppressEditorClickRef = useRef(false);
 
   const loadFloor = useCallback(async () => {
@@ -381,7 +398,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setEditedTables([]);
     setEditorSelectedTableIds([]);
     setMovingEditorTables(false);
+    setFloorMarqueeBounds(null);
     floorTableDragRef.current = null;
+    floorMarqueeDragRef.current = null;
   }
 
   function updateEditorSelection(patch: Partial<DiningTable>) {
@@ -490,6 +509,64 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         ? current.filter((selectedId) => selectedId !== tableId)
         : [...current, tableId];
     });
+  }
+
+  function beginFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!editingFloor || event.button !== 0 || event.target !== event.currentTarget) return;
+    const canvasBounds = event.currentTarget.getBoundingClientRect();
+    const additive = event.shiftKey || event.metaKey;
+    floorMarqueeDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX - canvasBounds.left,
+      startY: event.clientY - canvasBounds.top,
+      moved: false,
+      initialSelectedIds: additive ? editorSelectedTableIds : [],
+    };
+    if (!additive) setEditorSelectedTableIds([]);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = floorMarqueeDragRef.current;
+    const canvas = floorCanvasRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const canvasBounds = canvas.getBoundingClientRect();
+    const currentX = clamp(event.clientX - canvasBounds.left, 0, canvas.clientWidth);
+    const currentY = clamp(event.clientY - canvasBounds.top, 0, canvas.clientHeight);
+    if (!drag.moved && Math.hypot(currentX - drag.startX, currentY - drag.startY) <= 4) return;
+    drag.moved = true;
+    const bounds = {
+      left: Math.min(drag.startX, currentX),
+      top: Math.min(drag.startY, currentY),
+      width: Math.abs(currentX - drag.startX),
+      height: Math.abs(currentY - drag.startY),
+    };
+    setFloorMarqueeBounds(bounds);
+
+    const marqueeRight = canvasBounds.left + bounds.left + bounds.width;
+    const marqueeBottom = canvasBounds.top + bounds.top + bounds.height;
+    const marqueeLeft = canvasBounds.left + bounds.left;
+    const marqueeTop = canvasBounds.top + bounds.top;
+    const intersectedIds = Array.from(canvas.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+      .filter((table) => {
+        const tableBounds = table.getBoundingClientRect();
+        return tableBounds.right >= marqueeLeft
+          && tableBounds.left <= marqueeRight
+          && tableBounds.bottom >= marqueeTop
+          && tableBounds.top <= marqueeBottom;
+      })
+      .map((table) => Number(table.dataset.floorTableId));
+    setEditorSelectedTableIds([...new Set([...drag.initialSelectedIds, ...intersectedIds])]);
+  }
+
+  function finishFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = floorMarqueeDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    floorMarqueeDragRef.current = null;
+    setFloorMarqueeBounds(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   async function saveFloorLayout() {
@@ -895,7 +972,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-editor-selection">
                     <span>Floor editor</span>
                     <strong>{editorSelectedTableIds.length || "No"} table{editorSelectedTableIds.length === 1 ? "" : "s"} selected</strong>
-                    <small>Click a table to select it. Shift-click adds more; drag any selected table to move the group.</small>
+                    <small>Click a table or drag across the floor to select. Shift adds more; drag any selected table to move the group.</small>
                     <div>
                       <button type="button" onClick={() => setEditorSelectedTableIds(editedTables.map((table) => table.id))}>
                         Select all
@@ -1008,10 +1085,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
               <div
                 ref={floorCanvasRef}
-                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}`}
-                onPointerDown={(event) => {
-                  if (editingFloor && event.target === event.currentTarget) setEditorSelectedTableIds([]);
-                }}
+                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
+                onPointerDown={beginFloorMarquee}
+                onPointerMove={updateFloorMarquee}
+                onPointerUp={finishFloorMarquee}
+                onPointerCancel={finishFloorMarquee}
               >
                 {loading && !data ? (
                   <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
@@ -1023,6 +1101,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <button
                       type="button"
                       key={table.id}
+                      data-floor-table-id={table.id}
                       className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}`}
                       style={{
                         left: `${table.position_x}%`,
@@ -1081,6 +1160,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </button>
                   );
                 })}
+                {floorMarqueeBounds && (
+                  <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
+                )}
                 {data && data.tables.length === 0 && (
                   <div className="floor-canvas-loading"><CirclePlus aria-hidden="true" /> Add the first table to this floor.</div>
                 )}
