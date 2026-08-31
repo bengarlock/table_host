@@ -391,6 +391,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function beginFloorEditing() {
     if (!data) return;
+    setError("");
     cancelSeating();
     setFocusedReservationId(null);
     setSelectedPendingId(null);
@@ -400,6 +401,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function cancelFloorEditing() {
+    setError("");
     setEditingFloor(false);
     setEditedTables([]);
     setEditorSelectedTableIds([]);
@@ -407,6 +409,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setFloorMarqueeBounds(null);
     floorTableDragRef.current = null;
     floorMarqueeDragRef.current = null;
+  }
+
+  function allowPageNavigation() {
+    if (!editingFloor) return true;
+    setError("Save the floor layout before navigating to another page.");
+    return false;
   }
 
   function updateEditorSelection(patch: Partial<DiningTable>) {
@@ -810,7 +818,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   return (
     <div className="app-shell">
-      <AppSidebar />
+      <AppSidebar onNavigateAttempt={allowPageNavigation} />
       <main className="main-content floor-main-content">
         <div className="floor-page">
           <header className="floor-toolbar">
