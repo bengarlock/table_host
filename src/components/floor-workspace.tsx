@@ -1030,6 +1030,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         width: `${table.width}px`,
                         height: `${table.height}px`,
                         "--table-rotation": `${table.rotation}deg`,
+                        "--table-label-rotation": `${-table.rotation}deg`,
                       } as CSSProperties}
                       onClick={(event) => {
                         if (editingFloor) {
@@ -1065,7 +1066,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       {chairPositions(table).map((style, index) => (
                         <i key={index} className="chair" style={style} aria-hidden="true" />
                       ))}
-                      <span className="floor-table-surface">
+                      <span className="floor-table-surface" aria-hidden="true" />
+                      <span className="floor-table-label">
                         <strong>{table.name}</strong>
                         {reservation ? (
                           <>
