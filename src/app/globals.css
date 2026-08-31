@@ -3428,8 +3428,17 @@ textarea {
 }
 
 .floor-table.available .floor-table-surface {
-  border-color: rgba(117, 157, 125, 0.66);
-  background: #2e4634;
+  border-color: #d8dcda;
+  background: #b8bdb9;
+}
+
+.floor-table.available:not(.seat-selected):not(.drop-target) .floor-table-surface strong {
+  color: #181b19;
+}
+
+.floor-table.available:not(.seat-selected):not(.drop-target) .floor-table-surface small,
+.floor-table.available:not(.seat-selected):not(.drop-target) .floor-table-surface em {
+  color: #404641;
 }
 
 .floor-table:hover .floor-table-surface,
