@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlignHorizontalSpaceAround,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -8,13 +9,28 @@ import {
   Clock3,
   GripVertical,
   LoaderCircle,
+  PencilRuler,
   Plus,
+  RotateCcw,
+  RotateCw,
+  Rows3,
+  Save,
   Search,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  CSSProperties,
+  DragEvent,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
@@ -44,6 +60,10 @@ type DiningTable = {
   shape: "rectangle" | "round";
   position_x: number;
   position_y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  chair_layout: "wrap" | "across";
 };
 
 type ServiceStatus =
@@ -120,6 +140,30 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function chairPositions(table: DiningTable): CSSProperties[] {
+  const sides = table.chair_layout === "across"
+    ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 0 : 2)
+    : Array.from({ length: table.capacity }, (_, index) => index % 4);
+  const totals = sides.reduce((counts, side) => {
+    counts[side] += 1;
+    return counts;
+  }, [0, 0, 0, 0]);
+  const placed = [0, 0, 0, 0];
+
+  return sides.map((side) => {
+    placed[side] += 1;
+    const offset = `${(placed[side] / (totals[side] + 1)) * 100}%`;
+    if (side === 0) return { left: offset, top: 0, transform: "translate(-50%, -50%)" };
+    if (side === 1) return { left: "100%", top: offset, transform: "translate(-50%, -50%) rotate(90deg)" };
+    if (side === 2) return { left: offset, top: "100%", transform: "translate(-50%, -50%) rotate(180deg)" };
+    return { left: 0, top: offset, transform: "translate(-50%, -50%) rotate(270deg)" };
+  });
+}
+
 function statusLabel(status: ServiceStatus) {
   return SERVICE_STEPS.find((step) => step.value === status)?.label || status;
 }
@@ -134,6 +178,14 @@ function readError(payload: unknown) {
 type FloorWorkspaceProps = {
   initialServiceDate?: string;
   initialShiftSlug?: string;
+};
+
+type FloorTableDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  origins: Array<{ id: number; positionX: number; positionY: number }>;
 };
 
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
@@ -158,7 +210,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [walkInDraft, setWalkInDraft] = useState<WalkInDraft | null>(null);
   const [guestSearchLoading, setGuestSearchLoading] = useState(false);
   const [creatingGuest, setCreatingGuest] = useState(false);
+  const [editingFloor, setEditingFloor] = useState(false);
+  const [editedTables, setEditedTables] = useState<DiningTable[]>([]);
+  const [editorSelectedTableIds, setEditorSelectedTableIds] = useState<number[]>([]);
+  const [movingEditorTables, setMovingEditorTables] = useState(false);
   const resolveCurrentService = useRef(!initialServiceDate);
+  const floorCanvasRef = useRef<HTMLDivElement>(null);
+  const floorTableDragRef = useRef<FloorTableDrag | null>(null);
+  const suppressEditorClickRef = useRef(false);
 
   const loadFloor = useCallback(async () => {
     setLoading(true);
@@ -269,6 +328,25 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = activeReservations.find((item) => item.id === focusedReservationId) || null;
   const liveService = serviceDate === todayLocal();
+  const displayedTables = editingFloor ? editedTables : data?.tables || [];
+  const editorSelectedTables = useMemo(
+    () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
+    [editedTables, editorSelectedTableIds],
+  );
+  const editorValues = useMemo(() => {
+    const first = editorSelectedTables[0];
+    if (!first) return null;
+    const shared = <Key extends keyof DiningTable,>(key: Key) =>
+      editorSelectedTables.every((table) => table[key] === first[key]) ? first[key] : "";
+    return {
+      capacity: shared("capacity"),
+      shape: shared("shape"),
+      width: shared("width"),
+      height: shared("height"),
+      rotation: shared("rotation"),
+      chairLayout: shared("chair_layout"),
+    };
+  }, [editorSelectedTables]);
 
   function cancelSeating() {
     setSeatingMode(null);
@@ -276,7 +354,167 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setWalkInDraft(null);
   }
 
+  function beginFloorEditing() {
+    if (!data) return;
+    cancelSeating();
+    setFocusedReservationId(null);
+    setSelectedPendingId(null);
+    setEditedTables(data.tables.map((table) => ({ ...table })));
+    setEditorSelectedTableIds([]);
+    setEditingFloor(true);
+  }
+
+  function cancelFloorEditing() {
+    setEditingFloor(false);
+    setEditedTables([]);
+    setEditorSelectedTableIds([]);
+    setMovingEditorTables(false);
+    floorTableDragRef.current = null;
+  }
+
+  function updateEditorSelection(patch: Partial<DiningTable>) {
+    if (!editorSelectedTableIds.length) return;
+    setEditedTables((current) => current.map((table) =>
+      editorSelectedTableIds.includes(table.id) ? { ...table, ...patch } : table,
+    ));
+  }
+
+  function alignSelectedTables() {
+    if (editorSelectedTables.length < 2) return;
+    const row = Math.round(
+      editorSelectedTables.reduce((total, table) => total + table.position_y, 0)
+      / editorSelectedTables.length,
+    );
+    updateEditorSelection({ position_y: row });
+  }
+
+  function spaceSelectedTables() {
+    if (editorSelectedTables.length < 2) return;
+    const ordered = [...editorSelectedTables].sort((left, right) => left.position_x - right.position_x);
+    const first = ordered[0].position_x;
+    const last = ordered.at(-1)?.position_x || first;
+    const gap = ordered.length > 1 ? (last - first) / (ordered.length - 1) : 0;
+    const positions = new Map(ordered.map((table, index) => [table.id, Math.round(first + gap * index)]));
+    setEditedTables((current) => current.map((table) =>
+      positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
+    ));
+  }
+
+  function rotateSelectedTables(amount: number) {
+    if (!editorSelectedTableIds.length) return;
+    setEditedTables((current) => current.map((table) => editorSelectedTableIds.includes(table.id)
+      ? { ...table, rotation: (table.rotation + amount + 360) % 360 }
+      : table));
+  }
+
+  function beginTableMove(event: ReactPointerEvent<HTMLButtonElement>, tableId: number) {
+    if (!editingFloor || event.button !== 0) return;
+    if ((event.shiftKey || event.metaKey) && !editorSelectedTableIds.includes(tableId)) {
+      return;
+    }
+    const selectedIds = editorSelectedTableIds.includes(tableId)
+      ? editorSelectedTableIds
+      : [tableId];
+    setEditorSelectedTableIds(selectedIds);
+    floorTableDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      origins: editedTables
+        .filter((table) => selectedIds.includes(table.id))
+        .map((table) => ({
+          id: table.id,
+          positionX: table.position_x,
+          positionY: table.position_y,
+        })),
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveSelectedTables(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = floorTableDragRef.current;
+    const canvas = floorCanvasRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) > 3) {
+      drag.moved = true;
+      setMovingEditorTables(true);
+    }
+    if (!drag.moved) return;
+    const xPercent = (deltaX / canvas.clientWidth) * 100;
+    const yPercent = (deltaY / canvas.clientHeight) * 100;
+    const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
+    setEditedTables((current) => current.map((table) => {
+      const origin = origins.get(table.id);
+      return origin ? {
+        ...table,
+        position_x: Math.round(clamp(origin.positionX + xPercent, 3, 97)),
+        position_y: Math.round(clamp(origin.positionY + yPercent, 4, 96)),
+      } : table;
+    }));
+  }
+
+  function finishTableMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = floorTableDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    suppressEditorClickRef.current = drag.moved;
+    floorTableDragRef.current = null;
+    setMovingEditorTables(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function selectEditorTable(tableId: number, additive: boolean) {
+    if (suppressEditorClickRef.current) {
+      suppressEditorClickRef.current = false;
+      return;
+    }
+    setEditorSelectedTableIds((current) => {
+      if (!additive) return [tableId];
+      return current.includes(tableId)
+        ? current.filter((selectedId) => selectedId !== tableId)
+        : [...current, tableId];
+    });
+  }
+
+  async function saveFloorLayout() {
+    if (!editedTables.length) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(appPath("/api/grid/tables"), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tables: editedTables.map((table) => ({
+            id: table.id,
+            capacity: table.capacity,
+            shape: table.shape,
+            position_x: table.position_x,
+            position_y: table.position_y,
+            width: table.width,
+            height: table.height,
+            rotation: table.rotation,
+            chair_layout: table.chair_layout,
+          })),
+        }),
+      });
+      const payload = (await response.json()) as DiningTable[] | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      cancelFloorEditing();
+      await loadFloor();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the floor layout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function chooseDate(value: string) {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
@@ -285,6 +523,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function chooseShift(value: string) {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
@@ -293,6 +532,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function jumpToNow() {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
@@ -517,7 +757,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             </div>
           )}
 
-          <div className="floor-service-layout">
+          <div className={`floor-service-layout${editingFloor ? " editing-floor" : ""}`}>
             <aside className="floor-reservations-panel" aria-label="Pending reservations">
               <div className="floor-panel-heading">
                 <div>
@@ -624,45 +864,195 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 </div>
                 <div className="floor-plan-actions">
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
-                  <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving}>
-                    <Plus aria-hidden="true" /> Add table
+                  <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving || editingFloor}>
+                    <Plus aria-hidden="true" /> Add Table
+                  </button>
+                  <button
+                    type="button"
+                    className="floor-edit-trigger"
+                    onClick={beginFloorEditing}
+                    disabled={saving || editingFloor || !data?.tables.length}
+                  >
+                    <PencilRuler aria-hidden="true" /> {editingFloor ? "Editing Floor" : "Edit Floor"}
                   </button>
                 </div>
               </div>
 
-              <div className={`floor-canvas${seatingMode ? " assigning seating" : ""}`}>
+              {editingFloor && (
+                <section className="floor-editor-console" aria-label="Floor editor console">
+                  <div className="floor-editor-selection">
+                    <span>Floor editor</span>
+                    <strong>{editorSelectedTableIds.length || "No"} table{editorSelectedTableIds.length === 1 ? "" : "s"} selected</strong>
+                    <small>Click a table to select it. Shift-click adds more; drag any selected table to move the group.</small>
+                    <div>
+                      <button type="button" onClick={() => setEditorSelectedTableIds(editedTables.map((table) => table.id))}>
+                        Select all
+                      </button>
+                      <button type="button" onClick={() => setEditorSelectedTableIds([])} disabled={!editorSelectedTableIds.length}>
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="floor-editor-tools">
+                    <div className="floor-editor-tool-group" aria-label="Alignment tools">
+                      <span>Arrange</span>
+                      <button type="button" onClick={alignSelectedTables} disabled={editorSelectedTables.length < 2}>
+                        <Rows3 aria-hidden="true" /> Align row
+                      </button>
+                      <button type="button" onClick={spaceSelectedTables} disabled={editorSelectedTables.length < 2}>
+                        <AlignHorizontalSpaceAround aria-hidden="true" /> Equal spacing
+                      </button>
+                    </div>
+                    <div className="floor-editor-tool-group" aria-label="Rotation tools">
+                      <span>Rotate</span>
+                      <button type="button" onClick={() => rotateSelectedTables(-15)} disabled={!editorSelectedTableIds.length} aria-label="Rotate selected tables left 15 degrees">
+                        <RotateCcw aria-hidden="true" /> −15°
+                      </button>
+                      <button type="button" onClick={() => rotateSelectedTables(15)} disabled={!editorSelectedTableIds.length} aria-label="Rotate selected tables right 15 degrees">
+                        <RotateCw aria-hidden="true" /> +15°
+                      </button>
+                    </div>
+                    <div className="floor-editor-fields">
+                      <label>
+                        Seats
+                        <input
+                          type="number"
+                          min={1}
+                          max={40}
+                          value={editorValues?.capacity ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ capacity: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ capacity: clamp(Number(event.target.value), 1, 40) })}
+                        />
+                      </label>
+                      <label>
+                        Shape
+                        <select
+                          value={editorValues?.shape ?? ""}
+                          disabled={!editorValues}
+                          onChange={(event) => updateEditorSelection({ shape: event.target.value as DiningTable["shape"] })}
+                        >
+                          <option value="" disabled>Mixed</option>
+                          <option value="rectangle">Rectangle</option>
+                          <option value="round">Round</option>
+                        </select>
+                      </label>
+                      <label>
+                        Width
+                        <input
+                          type="number"
+                          min={72}
+                          max={220}
+                          value={editorValues?.width ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ width: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ width: clamp(Number(event.target.value), 72, 220) })}
+                        />
+                      </label>
+                      <label>
+                        Height
+                        <input
+                          type="number"
+                          min={64}
+                          max={180}
+                          value={editorValues?.height ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ height: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ height: clamp(Number(event.target.value), 64, 180) })}
+                        />
+                      </label>
+                      <label>
+                        Chairs
+                        <select
+                          value={editorValues?.chairLayout ?? ""}
+                          disabled={!editorValues}
+                          onChange={(event) => updateEditorSelection({ chair_layout: event.target.value as DiningTable["chair_layout"] })}
+                        >
+                          <option value="" disabled>Mixed</option>
+                          <option value="wrap">Wrap around</option>
+                          <option value="across">Across</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="floor-editor-actions">
+                    <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving}>
+                      {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+                      {saving ? "Saving…" : "Save Floor"}
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <div
+                ref={floorCanvasRef}
+                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}`}
+                onPointerDown={(event) => {
+                  if (editingFloor && event.target === event.currentTarget) setEditorSelectedTableIds([]);
+                }}
+              >
                 {loading && !data ? (
                   <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
-                ) : data?.tables.map((table) => {
+                ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
+                  const editorSelected = editorSelectedTableIds.includes(table.id);
                   return (
                     <button
                       type="button"
                       key={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}`}
-                      style={{ left: `${table.position_x}%`, top: `${table.position_y}%` }}
-                      onClick={() => {
-                        if (reservation) {
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}`}
+                      style={{
+                        left: `${table.position_x}%`,
+                        top: `${table.position_y}%`,
+                        width: `${table.width}px`,
+                        height: `${table.height}px`,
+                        "--table-rotation": `${table.rotation}deg`,
+                      } as CSSProperties}
+                      onClick={(event) => {
+                        if (editingFloor) {
+                          selectEditorTable(table.id, event.shiftKey || event.metaKey);
+                        } else if (reservation) {
                           setFocusedReservationId(reservation.id);
                         } else if (seatingMode) {
                           toggleSeatingTable(table.id);
                         }
                       }}
+                      onPointerDown={(event) => beginTableMove(event, table.id)}
+                      onPointerMove={moveSelectedTables}
+                      onPointerUp={finishTableMove}
+                      onPointerCancel={finishTableMove}
                       onDragOver={(event) => {
-                        if (!available || !draggedReservation || !liveService) return;
+                        if (editingFloor || !available || !draggedReservation || !liveService) return;
                         event.preventDefault();
                         setDropTargetTableId(table.id);
                       }}
-                      onDragLeave={() => setDropTargetTableId(null)}
-                      onDrop={(event) => dropReservation(event, table)}
-                      aria-pressed={seatingMode ? selectedTableIds.includes(table.id) : undefined}
-                      aria-label={reservation ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
+                      onDragLeave={() => {
+                        if (!editingFloor) setDropTargetTableId(null);
+                      }}
+                      onDrop={(event) => {
+                        if (!editingFloor) dropReservation(event, table);
+                      }}
+                      aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
+                      aria-label={editingFloor
+                        ? `Table ${table.name}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}`
+                        : reservation
+                          ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
+                          : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
                     >
-                      <i className="chair chair-top" aria-hidden="true" />
-                      <i className="chair chair-right" aria-hidden="true" />
-                      <i className="chair chair-bottom" aria-hidden="true" />
-                      <i className="chair chair-left" aria-hidden="true" />
+                      {chairPositions(table).map((style, index) => (
+                        <i key={index} className="chair" style={style} aria-hidden="true" />
+                      ))}
                       <span className="floor-table-surface">
                         <strong>{table.name}</strong>
                         {reservation ? (
@@ -671,7 +1061,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (
-                          <><small>{table.capacity} seats</small><em>Available</em></>
+                          <><small>{table.capacity} seats</small><em>{editingFloor ? `${table.rotation}°` : "Available"}</em></>
                         )}
                       </span>
                     </button>
