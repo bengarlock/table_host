@@ -42,6 +42,8 @@ type Reservation = {
   id: number;
   table_id: number;
   table_name: string;
+  table_ids: number[];
+  table_names: string[];
   guest_name: string;
   party_size: number;
   start_time: string;
@@ -526,7 +528,9 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
                   </div>
                 </div>
                 {data.tables.map((table) => {
-                  const tableReservations = data.reservations.filter((item) => item.table_id === table.id);
+                  const tableReservations = data.reservations.filter((item) =>
+                    (item.table_ids.length ? item.table_ids : [item.table_id]).includes(table.id),
+                  );
                   const hasConflict = Boolean(
                     draggedReservation &&
                     tableReservations.some(
@@ -674,7 +678,7 @@ export function ReservationGrid({ bookingOpen, onBookingOpenChange }: Reservatio
               <div>
                 <p className="panel-eyebrow">Reservation</p>
                 <h2>{selected.guest_name}</h2>
-                <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · Table {selected.table_name}</div>
+                <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</div>
                 <button
                   type="button"
                   className={`assignment-lock-button assignment-${selected.assignment_type}${unlocking ? " unlocking" : ""}`}
