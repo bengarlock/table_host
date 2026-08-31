@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlignHorizontalSpaceAround,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -8,16 +9,39 @@ import {
   Clock3,
   GripVertical,
   LoaderCircle,
+  PencilRuler,
   Plus,
+  RotateCcw,
+  RotateCw,
+  Rows3,
+  Save,
   Search,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CSSProperties,
+  DragEvent,
+  FormEvent,
+  PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import {
+  closestServiceOccurrence,
+  localDateValue,
+  moveServiceDate,
+  serviceStateFromSearch,
+  todayLocal,
+  writeServiceUrl,
+} from "@/lib/service-navigation";
 
 type Shift = {
   id: number;
@@ -36,6 +60,10 @@ type DiningTable = {
   shape: "rectangle" | "round";
   position_x: number;
   position_y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  chair_layout: "wrap" | "across";
 };
 
 type ServiceStatus =
@@ -107,48 +135,45 @@ const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "complete", label: "Done" },
 ];
 
-function localDateValue(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function todayLocal() {
-  return localDateValue(new Date());
-}
-
-function moveDate(value: string, amount: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setDate(date.getDate() + amount);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function closestServiceOccurrence(shifts: Shift[], now = new Date()) {
-  const candidates = shifts.flatMap((shift) => {
-    const [hour, minute] = shift.start_time.split(":").map(Number);
-    return [-1, 0, 1].map((dayOffset) => {
-      const startsAt = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + dayOffset,
-        hour,
-        minute,
-      );
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function chairPositions(table: DiningTable): CSSProperties[] {
+  if (table.shape === "round" && table.chair_layout === "wrap") {
+    return Array.from({ length: table.capacity }, (_, index) => {
+      const angle = -90 + (index * 360) / table.capacity;
+      const radians = (angle * Math.PI) / 180;
       return {
-        date: localDateValue(startsAt),
-        shiftSlug: shift.slug,
-        distance: Math.abs(startsAt.getTime() - now.getTime()),
+        left: `${50 + Math.cos(radians) * 50}%`,
+        top: `${50 + Math.sin(radians) * 50}%`,
+        transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`,
       };
     });
-  });
+  }
 
-  return candidates.reduce<(typeof candidates)[number] | null>(
-    (closest, candidate) => !closest || candidate.distance < closest.distance ? candidate : closest,
-    null,
-  );
+  const sides = table.chair_layout === "across"
+    ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 0 : 2)
+    : Array.from({ length: table.capacity }, (_, index) => index % 4);
+  const totals = sides.reduce((counts, side) => {
+    counts[side] += 1;
+    return counts;
+  }, [0, 0, 0, 0]);
+  const placed = [0, 0, 0, 0];
+
+  return sides.map((side) => {
+    placed[side] += 1;
+    const offset = `${(placed[side] / (totals[side] + 1)) * 100}%`;
+    if (side === 0) return { left: offset, top: 0, transform: "translate(-50%, -50%)" };
+    if (side === 1) return { left: "100%", top: offset, transform: "translate(-50%, -50%) rotate(90deg)" };
+    if (side === 2) return { left: offset, top: "100%", transform: "translate(-50%, -50%) rotate(180deg)" };
+    return { left: 0, top: offset, transform: "translate(-50%, -50%) rotate(270deg)" };
+  });
 }
 
 function statusLabel(status: ServiceStatus) {
@@ -162,9 +187,37 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
-export function FloorWorkspace() {
-  const [serviceDate, setServiceDate] = useState(todayLocal);
-  const [shiftSlug, setShiftSlug] = useState("dinner");
+type FloorWorkspaceProps = {
+  initialServiceDate?: string;
+  initialShiftSlug?: string;
+};
+
+type FloorTableDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  origins: Array<{ id: number; positionX: number; positionY: number }>;
+};
+
+type FloorMarqueeDrag = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  initialSelectedIds: number[];
+};
+
+type FloorMarqueeBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
+  const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
+  const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -184,30 +237,78 @@ export function FloorWorkspace() {
   const [walkInDraft, setWalkInDraft] = useState<WalkInDraft | null>(null);
   const [guestSearchLoading, setGuestSearchLoading] = useState(false);
   const [creatingGuest, setCreatingGuest] = useState(false);
+  const [editingFloor, setEditingFloor] = useState(false);
+  const [editedTables, setEditedTables] = useState<DiningTable[]>([]);
+  const [editorSelectedTableIds, setEditorSelectedTableIds] = useState<number[]>([]);
+  const [movingEditorTables, setMovingEditorTables] = useState(false);
+  const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
+  const resolveCurrentService = useRef(!initialServiceDate);
+  const floorCanvasRef = useRef<HTMLDivElement>(null);
+  const floorTableDragRef = useRef<FloorTableDrag | null>(null);
+  const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
+  const floorLoadRequestRef = useRef(0);
+  const suppressEditorClickRef = useRef(false);
 
-  const loadFloor = useCallback(async () => {
+  const loadFloor = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++floorLoadRequestRef.current;
     setLoading(true);
     setError("");
-    const query = new URLSearchParams({ date: serviceDate, shift: shiftSlug });
+    const query = new URLSearchParams({ date: serviceDate });
+    if (shiftSlug) query.set("shift", shiftSlug);
     try {
-      const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
+      const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store", signal });
       const payload = (await response.json()) as GridData | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
+      if (requestId !== floorLoadRequestRef.current) return;
       const next = payload as GridData;
+      if (resolveCurrentService.current) {
+        resolveCurrentService.current = false;
+        const closest = closestServiceOccurrence(next.shifts);
+        const currentDate = closest?.date || todayLocal();
+        const currentShift = closest?.shiftSlug || next.selected_shift.slug;
+        writeServiceUrl(currentDate, currentShift, "replace");
+        if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
+          setServiceDate(currentDate);
+          setShiftSlug(currentShift);
+          return;
+        }
+      }
       setData(next);
       setShiftSlug(next.selected_shift.slug);
+      writeServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
+      if (signal?.aborted || requestId !== floorLoadRequestRef.current) return;
       setError(reason instanceof Error ? reason.message : "Unable to load the floor plan.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && requestId === floorLoadRequestRef.current) setLoading(false);
     }
   }, [serviceDate, shiftSlug]);
 
   useEffect(() => {
+    const controller = new AbortController();
     // Refresh the floor whenever the service date or shift changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadFloor();
+    void loadFloor(controller.signal);
+    return () => controller.abort();
   }, [loadFloor]);
+
+  useEffect(() => {
+    function restoreServiceFromUrl() {
+      const next = serviceStateFromSearch(window.location.search);
+      if (next.serviceDate) {
+        resolveCurrentService.current = false;
+        setServiceDate(next.serviceDate);
+        setShiftSlug(next.shiftSlug || "");
+      } else {
+        resolveCurrentService.current = true;
+        setServiceDate(todayLocal());
+        setShiftSlug("");
+      }
+    }
+
+    window.addEventListener("popstate", restoreServiceFromUrl);
+    return () => window.removeEventListener("popstate", restoreServiceFromUrl);
+  }, []);
 
   useEffect(() => {
     if (!walkInOpen) return;
@@ -262,6 +363,25 @@ export function FloorWorkspace() {
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = activeReservations.find((item) => item.id === focusedReservationId) || null;
   const liveService = serviceDate === todayLocal();
+  const displayedTables = editingFloor ? editedTables : data?.tables || [];
+  const editorSelectedTables = useMemo(
+    () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
+    [editedTables, editorSelectedTableIds],
+  );
+  const editorValues = useMemo(() => {
+    const first = editorSelectedTables[0];
+    if (!first) return null;
+    const shared = <Key extends keyof DiningTable,>(key: Key) =>
+      editorSelectedTables.every((table) => table[key] === first[key]) ? first[key] : "";
+    return {
+      capacity: shared("capacity"),
+      shape: shared("shape"),
+      width: shared("width"),
+      height: shared("height"),
+      rotation: shared("rotation"),
+      chairLayout: shared("chair_layout"),
+    };
+  }, [editorSelectedTables]);
 
   function cancelSeating() {
     setSeatingMode(null);
@@ -269,28 +389,255 @@ export function FloorWorkspace() {
     setWalkInDraft(null);
   }
 
+  function beginFloorEditing() {
+    if (!data) return;
+    cancelSeating();
+    setFocusedReservationId(null);
+    setSelectedPendingId(null);
+    setEditedTables(data.tables.map((table) => ({ ...table })));
+    setEditorSelectedTableIds([]);
+    setEditingFloor(true);
+  }
+
+  function cancelFloorEditing() {
+    setEditingFloor(false);
+    setEditedTables([]);
+    setEditorSelectedTableIds([]);
+    setMovingEditorTables(false);
+    setFloorMarqueeBounds(null);
+    floorTableDragRef.current = null;
+    floorMarqueeDragRef.current = null;
+  }
+
+  function updateEditorSelection(patch: Partial<DiningTable>) {
+    if (!editorSelectedTableIds.length) return;
+    setEditedTables((current) => current.map((table) =>
+      editorSelectedTableIds.includes(table.id) ? { ...table, ...patch } : table,
+    ));
+  }
+
+  function alignSelectedTables() {
+    if (editorSelectedTables.length < 2) return;
+    const row = Math.round(
+      editorSelectedTables.reduce((total, table) => total + table.position_y, 0)
+      / editorSelectedTables.length,
+    );
+    updateEditorSelection({ position_y: row });
+  }
+
+  function spaceSelectedTables() {
+    if (editorSelectedTables.length < 2) return;
+    const ordered = [...editorSelectedTables].sort((left, right) => left.position_x - right.position_x);
+    const first = ordered[0].position_x;
+    const last = ordered.at(-1)?.position_x || first;
+    const gap = ordered.length > 1 ? (last - first) / (ordered.length - 1) : 0;
+    const positions = new Map(ordered.map((table, index) => [table.id, Math.round(first + gap * index)]));
+    setEditedTables((current) => current.map((table) =>
+      positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
+    ));
+  }
+
+  function rotateSelectedTables(amount: number) {
+    if (!editorSelectedTableIds.length) return;
+    setEditedTables((current) => current.map((table) => editorSelectedTableIds.includes(table.id)
+      ? { ...table, rotation: (table.rotation + amount + 360) % 360 }
+      : table));
+  }
+
+  function beginTableMove(event: ReactPointerEvent<HTMLButtonElement>, tableId: number) {
+    if (!editingFloor || event.button !== 0) return;
+    if ((event.shiftKey || event.metaKey) && !editorSelectedTableIds.includes(tableId)) {
+      return;
+    }
+    const selectedIds = editorSelectedTableIds.includes(tableId)
+      ? editorSelectedTableIds
+      : [tableId];
+    setEditorSelectedTableIds(selectedIds);
+    floorTableDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      origins: editedTables
+        .filter((table) => selectedIds.includes(table.id))
+        .map((table) => ({
+          id: table.id,
+          positionX: table.position_x,
+          positionY: table.position_y,
+        })),
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveSelectedTables(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = floorTableDragRef.current;
+    const canvas = floorCanvasRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) > 3) {
+      drag.moved = true;
+      setMovingEditorTables(true);
+    }
+    if (!drag.moved) return;
+    const xPercent = (deltaX / canvas.clientWidth) * 100;
+    const yPercent = (deltaY / canvas.clientHeight) * 100;
+    const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
+    setEditedTables((current) => current.map((table) => {
+      const origin = origins.get(table.id);
+      return origin ? {
+        ...table,
+        position_x: Math.round(clamp(origin.positionX + xPercent, 3, 97)),
+        position_y: Math.round(clamp(origin.positionY + yPercent, 4, 96)),
+      } : table;
+    }));
+  }
+
+  function finishTableMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = floorTableDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    suppressEditorClickRef.current = drag.moved;
+    floorTableDragRef.current = null;
+    setMovingEditorTables(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function selectEditorTable(tableId: number, additive: boolean) {
+    if (suppressEditorClickRef.current) {
+      suppressEditorClickRef.current = false;
+      return;
+    }
+    setEditorSelectedTableIds((current) => {
+      if (!additive) return [tableId];
+      return current.includes(tableId)
+        ? current.filter((selectedId) => selectedId !== tableId)
+        : [...current, tableId];
+    });
+  }
+
+  function beginFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!editingFloor || event.button !== 0 || event.target !== event.currentTarget) return;
+    const canvasBounds = event.currentTarget.getBoundingClientRect();
+    const additive = event.shiftKey || event.metaKey;
+    floorMarqueeDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX - canvasBounds.left,
+      startY: event.clientY - canvasBounds.top,
+      moved: false,
+      initialSelectedIds: additive ? editorSelectedTableIds : [],
+    };
+    if (!additive) setEditorSelectedTableIds([]);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function updateFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = floorMarqueeDragRef.current;
+    const canvas = floorCanvasRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const canvasBounds = canvas.getBoundingClientRect();
+    const currentX = clamp(event.clientX - canvasBounds.left, 0, canvas.clientWidth);
+    const currentY = clamp(event.clientY - canvasBounds.top, 0, canvas.clientHeight);
+    if (!drag.moved && Math.hypot(currentX - drag.startX, currentY - drag.startY) <= 4) return;
+    drag.moved = true;
+    const bounds = {
+      left: Math.min(drag.startX, currentX),
+      top: Math.min(drag.startY, currentY),
+      width: Math.abs(currentX - drag.startX),
+      height: Math.abs(currentY - drag.startY),
+    };
+    setFloorMarqueeBounds(bounds);
+
+    const marqueeRight = canvasBounds.left + bounds.left + bounds.width;
+    const marqueeBottom = canvasBounds.top + bounds.top + bounds.height;
+    const marqueeLeft = canvasBounds.left + bounds.left;
+    const marqueeTop = canvasBounds.top + bounds.top;
+    const intersectedIds = Array.from(canvas.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+      .filter((table) => {
+        const tableBounds = table.getBoundingClientRect();
+        return tableBounds.right >= marqueeLeft
+          && tableBounds.left <= marqueeRight
+          && tableBounds.bottom >= marqueeTop
+          && tableBounds.top <= marqueeBottom;
+      })
+      .map((table) => Number(table.dataset.floorTableId));
+    setEditorSelectedTableIds([...new Set([...drag.initialSelectedIds, ...intersectedIds])]);
+  }
+
+  function finishFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = floorMarqueeDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    floorMarqueeDragRef.current = null;
+    setFloorMarqueeBounds(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  async function saveFloorLayout() {
+    if (!editedTables.length) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(appPath("/api/grid/tables"), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tables: editedTables.map((table) => ({
+            id: table.id,
+            capacity: table.capacity,
+            shape: table.shape,
+            position_x: table.position_x,
+            position_y: table.position_y,
+            width: table.width,
+            height: table.height,
+            rotation: table.rotation,
+            chair_layout: table.chair_layout,
+          })),
+        }),
+      });
+      const payload = (await response.json()) as DiningTable[] | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      cancelFloorEditing();
+      await loadFloor();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save the floor layout.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function chooseDate(value: string) {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
+    writeServiceUrl(value, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(value);
   }
 
   function chooseShift(value: string) {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
+    writeServiceUrl(serviceDate, value);
     setShiftSlug(value);
   }
 
   function jumpToNow() {
+    if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
     setFocusedReservationId(null);
     const now = new Date();
     const closest = closestServiceOccurrence(data?.shifts || [], now);
-    setServiceDate(closest?.date || localDateValue(now));
-    if (closest) setShiftSlug(closest.shiftSlug);
+    const currentDate = closest?.date || localDateValue(now);
+    const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
+    writeServiceUrl(currentDate, currentShift);
+    setServiceDate(currentDate);
+    setShiftSlug(currentShift);
   }
 
   async function updateReservation(
@@ -485,11 +832,11 @@ export function FloorWorkspace() {
               ))}
             </div>
             <div className="date-control" aria-label="Choose service date">
-              <button type="button" onClick={() => chooseDate(moveDate(serviceDate, -1))} aria-label="Previous day">
+              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
                 <ChevronLeft aria-hidden="true" />
               </button>
               <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
-              <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
+              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
                 <ChevronRight aria-hidden="true" />
               </button>
               <button className="now-button" type="button" onClick={jumpToNow} aria-label="Go to the closest service now">
@@ -505,7 +852,7 @@ export function FloorWorkspace() {
             </div>
           )}
 
-          <div className="floor-service-layout">
+          <div className={`floor-service-layout${editingFloor ? " editing-floor" : ""}`}>
             <aside className="floor-reservations-panel" aria-label="Pending reservations">
               <div className="floor-panel-heading">
                 <div>
@@ -612,46 +959,200 @@ export function FloorWorkspace() {
                 </div>
                 <div className="floor-plan-actions">
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
-                  <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving}>
-                    <Plus aria-hidden="true" /> Add table
+                  <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving || editingFloor}>
+                    <Plus aria-hidden="true" /> Add Table
+                  </button>
+                  <button
+                    type="button"
+                    className="floor-edit-trigger"
+                    onClick={beginFloorEditing}
+                    disabled={saving || editingFloor || !data?.tables.length}
+                  >
+                    <PencilRuler aria-hidden="true" /> {editingFloor ? "Editing Floor" : "Edit Floor"}
                   </button>
                 </div>
               </div>
 
-              <div className={`floor-canvas${seatingMode ? " assigning seating" : ""}`}>
+              {editingFloor && (
+                <section className="floor-editor-console" aria-label="Floor editor console">
+                  <div className="floor-editor-selection">
+                    <span>Floor editor</span>
+                    <strong>{editorSelectedTableIds.length || "No"} table{editorSelectedTableIds.length === 1 ? "" : "s"} selected</strong>
+                    <small>Click a table or drag across the floor to select. Shift adds more; drag any selected table to move the group.</small>
+                    <div>
+                      <button type="button" onClick={() => setEditorSelectedTableIds(editedTables.map((table) => table.id))}>
+                        Select all
+                      </button>
+                      <button type="button" onClick={() => setEditorSelectedTableIds([])} disabled={!editorSelectedTableIds.length}>
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div className="floor-editor-tools">
+                    <div className="floor-editor-tool-group" aria-label="Alignment tools">
+                      <span>Arrange</span>
+                      <button type="button" onClick={alignSelectedTables} disabled={editorSelectedTables.length < 2}>
+                        <Rows3 aria-hidden="true" /> Align row
+                      </button>
+                      <button type="button" onClick={spaceSelectedTables} disabled={editorSelectedTables.length < 2}>
+                        <AlignHorizontalSpaceAround aria-hidden="true" /> Equal spacing
+                      </button>
+                    </div>
+                    <div className="floor-editor-tool-group" aria-label="Rotation tools">
+                      <span>Rotate</span>
+                      <button type="button" onClick={() => rotateSelectedTables(-15)} disabled={!editorSelectedTableIds.length} aria-label="Rotate selected tables left 15 degrees">
+                        <RotateCcw aria-hidden="true" /> −15°
+                      </button>
+                      <button type="button" onClick={() => rotateSelectedTables(15)} disabled={!editorSelectedTableIds.length} aria-label="Rotate selected tables right 15 degrees">
+                        <RotateCw aria-hidden="true" /> +15°
+                      </button>
+                    </div>
+                    <div className="floor-editor-fields">
+                      <label>
+                        Seats
+                        <input
+                          type="number"
+                          min={1}
+                          max={40}
+                          value={editorValues?.capacity ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ capacity: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ capacity: clamp(Number(event.target.value), 1, 40) })}
+                        />
+                      </label>
+                      <label>
+                        Shape
+                        <select
+                          value={editorValues?.shape ?? ""}
+                          disabled={!editorValues}
+                          onChange={(event) => updateEditorSelection({ shape: event.target.value as DiningTable["shape"] })}
+                        >
+                          <option value="" disabled>Mixed</option>
+                          <option value="rectangle">Rectangle</option>
+                          <option value="round">Round</option>
+                        </select>
+                      </label>
+                      <label>
+                        Width
+                        <input
+                          type="number"
+                          min={72}
+                          max={220}
+                          value={editorValues?.width ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ width: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ width: clamp(Number(event.target.value), 72, 220) })}
+                        />
+                      </label>
+                      <label>
+                        Height
+                        <input
+                          type="number"
+                          min={64}
+                          max={180}
+                          value={editorValues?.height ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ height: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ height: clamp(Number(event.target.value), 64, 180) })}
+                        />
+                      </label>
+                      <label>
+                        Chairs
+                        <select
+                          value={editorValues?.chairLayout ?? ""}
+                          disabled={!editorValues}
+                          onChange={(event) => updateEditorSelection({ chair_layout: event.target.value as DiningTable["chair_layout"] })}
+                        >
+                          <option value="" disabled>Mixed</option>
+                          <option value="wrap">Wrap around</option>
+                          <option value="across">Across</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="floor-editor-actions">
+                    <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving}>
+                      {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
+                      {saving ? "Saving…" : "Save Floor"}
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              <div
+                ref={floorCanvasRef}
+                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
+                onPointerDown={beginFloorMarquee}
+                onPointerMove={updateFloorMarquee}
+                onPointerUp={finishFloorMarquee}
+                onPointerCancel={finishFloorMarquee}
+              >
                 {loading && !data ? (
                   <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
-                ) : data?.tables.map((table) => {
+                ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
+                  const editorSelected = editorSelectedTableIds.includes(table.id);
                   return (
                     <button
                       type="button"
                       key={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}`}
-                      style={{ left: `${table.position_x}%`, top: `${table.position_y}%` }}
-                      onClick={() => {
-                        if (reservation) {
+                      data-floor-table-id={table.id}
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}`}
+                      style={{
+                        left: `${table.position_x}%`,
+                        top: `${table.position_y}%`,
+                        width: `${table.width}px`,
+                        height: `${table.height}px`,
+                        "--table-rotation": `${table.rotation}deg`,
+                        "--table-label-rotation": `${-table.rotation}deg`,
+                      } as CSSProperties}
+                      onClick={(event) => {
+                        if (editingFloor) {
+                          selectEditorTable(table.id, event.shiftKey || event.metaKey);
+                        } else if (reservation) {
                           setFocusedReservationId(reservation.id);
                         } else if (seatingMode) {
                           toggleSeatingTable(table.id);
                         }
                       }}
+                      onPointerDown={(event) => beginTableMove(event, table.id)}
+                      onPointerMove={moveSelectedTables}
+                      onPointerUp={finishTableMove}
+                      onPointerCancel={finishTableMove}
                       onDragOver={(event) => {
-                        if (!available || !draggedReservation || !liveService) return;
+                        if (editingFloor || !available || !draggedReservation || !liveService) return;
                         event.preventDefault();
                         setDropTargetTableId(table.id);
                       }}
-                      onDragLeave={() => setDropTargetTableId(null)}
-                      onDrop={(event) => dropReservation(event, table)}
-                      aria-pressed={seatingMode ? selectedTableIds.includes(table.id) : undefined}
-                      aria-label={reservation ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
+                      onDragLeave={() => {
+                        if (!editingFloor) setDropTargetTableId(null);
+                      }}
+                      onDrop={(event) => {
+                        if (!editingFloor) dropReservation(event, table);
+                      }}
+                      aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
+                      aria-label={editingFloor
+                        ? `Table ${table.name}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}`
+                        : reservation
+                          ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
+                          : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
                     >
-                      <i className="chair chair-top" aria-hidden="true" />
-                      <i className="chair chair-right" aria-hidden="true" />
-                      <i className="chair chair-bottom" aria-hidden="true" />
-                      <i className="chair chair-left" aria-hidden="true" />
-                      <span className="floor-table-surface">
+                      {chairPositions(table).map((style, index) => (
+                        <i key={index} className="chair" style={style} aria-hidden="true" />
+                      ))}
+                      <span className="floor-table-surface" aria-hidden="true" />
+                      <span className="floor-table-label">
                         <strong>{table.name}</strong>
                         {reservation ? (
                           <>
@@ -659,12 +1160,15 @@ export function FloorWorkspace() {
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (
-                          <><small>{table.capacity} seats</small><em>Available</em></>
+                          <><small>{table.capacity} seats</small><em>{editingFloor ? `${table.rotation}°` : "Available"}</em></>
                         )}
                       </span>
                     </button>
                   );
                 })}
+                {floorMarqueeBounds && (
+                  <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
+                )}
                 {data && data.tables.length === 0 && (
                   <div className="floor-canvas-loading"><CirclePlus aria-hidden="true" /> Add the first table to this floor.</div>
                 )}

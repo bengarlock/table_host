@@ -37,3 +37,21 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    return backendResponse(
+      await fetch(getTableHostApiUrl("grid/tables/"), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: await request.text(),
+        cache: "no-store",
+      }),
+    );
+  } catch {
+    return NextResponse.json(
+      { detail: "The table service is not available." },
+      { status: 503 },
+    );
+  }
+}
