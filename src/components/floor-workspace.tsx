@@ -145,6 +145,18 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 function chairPositions(table: DiningTable): CSSProperties[] {
+  if (table.shape === "round" && table.chair_layout === "wrap") {
+    return Array.from({ length: table.capacity }, (_, index) => {
+      const angle = -90 + (index * 360) / table.capacity;
+      const radians = (angle * Math.PI) / 180;
+      return {
+        left: `${50 + Math.cos(radians) * 50}%`,
+        top: `${50 + Math.sin(radians) * 50}%`,
+        transform: `translate(-50%, -50%) rotate(${angle + 90}deg)`,
+      };
+    });
+  }
+
   const sides = table.chair_layout === "across"
     ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 0 : 2)
     : Array.from({ length: table.capacity }, (_, index) => index % 4);
