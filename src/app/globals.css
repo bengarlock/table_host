@@ -3107,6 +3107,7 @@ textarea {
 
 .floor-reservation-list {
   display: grid;
+  flex: 1 1 auto;
   min-height: 0;
   align-content: start;
   gap: 8px;
@@ -3222,6 +3223,69 @@ textarea {
 .floor-reservation-tail > svg {
   width: 14px;
   color: #656b63;
+}
+
+.floor-seating-prompt {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  background: var(--accent-soft);
+}
+
+.floor-seating-prompt strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.63rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floor-seating-prompt span {
+  color: var(--text-muted);
+  font-size: 0.52rem;
+  line-height: 1.4;
+}
+
+.floor-reservation-actions {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.floor-reservation-actions button {
+  min-height: 42px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #202420;
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+.floor-reservation-actions .floor-seat-action {
+  border-color: #d3a45c;
+  background: #a87331;
+  color: #fff8eb;
+}
+
+.floor-reservation-actions .floor-cancel-seating {
+  grid-column: 1 / -1;
+  min-height: 30px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.floor-reservation-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .floor-empty,
@@ -3373,6 +3437,12 @@ textarea {
 .floor-table.drop-target .floor-table-surface {
   border-color: var(--accent);
   transform: scale(1.045);
+}
+
+.floor-table.seat-selected .floor-table-surface {
+  border-color: #edbd75;
+  background: #5a4629;
+  box-shadow: 0 0 0 4px rgba(217, 170, 98, 0.18), 0 14px 34px rgba(0, 0, 0, 0.38);
 }
 
 .floor-table:focus-visible {
@@ -3619,6 +3689,124 @@ textarea {
 .floor-dialog-submit:disabled {
   cursor: wait;
   opacity: 0.55;
+}
+
+.floor-walk-in-dialog {
+  width: min(470px, 100%);
+}
+
+.floor-dialog label > small {
+  margin-left: 4px;
+  color: var(--text-muted);
+  font-size: 0.52rem;
+  font-weight: 500;
+}
+
+.floor-guest-search-field {
+  position: relative;
+  display: block;
+}
+
+.floor-guest-search-field > svg {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  width: 15px;
+  height: 15px;
+  color: var(--text-muted);
+  transform: translateY(-50%);
+}
+
+.floor-guest-search-field > svg:first-child {
+  left: 12px;
+}
+
+.floor-guest-search-field > svg:last-child {
+  right: 12px;
+}
+
+.floor-dialog .floor-guest-search-field input {
+  padding-right: 38px;
+  padding-left: 38px;
+}
+
+.floor-guest-results {
+  display: grid;
+  max-height: 156px;
+  gap: 5px;
+  overflow-y: auto;
+}
+
+.floor-guest-results button,
+.floor-selected-guest,
+.floor-add-guest {
+  display: flex;
+  align-items: center;
+}
+
+.floor-guest-results button {
+  min-height: 42px;
+  justify-content: space-between;
+  padding: 0 12px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #171a17;
+  color: var(--text);
+  text-align: left;
+}
+
+.floor-guest-results button span {
+  color: var(--accent);
+  font-size: 0.52rem;
+}
+
+.floor-selected-guest {
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(113, 153, 120, 0.42);
+  border-radius: 9px;
+  background: rgba(74, 111, 82, 0.12);
+}
+
+.floor-selected-guest > svg {
+  width: 16px;
+  color: #8eb697;
+}
+
+.floor-selected-guest > span {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.floor-selected-guest small {
+  color: var(--text-muted);
+  font-size: 0.5rem;
+}
+
+.floor-selected-guest button {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.54rem;
+}
+
+.floor-add-guest {
+  min-height: 40px;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  border: 1px dashed var(--accent-line);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: #dfb97f;
+  font-size: 0.58rem;
+}
+
+.floor-add-guest svg {
+  width: 15px;
 }
 
 @media (max-width: 900px) {
