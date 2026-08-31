@@ -246,17 +246,20 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const floorCanvasRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
   const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
+  const floorLoadRequestRef = useRef(0);
   const suppressEditorClickRef = useRef(false);
 
-  const loadFloor = useCallback(async () => {
+  const loadFloor = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++floorLoadRequestRef.current;
     setLoading(true);
     setError("");
     const query = new URLSearchParams({ date: serviceDate });
     if (shiftSlug) query.set("shift", shiftSlug);
     try {
-      const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
+      const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store", signal });
       const payload = (await response.json()) as GridData | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
+      if (requestId !== floorLoadRequestRef.current) return;
       const next = payload as GridData;
       if (resolveCurrentService.current) {
         resolveCurrentService.current = false;
@@ -274,16 +277,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       setShiftSlug(next.selected_shift.slug);
       writeServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
+      if (signal?.aborted || requestId !== floorLoadRequestRef.current) return;
       setError(reason instanceof Error ? reason.message : "Unable to load the floor plan.");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && requestId === floorLoadRequestRef.current) setLoading(false);
     }
   }, [serviceDate, shiftSlug]);
 
   useEffect(() => {
+    const controller = new AbortController();
     // Refresh the floor whenever the service date or shift changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadFloor();
+    void loadFloor(controller.signal);
+    return () => controller.abort();
   }, [loadFloor]);
 
   useEffect(() => {
