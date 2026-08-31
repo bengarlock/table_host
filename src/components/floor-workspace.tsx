@@ -87,9 +87,12 @@ const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "complete", label: "Done" },
 ];
 
+function localDateValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function todayLocal() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return localDateValue(new Date());
 }
 
 function moveDate(value: string, amount: number) {
@@ -101,6 +104,31 @@ function moveDate(value: string, amount: number) {
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function closestServiceOccurrence(shifts: Shift[], now = new Date()) {
+  const candidates = shifts.flatMap((shift) => {
+    const [hour, minute] = shift.start_time.split(":").map(Number);
+    return [-1, 0, 1].map((dayOffset) => {
+      const startsAt = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + dayOffset,
+        hour,
+        minute,
+      );
+      return {
+        date: localDateValue(startsAt),
+        shiftSlug: shift.slug,
+        distance: Math.abs(startsAt.getTime() - now.getTime()),
+      };
+    });
+  });
+
+  return candidates.reduce<(typeof candidates)[number] | null>(
+    (closest, candidate) => !closest || candidate.distance < closest.distance ? candidate : closest,
+    null,
+  );
 }
 
 function statusLabel(status: ServiceStatus) {
@@ -178,6 +206,15 @@ export function FloorWorkspace() {
     setSelectedPendingId(null);
     setFocusedReservationId(null);
     setShiftSlug(value);
+  }
+
+  function jumpToNow() {
+    setSelectedPendingId(null);
+    setFocusedReservationId(null);
+    const now = new Date();
+    const closest = closestServiceOccurrence(data?.shifts || [], now);
+    setServiceDate(closest?.date || localDateValue(now));
+    if (closest) setShiftSlug(closest.shiftSlug);
   }
 
   async function updateReservation(
@@ -279,7 +316,7 @@ export function FloorWorkspace() {
               <button type="button" onClick={() => chooseDate(moveDate(serviceDate, 1))} aria-label="Next day">
                 <ChevronRight aria-hidden="true" />
               </button>
-              <button className="now-button" type="button" onClick={() => chooseDate(todayLocal())} aria-label="Return to today">
+              <button className="now-button" type="button" onClick={jumpToNow} aria-label="Go to the closest service now">
                 <Clock3 aria-hidden="true" />
               </button>
             </div>
@@ -320,15 +357,22 @@ export function FloorWorkspace() {
                       setDraggedReservationId(null);
                       setDropTargetTableId(null);
                     }}
+                    aria-label={`${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, assigned to Table ${reservation.table_name}`}
                     aria-pressed={selectedPendingId === reservation.id}
                   >
                     <time>{displayTime(reservation.start_time)}</time>
-                    <span>
+                    <span className="floor-reservation-details">
                       <strong>{reservation.guest_name}</strong>
                       <small><Users aria-hidden="true" /> Party of {reservation.party_size}</small>
                       {reservation.notes && <em>{reservation.notes}</em>}
                     </span>
-                    <GripVertical aria-hidden="true" />
+                    <span className="floor-reservation-tail" aria-hidden="true">
+                      <span className="floor-reservation-table">
+                        <small>Table</small>
+                        <strong>{reservation.table_name}</strong>
+                      </span>
+                      <GripVertical />
+                    </span>
                   </button>
                 )) : (
                   <div className="floor-empty"><Check aria-hidden="true" /><strong>All caught up</strong><span>No pending parties for this shift.</span></div>

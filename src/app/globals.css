@@ -3066,7 +3066,7 @@ textarea {
 .floor-plan-heading,
 .floor-plan-actions,
 .floor-reservation-list > button,
-.floor-reservation-list > button > span,
+.floor-reservation-details,
 .floor-status-dock,
 .floor-status-dock > div:first-of-type {
   display: flex;
@@ -3117,7 +3117,7 @@ textarea {
 .floor-reservation-list > button {
   width: 100%;
   min-height: 78px;
-  grid-template-columns: 54px minmax(0, 1fr) 18px;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
   gap: 10px;
   padding: 12px 11px;
   cursor: grab;
@@ -3144,7 +3144,8 @@ textarea {
   font-weight: 730;
 }
 
-.floor-reservation-list > button > span {
+.floor-reservation-details {
+  flex: 1 1 auto;
   min-width: 0;
   align-items: flex-start;
   flex-direction: column;
@@ -3183,8 +3184,43 @@ textarea {
   white-space: nowrap;
 }
 
-.floor-reservation-list > button > svg {
-  width: 16px;
+.floor-reservation-tail {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.floor-reservation-table {
+  display: grid;
+  min-width: 38px;
+  min-height: 44px;
+  place-content: center;
+  justify-items: center;
+  padding: 5px 7px;
+  border: 1px solid rgba(217, 170, 98, 0.24);
+  border-radius: 8px;
+  background: rgba(217, 170, 98, 0.07);
+}
+
+.floor-reservation-table small {
+  color: #8f958a;
+  font-size: 0.46rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.floor-reservation-table strong {
+  color: #e3bd83;
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.floor-reservation-tail > svg {
+  width: 14px;
   color: #656b63;
 }
 
