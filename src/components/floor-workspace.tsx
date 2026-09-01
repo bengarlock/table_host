@@ -63,7 +63,7 @@ type DiningTable = {
   width: number;
   height: number;
   rotation: number;
-  chair_layout: "wrap" | "across";
+  chair_layout: "wrap" | "across" | "across_horizontal";
 };
 
 type ServiceStatus =
@@ -159,7 +159,9 @@ function chairPositions(table: DiningTable): CSSProperties[] {
 
   const sides = table.chair_layout === "across"
     ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 0 : 2)
-    : Array.from({ length: table.capacity }, (_, index) => index % 4);
+    : table.chair_layout === "across_horizontal"
+      ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 1 : 3)
+      : Array.from({ length: table.capacity }, (_, index) => index % 4);
   const totals = sides.reduce((counts, side) => {
     counts[side] += 1;
     return counts;
@@ -1082,7 +1084,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         >
                           <option value="" disabled>Mixed</option>
                           <option value="wrap">Wrap around</option>
-                          <option value="across">Across</option>
+                          <option value="across">Across vertically</option>
+                          <option value="across_horizontal">Across horizontally</option>
                         </select>
                       </label>
                     </div>
