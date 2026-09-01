@@ -4,17 +4,28 @@ import { Armchair, BookOpenText, CalendarPlus2, ContactRound } from "lucide-reac
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import hostStandIcon from "@/app/icon.png";
 
 type AppSidebarProps = {
   onBookReservation?: () => void;
+  onNavigateAttempt?: () => boolean;
 };
 
-export function AppSidebar({ onBookReservation }: AppSidebarProps) {
+export function AppSidebar({ onBookReservation, onNavigateAttempt }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
+  function navigationAllowed() {
+    return onNavigateAttempt?.() ?? true;
+  }
+
+  function guardNavigation(event: ReactMouseEvent<HTMLAnchorElement>) {
+    if (!navigationAllowed()) event.preventDefault();
+  }
+
   function bookReservation() {
+    if (!navigationAllowed()) return;
     if (onBookReservation) {
       onBookReservation();
       return;
@@ -24,7 +35,7 @@ export function AppSidebar({ onBookReservation }: AppSidebarProps) {
 
   return (
     <aside className="sidebar" aria-label="Primary navigation">
-      <Link className="brand" href="/reservations" aria-label="Table Host home">
+      <Link className="brand" href="/reservations" aria-label="Table Host home" onClick={guardNavigation}>
         <Image
           className="brand-mark"
           src={hostStandIcon}
@@ -52,6 +63,7 @@ export function AppSidebar({ onBookReservation }: AppSidebarProps) {
             <Link
               className="nav-link"
               href="/reservations"
+              onClick={guardNavigation}
               aria-label="Reservations"
               aria-current={pathname.startsWith("/reservations") ? "page" : undefined}
               data-tooltip="Reservations"
@@ -74,6 +86,7 @@ export function AppSidebar({ onBookReservation }: AppSidebarProps) {
             <Link
               className="nav-link"
               href="/guests"
+              onClick={guardNavigation}
               aria-label="Guest management"
               aria-current={pathname.startsWith("/guests") ? "page" : undefined}
               data-tooltip="Guests"
