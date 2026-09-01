@@ -7,6 +7,7 @@ import {
   ChevronRight,
   CirclePlus,
   Clock3,
+  CopyPlus,
   GripVertical,
   LoaderCircle,
   PencilRuler,
@@ -64,6 +65,7 @@ type DiningTable = {
   height: number;
   rotation: number;
   chair_layout: "wrap" | "across" | "across_horizontal";
+  clone_source_id?: number;
 };
 
 type ServiceStatus =
@@ -142,6 +144,14 @@ function displayTime(time: string) {
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
+}
+
+function nextAvailableTableNumber(sourceName: string, usedNumbers: Set<number>) {
+  const sourceNumber = /^\d+$/.test(sourceName.trim()) ? Number(sourceName) : 0;
+  let candidate = sourceNumber + 1;
+  while (usedNumbers.has(candidate)) candidate += 1;
+  usedNumbers.add(candidate);
+  return String(candidate);
 }
 
 function chairPositions(table: DiningTable): CSSProperties[] {
@@ -454,6 +464,37 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       : table));
   }
 
+  function cloneSelectedTables() {
+    if (!editorSelectedTables.length) return;
+    const selected = [...editorSelectedTables].sort((left, right) =>
+      left.sort_order - right.sort_order || left.id - right.id);
+    const usedNumbers = new Set(
+      editedTables
+        .map((table) => table.name.trim())
+        .filter((name) => /^\d+$/.test(name))
+        .map(Number),
+    );
+    const minimumX = Math.min(...selected.map((table) => table.position_x));
+    const maximumX = Math.max(...selected.map((table) => table.position_x));
+    const minimumY = Math.min(...selected.map((table) => table.position_y));
+    const maximumY = Math.max(...selected.map((table) => table.position_y));
+    const horizontalShift = maximumX <= 82 ? 14 : minimumX >= 18 ? -14 : 0;
+    const verticalShift = horizontalShift ? 0 : maximumY <= 82 ? 14 : minimumY >= 18 ? -14 : 0;
+    let temporaryId = Math.min(0, ...editedTables.map((table) => table.id)) - 1;
+    const nextSortOrder = Math.max(0, ...editedTables.map((table) => table.sort_order)) + 1;
+    const clones = selected.map((table, index) => ({
+      ...table,
+      id: temporaryId--,
+      name: nextAvailableTableNumber(table.name, usedNumbers),
+      sort_order: nextSortOrder + index,
+      position_x: clamp(table.position_x + horizontalShift, 0, 100),
+      position_y: clamp(table.position_y + verticalShift, 0, 100),
+      clone_source_id: table.clone_source_id ?? table.id,
+    }));
+    setEditedTables((current) => [...current, ...clones]);
+    setEditorSelectedTableIds(clones.map((table) => table.id));
+  }
+
   function beginTableMove(event: ReactPointerEvent<HTMLButtonElement>, tableId: number) {
     if (!editingFloor || event.button !== 0) return;
     if ((event.shiftKey || event.metaKey) && !editorSelectedTableIds.includes(tableId)) {
@@ -594,8 +635,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          tables: editedTables.map((table) => ({
+          tables: editedTables.filter((table) => table.id > 0).map((table) => ({
             id: table.id,
+            capacity: table.capacity,
+            shape: table.shape,
+            position_x: table.position_x,
+            position_y: table.position_y,
+            width: table.width,
+            height: table.height,
+            rotation: table.rotation,
+            chair_layout: table.chair_layout,
+          })),
+          clones: editedTables.filter((table) => table.id < 0).map((table) => ({
+            source_id: table.clone_source_id,
             capacity: table.capacity,
             shape: table.shape,
             position_x: table.position_x,
@@ -1001,6 +1053,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-editor-tools">
                     <div className="floor-editor-tool-group" aria-label="Alignment tools">
                       <span>Arrange</span>
+                      <button type="button" onClick={cloneSelectedTables} disabled={!editorSelectedTables.length}>
+                        <CopyPlus aria-hidden="true" /> Clone Table
+                      </button>
                       <button type="button" onClick={alignSelectedTables} disabled={editorSelectedTables.length < 2}>
                         <Rows3 aria-hidden="true" /> Align row
                       </button>
