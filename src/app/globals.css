@@ -3105,6 +3105,36 @@ textarea {
   line-height: 1.5;
 }
 
+.floor-unassigned-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0 0 12px;
+  padding: 10px 11px;
+  border: 1px solid rgba(239, 117, 76, 0.56);
+  border-radius: 9px;
+  background: rgba(153, 49, 24, 0.18);
+  color: #f3a183;
+  font-size: 0.56rem;
+  line-height: 1.45;
+}
+
+.floor-unassigned-alert > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.floor-unassigned-alert span {
+  display: grid;
+  gap: 2px;
+}
+
+.floor-unassigned-alert strong {
+  color: #ffd1bf;
+  font-size: 0.62rem;
+}
+
 .floor-reservation-list {
   display: grid;
   flex: 1 1 auto;
@@ -3137,6 +3167,19 @@ textarea {
   background: var(--accent-soft);
   outline: none;
   transform: translateX(2px);
+}
+
+.floor-reservation-list > button.unassigned {
+  border-color: rgba(239, 117, 76, 0.68);
+  background: linear-gradient(90deg, rgba(153, 49, 24, 0.26), #151815 38%);
+  box-shadow: inset 3px 0 #ef754c;
+}
+
+.floor-reservation-list > button.unassigned:hover,
+.floor-reservation-list > button.unassigned:focus-visible,
+.floor-reservation-list > button.unassigned.selected {
+  border-color: #ef754c;
+  background: rgba(153, 49, 24, 0.28);
 }
 
 .floor-reservation-list time {
@@ -3218,6 +3261,31 @@ textarea {
   color: #e3bd83;
   font-size: 0.78rem;
   line-height: 1;
+}
+
+.floor-reservation-unassigned {
+  display: grid;
+  min-width: 68px;
+  min-height: 44px;
+  place-content: center;
+  justify-items: center;
+  gap: 3px;
+  padding: 5px 7px;
+  border: 1px solid rgba(239, 117, 76, 0.55);
+  border-radius: 8px;
+  background: rgba(153, 49, 24, 0.2);
+}
+
+.floor-reservation-unassigned svg {
+  width: 13px;
+  height: 13px;
+  color: #ef754c;
+}
+
+.floor-reservation-unassigned strong {
+  color: #ffd1bf;
+  font-size: 0.48rem;
+  text-transform: uppercase;
 }
 
 .floor-reservation-tail > svg {
@@ -3420,6 +3488,10 @@ textarea {
   line-height: 1.4;
 }
 
+.floor-editor-selection > .floor-editor-delete-note {
+  color: #f3a183;
+}
+
 .floor-editor-selection > div,
 .floor-editor-tool-group {
   display: flex;
@@ -3471,6 +3543,18 @@ textarea {
 .floor-editor-console button:disabled {
   cursor: not-allowed;
   opacity: 0.38;
+}
+
+.floor-editor-console .floor-editor-delete {
+  min-width: 112px;
+  border-color: rgba(239, 117, 76, 0.42);
+  color: #ffc1aa;
+}
+
+.floor-editor-console .floor-editor-delete.confirming {
+  border-color: #ef754c;
+  background: #8d351f;
+  color: #fff5f0;
 }
 
 .floor-editor-fields {

@@ -17,6 +17,8 @@ import {
   Rows3,
   Save,
   Search,
+  Trash2,
+  TriangleAlert,
   UserPlus,
   Users,
   X,
@@ -81,7 +83,7 @@ type ServiceStatus =
 type Reservation = {
   id: number;
   guest_id: number | null;
-  table_id: number;
+  table_id: number | null;
   table_name: string;
   table_ids: number[];
   table_names: string[];
@@ -90,6 +92,7 @@ type Reservation = {
   start_time: string;
   duration_minutes: number;
   status: ServiceStatus;
+  is_unassigned: boolean;
   notes: string;
   tags: string[];
 };
@@ -252,6 +255,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [editingFloor, setEditingFloor] = useState(false);
   const [editedTables, setEditedTables] = useState<DiningTable[]>([]);
   const [editorSelectedTableIds, setEditorSelectedTableIds] = useState<number[]>([]);
+  const [deletedTableIds, setDeletedTableIds] = useState<number[]>([]);
+  const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
@@ -353,18 +358,28 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     };
   }, [walkInGuestQuery, walkInOpen]);
 
+  const unassignedReservations = useMemo(
+    () => data?.reservations.filter((reservation) => reservation.is_unassigned) || [],
+    [data],
+  );
   const pendingReservations = useMemo(
-    () => data?.reservations.filter((reservation) => reservation.status === "confirmed") || [],
+    () => data?.reservations.filter(
+      (reservation) => reservation.status === "confirmed" || reservation.is_unassigned,
+    ) || [],
     [data],
   );
   const activeReservations = useMemo(
-    () => data?.reservations.filter((reservation) => ACTIVE_STATUSES.includes(reservation.status)) || [],
+    () => data?.reservations.filter(
+      (reservation) => ACTIVE_STATUSES.includes(reservation.status) && !reservation.is_unassigned,
+    ) || [],
     [data],
   );
   const activeByTable = useMemo(
     () => new Map(
       activeReservations.flatMap((reservation) =>
-        (reservation.table_ids.length ? reservation.table_ids : [reservation.table_id]).map(
+        (reservation.table_ids.length
+          ? reservation.table_ids
+          : reservation.table_id === null ? [] : [reservation.table_id]).map(
           (tableId) => [tableId, reservation] as const,
         ),
       ),
@@ -394,6 +409,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       chairLayout: shared("chair_layout"),
     };
   }, [editorSelectedTables]);
+  const deleteSelectionConfirmed = editorSelectedTableIds.length > 0
+    && editorSelectedTableIds.length === deleteConfirmationIds.length
+    && editorSelectedTableIds.every((id) => deleteConfirmationIds.includes(id));
 
   function cancelSeating() {
     setSeatingMode(null);
@@ -409,6 +427,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setSelectedPendingId(null);
     setEditedTables(data.tables.map((table) => ({ ...table })));
     setEditorSelectedTableIds([]);
+    setDeletedTableIds([]);
+    setDeleteConfirmationIds([]);
     setEditingFloor(true);
   }
 
@@ -417,6 +437,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setEditingFloor(false);
     setEditedTables([]);
     setEditorSelectedTableIds([]);
+    setDeletedTableIds([]);
+    setDeleteConfirmationIds([]);
     setMovingEditorTables(false);
     setFloorMarqueeBounds(null);
     floorTableDragRef.current = null;
@@ -493,6 +515,24 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }));
     setEditedTables((current) => [...current, ...clones]);
     setEditorSelectedTableIds(clones.map((table) => table.id));
+  }
+
+  function deleteSelectedTables() {
+    if (!editorSelectedTableIds.length) return;
+    if (!deleteSelectionConfirmed) {
+      setDeleteConfirmationIds([...editorSelectedTableIds]);
+      return;
+    }
+    const selectedIds = new Set(editorSelectedTableIds);
+    setDeletedTableIds((current) => [
+      ...new Set([
+        ...current,
+        ...editorSelectedTableIds.filter((id) => id > 0),
+      ]),
+    ]);
+    setEditedTables((current) => current.filter((table) => !selectedIds.has(table.id)));
+    setEditorSelectedTableIds([]);
+    setDeleteConfirmationIds([]);
   }
 
   function beginTableMove(event: ReactPointerEvent<HTMLButtonElement>, tableId: number) {
@@ -627,7 +667,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   async function saveFloorLayout() {
-    if (!editedTables.length) return;
+    if (!editedTables.length && !deletedTableIds.length) return;
     setSaving(true);
     setError("");
     try {
@@ -657,6 +697,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             rotation: table.rotation,
             chair_layout: table.chair_layout,
           })),
+          deletions: deletedTableIds.map((id) => ({ id })),
         }),
       });
       const payload = (await response.json()) as DiningTable[] | Record<string, unknown>;
@@ -731,7 +772,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function seatAtTable(reservation: Reservation, table: DiningTable) {
     if (activeByTable.has(table.id) || !liveService) return;
-    void updateReservation(reservation, { table_ids: [table.id], status: "seated" });
+    void updateReservation(reservation, {
+      table_ids: [table.id],
+      status: reservation.status === "confirmed" ? "seated" : reservation.status,
+    });
   }
 
   function toggleSeatingTable(tableId: number) {
@@ -789,7 +833,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       if (!selectedPending) return;
       setSeatingMode("reservation");
       setSelectedTableIds(
-        selectedPending.table_ids.length ? selectedPending.table_ids : [selectedPending.table_id],
+        selectedPending.table_ids.length
+          ? selectedPending.table_ids
+          : selectedPending.table_id === null ? [] : [selectedPending.table_id],
       );
       return;
     }
@@ -798,7 +844,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (seatingMode === "reservation" && selectedPending) {
       const completed = await updateReservation(selectedPending, {
         table_ids: selectedTableIds,
-        status: "seated",
+        status: selectedPending.status === "confirmed" ? "seated" : selectedPending.status,
       });
       if (completed) cancelSeating();
       return;
@@ -924,6 +970,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <strong>{pendingReservations.length}</strong>
               </div>
               <p className="floor-help">Drag a party onto an available table, or select a party and then a table.</p>
+              {unassignedReservations.length > 0 && (
+                <div className="floor-unassigned-alert" role="alert">
+                  <TriangleAlert aria-hidden="true" />
+                  <span>
+                    <strong>{unassignedReservations.length} {unassignedReservations.length === 1 ? "party needs" : "parties need"} a table</strong>
+                    Assign {unassignedReservations.length === 1 ? "this reservation" : "these reservations"} before service.
+                  </span>
+                </div>
+              )}
               <div className="floor-reservation-list">
                 {loading && !data ? (
                   <div className="floor-empty"><LoaderCircle className="spin" aria-hidden="true" /> Loading service…</div>
@@ -932,7 +987,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     type="button"
                     key={reservation.id}
                     draggable={liveService && !seatingMode}
-                    className={selectedPendingId === reservation.id ? "selected" : ""}
+                    className={`${selectedPendingId === reservation.id ? "selected" : ""}${reservation.is_unassigned ? " unassigned" : ""}`}
                     onClick={() => {
                       if (!seatingMode) {
                         setSelectedPendingId((current) => current === reservation.id ? null : reservation.id);
@@ -947,7 +1002,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       setDraggedReservationId(null);
                       setDropTargetTableId(null);
                     }}
-                    aria-label={`${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, assigned to ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
+                    aria-label={reservation.is_unassigned
+                      ? `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, unassigned and needs a table`
+                      : `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, assigned to ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
                     aria-pressed={selectedPendingId === reservation.id}
                   >
                     <time>{displayTime(reservation.start_time)}</time>
@@ -957,10 +1014,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       {reservation.notes && <em>{reservation.notes}</em>}
                     </span>
                     <span className="floor-reservation-tail" aria-hidden="true">
-                      <span className="floor-reservation-table">
-                        <small>{reservation.table_names.length > 1 ? "Tables" : "Table"}</small>
-                        <strong>{(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join("+")}</strong>
-                      </span>
+                      {reservation.is_unassigned ? (
+                        <span className="floor-reservation-unassigned">
+                          <TriangleAlert />
+                          <strong>Unassigned</strong>
+                        </span>
+                      ) : (
+                        <span className="floor-reservation-table">
+                          <small>{reservation.table_names.length > 1 ? "Tables" : "Table"}</small>
+                          <strong>{(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join("+")}</strong>
+                        </span>
+                      )}
                       <GripVertical />
                     </span>
                   </button>
@@ -1041,6 +1105,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <span>Floor editor</span>
                     <strong>{editorSelectedTableIds.length || "No"} table{editorSelectedTableIds.length === 1 ? "" : "s"} selected</strong>
                     <small>Click a table or drag across the floor to select. Shift adds more; drag any selected table to move the group.</small>
+                    {deletedTableIds.length > 0 && (
+                      <small className="floor-editor-delete-note">
+                        {deletedTableIds.length} table{deletedTableIds.length === 1 ? "" : "s"} queued for deletion. Assigned reservations will reflow when you save.
+                      </small>
+                    )}
                     <div>
                       <button type="button" onClick={() => setEditorSelectedTableIds(editedTables.map((table) => table.id))}>
                         Select all
@@ -1055,6 +1124,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       <span>Arrange</span>
                       <button type="button" onClick={cloneSelectedTables} disabled={!editorSelectedTables.length}>
                         <CopyPlus aria-hidden="true" /> Clone Table
+                      </button>
+                      <button
+                        type="button"
+                        className={`floor-editor-delete${deleteSelectionConfirmed ? " confirming" : ""}`}
+                        onClick={deleteSelectedTables}
+                        disabled={!editorSelectedTables.length}
+                      >
+                        <Trash2 aria-hidden="true" /> {deleteSelectionConfirmed ? "Confirm Delete" : `Delete Table${editorSelectedTables.length === 1 ? "" : "s"}`}
                       </button>
                       <button type="button" onClick={alignSelectedTables} disabled={editorSelectedTables.length < 2}>
                         <Rows3 aria-hidden="true" /> Align row
