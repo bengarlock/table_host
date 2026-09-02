@@ -132,6 +132,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "check_dropped",
   "paid",
 ];
+const FLOOR_DESIGN_MIN_WIDTH = 1200;
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
@@ -261,6 +262,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
+  const [floorScale, setFloorScale] = useState(1);
   const resolveCurrentService = useRef(!initialServiceDate);
   const floorCanvasRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
@@ -327,6 +329,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
     window.addEventListener("popstate", restoreServiceFromUrl);
     return () => window.removeEventListener("popstate", restoreServiceFromUrl);
+  }, []);
+
+  useEffect(() => {
+    const canvas = floorCanvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry.contentRect.width;
+      const nextScale = width > 0 ? Math.min(1, width / FLOOR_DESIGN_MIN_WIDTH) : 1;
+      setFloorScale((current) => Math.abs(current - nextScale) < 0.001 ? current : nextScale);
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -643,7 +657,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function beginFloorMarquee(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!editingFloor || event.button !== 0 || event.target !== event.currentTarget) return;
+    if (
+      !editingFloor
+      || event.button !== 0
+      || (event.target as HTMLElement).closest("[data-floor-table-id]")
+    ) return;
     const canvasBounds = event.currentTarget.getBoundingClientRect();
     const additive = event.shiftKey || event.metaKey;
     floorMarqueeDragRef.current = {
@@ -1257,9 +1275,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 onPointerUp={finishFloorMarquee}
                 onPointerCancel={finishFloorMarquee}
               >
-                {loading && !data ? (
-                  <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
-                ) : displayedTables.map((table) => {
+                <div
+                  className="floor-canvas-stage"
+                  style={{
+                    width: floorScale < 1 ? `${FLOOR_DESIGN_MIN_WIDTH}px` : "100%",
+                    height: floorScale < 1 ? `${100 / floorScale}%` : "100%",
+                    transform: `scale(${floorScale})`,
+                  }}
+                >
+                  {loading && !data ? (
+                    <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
+                  ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
                   const editorSelected = editorSelectedTableIds.includes(table.id);
@@ -1325,15 +1351,16 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       </span>
                     </button>
                   );
-                })}
+                  })}
+                  {data && data.tables.length === 0 && (
+                    <div className="floor-canvas-loading">
+                      <CirclePlus aria-hidden="true" />
+                      {editingFloor ? "Use New Table to create the first table." : "Choose Edit Floor to create the first table."}
+                    </div>
+                  )}
+                </div>
                 {floorMarqueeBounds && (
                   <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
-                )}
-                {data && data.tables.length === 0 && (
-                  <div className="floor-canvas-loading">
-                    <CirclePlus aria-hidden="true" />
-                    {editingFloor ? "Use New Table to create the first table." : "Choose Edit Floor to create the first table."}
-                  </div>
                 )}
               </div>
 
