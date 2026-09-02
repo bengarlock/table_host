@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 
 type ServiceDatePickerProps = {
   value: string;
@@ -13,6 +13,7 @@ type ServiceDatePickerProps = {
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const subscribeToHydration = () => () => undefined;
 
 function parseDate(value: string) {
   return new Date(`${value}T12:00:00`);
@@ -60,7 +61,8 @@ export function ServiceDatePicker({
   const [open, setOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value));
   const shellRef = useRef<HTMLDivElement>(null);
-  const today = todayLocal();
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const today = hydrated ? todayLocal() : "";
 
   function toggleCalendar() {
     if (!open) setVisibleMonth(parseDate(value));
@@ -93,13 +95,13 @@ export function ServiceDatePicker({
         {calendarDays(visibleMonth).map((date) => {
           const dateString = dateValue(date);
           const outsideMonth = date.getMonth() !== visibleMonth.getMonth();
-          const pastDate = dateString < today;
+          const pastDate = Boolean(today && dateString < today);
           const unavailable = Boolean(minDate && dateString < minDate);
           return (
             <button
               type="button"
               key={dateString}
-              className={`${outsideMonth ? "outside-month " : ""}${pastDate ? "past-date " : ""}${dateString === value ? "selected " : ""}${dateString === today ? "today" : ""}`.trim()}
+              className={`${outsideMonth ? "outside-month " : ""}${pastDate ? "past-date " : ""}${dateString === value ? "selected " : ""}${today && dateString === today ? "today" : ""}`.trim()}
               disabled={unavailable}
               onClick={() => {
                 if (unavailable) return;
@@ -111,7 +113,7 @@ export function ServiceDatePicker({
                 }
               }}
               aria-label={`${dateLabel(dateString)}${unavailable ? ", unavailable for booking" : pastDate ? ", past date, view only" : ""}`}
-              aria-current={dateString === today ? "date" : undefined}
+              aria-current={today && dateString === today ? "date" : undefined}
               title={unavailable ? "Past dates cannot be booked" : pastDate ? "Past date · view only" : undefined}
             >
               {date.getDate()}
@@ -146,11 +148,11 @@ export function ServiceDatePicker({
         onClick={toggleCalendar}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`${fieldLabel}: ${dateLabel(value)}${value < today ? ", past date, view only" : ""}`}
+        aria-label={`${fieldLabel}: ${dateLabel(value)}${today && value < today ? ", past date, view only" : ""}`}
       >
         <CalendarDays aria-hidden="true" />
-        <span>{useRelativeLabel && value === today ? "Today" : dateLabel(value)}</span>
-        {value < today && <small>View only</small>}
+        <span>{useRelativeLabel && today && value === today ? "Today" : dateLabel(value)}</span>
+        {today && value < today && <small>View only</small>}
       </button>
 
       {open && calendar}
