@@ -626,8 +626,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       const origin = origins.get(table.id);
       return origin ? {
         ...table,
-        position_x: Math.round(clamp(origin.positionX + xPercent, 3, 97)),
-        position_y: Math.round(clamp(origin.positionY + yPercent, 4, 96)),
+        position_x: Math.round(clamp(origin.positionX + xPercent, 3, 97) * 100) / 100,
+        position_y: Math.round(clamp(origin.positionY + yPercent, 4, 96) * 100) / 100,
       } : table;
     }));
   }
