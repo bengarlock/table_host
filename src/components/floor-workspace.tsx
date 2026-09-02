@@ -116,6 +116,7 @@ type WalkInDraft = {
 type GridData = {
   restaurant: { id: number; name: string };
   service_date: string;
+  current_service_date: string;
   booking_allowed: boolean;
   shifts: Shift[];
   selected_shift: Shift;
@@ -282,7 +283,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       if (resolveCurrentService.current) {
         resolveCurrentService.current = false;
         const closest = closestServiceOccurrence(next.shifts);
-        const currentDate = closest?.date || todayLocal();
+        const currentDate = next.current_service_date || closest?.date || todayLocal();
         const currentShift = closest?.shiftSlug || next.selected_shift.slug;
         writeServiceUrl(currentDate, currentShift, "replace");
         if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
@@ -391,7 +392,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = activeReservations.find((item) => item.id === focusedReservationId) || null;
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
-  const liveService = hydrated && serviceDate === todayLocal();
+  const liveService = hydrated && serviceDate === data?.current_service_date;
   const displayedTables = editingFloor ? editedTables : data?.tables || [];
   const editorSelectedTables = useMemo(
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
@@ -783,7 +784,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setFocusedReservationId(null);
     const now = new Date();
     const closest = closestServiceOccurrence(data?.shifts || [], now);
-    const currentDate = closest?.date || localDateValue(now);
+    const currentDate = data?.current_service_date || closest?.date || localDateValue(now);
     const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
     writeServiceUrl(currentDate, currentShift);
     setServiceDate(currentDate);

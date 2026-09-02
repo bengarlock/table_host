@@ -88,6 +88,7 @@ type TableMove = {
 type GridData = {
   restaurant: { id: number; name: string };
   service_date: string;
+  current_service_date: string;
   booking_allowed: boolean;
   shifts: Shift[];
   selected_shift: Shift;
@@ -184,7 +185,7 @@ export function ReservationGrid({
       if (resolveCurrentService.current) {
         resolveCurrentService.current = false;
         const closest = closestServiceOccurrence(next.shifts);
-        const currentDate = closest?.date || todayLocal();
+        const currentDate = next.current_service_date || closest?.date || todayLocal();
         const currentShift = closest?.shiftSlug || next.selected_shift.slug;
         writeServiceUrl(currentDate, currentShift, "replace");
         if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
@@ -242,7 +243,7 @@ export function ReservationGrid({
   }, [data]);
 
   const currentTimeMarker = useMemo(() => {
-    if (!data || data.service_date !== todayLocal()) return null;
+    if (!data || data.service_date !== data.current_service_date) return null;
     const shiftStart = minutes(data.selected_shift.start_time);
     const shiftEnd = minutes(data.selected_shift.end_time);
     const currentMinutes =
@@ -260,7 +261,7 @@ export function ReservationGrid({
 
   useEffect(() => {
     const scroller = timelineScrollRef.current;
-    if (!scroller || !data || data.service_date !== todayLocal()) return;
+    if (!scroller || !data || data.service_date !== data.current_service_date) return;
     const shiftStart = minutes(data.selected_shift.start_time);
     const shiftEnd = minutes(data.selected_shift.end_time);
     const now = new Date();
@@ -285,7 +286,7 @@ export function ReservationGrid({
   );
   const bookingAllowed = data?.service_date === serviceDate && typeof data.booking_allowed === "boolean"
     ? data.booking_allowed
-    : serviceDate >= todayLocal();
+    : serviceDate >= (data?.current_service_date || todayLocal());
 
   function chooseDate(next: string) {
     setDraft(null);
@@ -305,7 +306,7 @@ export function ReservationGrid({
     setDraft(null);
     setSelected(null);
     const closest = closestServiceOccurrence(data?.shifts || []);
-    const currentDate = closest?.date || todayLocal();
+    const currentDate = data?.current_service_date || closest?.date || todayLocal();
     const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
     writeServiceUrl(currentDate, currentShift);
     setServiceDate(currentDate);
