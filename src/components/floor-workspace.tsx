@@ -33,6 +33,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
@@ -130,6 +131,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "check_dropped",
   "paid",
 ];
+const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "seated", label: "Seated" },
@@ -389,7 +391,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = activeReservations.find((item) => item.id === focusedReservationId) || null;
-  const liveService = serviceDate === todayLocal();
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const liveService = hydrated && serviceDate === todayLocal();
   const displayedTables = editingFloor ? editedTables : data?.tables || [];
   const editorSelectedTables = useMemo(
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
