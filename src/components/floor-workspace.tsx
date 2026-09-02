@@ -11,7 +11,6 @@ import {
   GripVertical,
   LoaderCircle,
   PencilRuler,
-  Plus,
   RotateCcw,
   RotateCw,
   Rows3,
@@ -670,7 +669,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   async function saveFloorLayout() {
-    if (!editedTables.length && !deletedTableIds.length) return;
+    if (!editedTables.length && !deletedTableIds.length) {
+      cancelFloorEditing();
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -894,7 +896,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setSaving(true);
     setError("");
     const values = new FormData(event.currentTarget);
-    const tableIndex = data.tables.length;
+    const tableIndex = editingFloor ? editedTables.length : data.tables.length;
     const payload = {
       name: String(values.get("name") || "").trim(),
       capacity: Number(values.get("capacity")),
@@ -908,10 +910,20 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const responsePayload = (await response.json()) as Record<string, unknown>;
+      const responsePayload = (await response.json()) as DiningTable | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(responsePayload));
+      const createdTable = responsePayload as DiningTable;
       setAddTableOpen(false);
-      await loadFloor();
+      if (editingFloor) {
+        setData((current) => current ? {
+          ...current,
+          tables: [...current.tables, createdTable],
+        } : current);
+        setEditedTables((current) => [...current, createdTable]);
+        setEditorSelectedTableIds([createdTable.id]);
+      } else {
+        await loadFloor();
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to create the table.");
     } finally {
@@ -1088,14 +1100,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 </div>
                 <div className="floor-plan-actions">
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
-                  <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving || editingFloor}>
-                    <Plus aria-hidden="true" /> Add Table
-                  </button>
                   <button
                     type="button"
                     className="floor-edit-trigger"
                     onClick={beginFloorEditing}
-                    disabled={saving || editingFloor || !data?.tables.length}
+                    disabled={saving || editingFloor}
                   >
                     <PencilRuler aria-hidden="true" /> {editingFloor ? "Editing Floor" : "Edit Floor"}
                   </button>
@@ -1123,8 +1132,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-tools">
-                    <div className="floor-editor-tool-group" aria-label="Alignment tools">
+                    <div className="floor-editor-tool-group" aria-label="Table arrangement tools">
                       <span>Arrange</span>
+                      <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving}>
+                        <CirclePlus aria-hidden="true" /> New Table
+                      </button>
                       <button type="button" onClick={cloneSelectedTables} disabled={!editorSelectedTables.length}>
                         <CopyPlus aria-hidden="true" /> Clone Table
                       </button>
@@ -1316,7 +1328,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
                 )}
                 {data && data.tables.length === 0 && (
-                  <div className="floor-canvas-loading"><CirclePlus aria-hidden="true" /> Add the first table to this floor.</div>
+                  <div className="floor-canvas-loading">
+                    <CirclePlus aria-hidden="true" />
+                    {editingFloor ? "Use New Table to create the first table." : "Choose Edit Floor to create the first table."}
+                  </div>
                 )}
               </div>
 
@@ -1351,14 +1366,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               if (event.target === event.currentTarget) setAddTableOpen(false);
             }}>
               <form className="floor-dialog" onSubmit={addTable} aria-labelledby="add-table-title">
-                <button type="button" className="floor-dialog-close" onClick={() => setAddTableOpen(false)} aria-label="Close add table"><X aria-hidden="true" /></button>
+                <button type="button" className="floor-dialog-close" onClick={() => setAddTableOpen(false)} aria-label="Close new table"><X aria-hidden="true" /></button>
                 <span>Floor setup</span>
-                <h2 id="add-table-title">Add a table</h2>
+                <h2 id="add-table-title">New table</h2>
                 <p>The new table will also appear in the reservation grid.</p>
                 <label>Table number or name<input name="name" required maxLength={40} autoFocus placeholder="9" /></label>
                 <label>Seats<input name="capacity" type="number" required min={1} max={40} defaultValue={4} /></label>
                 <label>Shape<select name="shape" defaultValue="rectangle"><option value="rectangle">Rectangle</option><option value="round">Round</option></select></label>
-                <button type="submit" className="floor-dialog-submit" disabled={saving}>{saving ? "Adding…" : "Add to floor"}</button>
+                <button type="submit" className="floor-dialog-submit" disabled={saving}>{saving ? "Creating…" : "Create table"}</button>
               </form>
             </div>
           )}
