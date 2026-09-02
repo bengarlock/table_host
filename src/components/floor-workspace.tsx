@@ -68,6 +68,7 @@ type DiningTable = {
   rotation: number;
   chair_layout: "wrap" | "across" | "across_horizontal";
   clone_source_id?: number;
+  is_new?: boolean;
 };
 
 type ServiceStatus =
@@ -242,7 +243,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
-  const [addTableOpen, setAddTableOpen] = useState(false);
   const [seatingMode, setSeatingMode] = useState<"reservation" | "walk-in" | null>(null);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
@@ -513,10 +513,41 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       sort_order: nextSortOrder + index,
       position_x: clamp(table.position_x + horizontalShift, 0, 100),
       position_y: clamp(table.position_y + verticalShift, 0, 100),
-      clone_source_id: table.clone_source_id ?? table.id,
+      clone_source_id: table.is_new ? undefined : table.clone_source_id ?? table.id,
+      is_new: table.is_new,
     }));
     setEditedTables((current) => [...current, ...clones]);
     setEditorSelectedTableIds(clones.map((table) => table.id));
+  }
+
+  function createStandardTwoTop() {
+    const usedNumbers = new Set(
+      editedTables
+        .map((table) => table.name.trim())
+        .filter((name) => /^\d+$/.test(name))
+        .map(Number),
+    );
+    let number = 1;
+    while (usedNumbers.has(number)) number += 1;
+
+    const tableIndex = editedTables.length;
+    const table: DiningTable = {
+      id: Math.min(0, ...editedTables.map((item) => item.id)) - 1,
+      name: String(number),
+      capacity: 2,
+      sort_order: Math.max(0, ...editedTables.map((item) => item.sort_order)) + 1,
+      shape: "rectangle",
+      position_x: 10 + (tableIndex % 4) * 25,
+      position_y: 18 + (Math.floor(tableIndex / 4) % 3) * 34,
+      width: 108,
+      height: 76,
+      rotation: 0,
+      chair_layout: "across",
+      is_new: true,
+    };
+    setEditedTables((current) => [...current, table]);
+    setEditorSelectedTableIds([table.id]);
+    setDeleteConfirmationIds([]);
   }
 
   function deleteSelectedTables() {
@@ -691,7 +722,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             rotation: table.rotation,
             chair_layout: table.chair_layout,
           })),
-          clones: editedTables.filter((table) => table.id < 0).map((table) => ({
+          creations: editedTables.filter((table) => table.id < 0 && table.is_new).map((table) => ({
+            name: table.name,
+            capacity: table.capacity,
+            shape: table.shape,
+            position_x: table.position_x,
+            position_y: table.position_y,
+            width: table.width,
+            height: table.height,
+            rotation: table.rotation,
+            chair_layout: table.chair_layout,
+          })),
+          clones: editedTables.filter((table) => table.id < 0 && !table.is_new).map((table) => ({
             source_id: table.clone_source_id,
             capacity: table.capacity,
             shape: table.shape,
@@ -888,47 +930,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setDropTargetTableId(null);
     setDraggedReservationId(null);
     if (draggedReservation) seatAtTable(draggedReservation, table);
-  }
-
-  async function addTable(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!data) return;
-    setSaving(true);
-    setError("");
-    const values = new FormData(event.currentTarget);
-    const tableIndex = editingFloor ? editedTables.length : data.tables.length;
-    const payload = {
-      name: String(values.get("name") || "").trim(),
-      capacity: Number(values.get("capacity")),
-      shape: values.get("shape"),
-      position_x: 10 + (tableIndex % 4) * 25,
-      position_y: 18 + (Math.floor(tableIndex / 4) % 3) * 34,
-    };
-    try {
-      const response = await fetch(appPath("/api/grid/tables"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const responsePayload = (await response.json()) as DiningTable | Record<string, unknown>;
-      if (!response.ok) throw new Error(readError(responsePayload));
-      const createdTable = responsePayload as DiningTable;
-      setAddTableOpen(false);
-      if (editingFloor) {
-        setData((current) => current ? {
-          ...current,
-          tables: [...current.tables, createdTable],
-        } : current);
-        setEditedTables((current) => [...current, createdTable]);
-        setEditorSelectedTableIds([createdTable.id]);
-      } else {
-        await loadFloor();
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to create the table.");
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -1134,7 +1135,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-editor-tools">
                     <div className="floor-editor-tool-group" aria-label="Table arrangement tools">
                       <span>Arrange</span>
-                      <button type="button" onClick={() => setAddTableOpen(true)} disabled={saving}>
+                      <button type="button" onClick={createStandardTwoTop} disabled={saving}>
                         <CirclePlus aria-hidden="true" /> New Table
                       </button>
                       <button type="button" onClick={cloneSelectedTables} disabled={!editorSelectedTables.length}>
@@ -1360,23 +1361,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               )}
             </section>
           </div>
-
-          {addTableOpen && (
-            <div className="floor-dialog-backdrop" role="presentation" onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setAddTableOpen(false);
-            }}>
-              <form className="floor-dialog" onSubmit={addTable} aria-labelledby="add-table-title">
-                <button type="button" className="floor-dialog-close" onClick={() => setAddTableOpen(false)} aria-label="Close new table"><X aria-hidden="true" /></button>
-                <span>Floor setup</span>
-                <h2 id="add-table-title">New table</h2>
-                <p>The new table will also appear in the reservation grid.</p>
-                <label>Table number or name<input name="name" required maxLength={40} autoFocus placeholder="9" /></label>
-                <label>Seats<input name="capacity" type="number" required min={1} max={40} defaultValue={4} /></label>
-                <label>Shape<select name="shape" defaultValue="rectangle"><option value="rectangle">Rectangle</option><option value="round">Round</option></select></label>
-                <button type="submit" className="floor-dialog-submit" disabled={saving}>{saving ? "Creating…" : "Create table"}</button>
-              </form>
-            </div>
-          )}
 
           {walkInOpen && (
             <div className="floor-dialog-backdrop" role="presentation" onMouseDown={(event) => {
