@@ -3624,6 +3624,14 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 14px;
   background-color: #121512;
+}
+
+/* Preserve the floor's design-space geometry when the visible canvas narrows. */
+.floor-canvas-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
   background-image:
     linear-gradient(rgba(81, 88, 77, 0.12) 1px, transparent 1px),
     linear-gradient(90deg, rgba(81, 88, 77, 0.12) 1px, transparent 1px),
@@ -4308,13 +4316,22 @@ textarea {
   }
 
   .floor-canvas {
+    min-height: 560px;
+    padding: 0;
+    overflow-y: auto;
+  }
+
+  .floor-canvas-stage {
+    position: relative;
     display: grid;
+    width: 100% !important;
+    height: auto !important;
     min-height: 560px;
     align-content: start;
     grid-template-columns: repeat(2, minmax(110px, 1fr));
     gap: 24px 14px;
     padding: 30px 18px 120px;
-    overflow-y: auto;
+    transform: none !important;
   }
 
   .floor-table,
