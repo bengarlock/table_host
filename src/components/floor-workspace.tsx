@@ -110,6 +110,7 @@ type GuestSearchResponse = { results: GuestRecord[] };
 
 type WalkInDraft = {
   partySize: number;
+  durationMinutes: number;
   guestId: number | null;
   guestName: string;
   notes: string;
@@ -143,6 +144,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
 ];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
 const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
+const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
@@ -260,6 +262,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInPartySize, setWalkInPartySize] = useState(2);
   const [walkInCustomPartySize, setWalkInCustomPartySize] = useState("");
+  const [walkInDurationMinutes, setWalkInDurationMinutes] = useState(90);
   const [walkInGuestQuery, setWalkInGuestQuery] = useState("");
   const [walkInNotes, setWalkInNotes] = useState("");
   const [walkInTags, setWalkInTags] = useState<string[]>([]);
@@ -958,6 +961,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const pendingTag = walkInTagInput.trim();
     setWalkInDraft({
       partySize: walkInPartySize,
+      durationMinutes: walkInDurationMinutes,
       guestId: walkInSelectedGuest?.id || null,
       guestName: walkInSelectedGuest?.full_name || walkInGuestQuery.trim(),
       notes: walkInNotes.trim(),
@@ -1005,6 +1009,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             guest_id: walkInDraft.guestId || undefined,
             guest_name: walkInDraft.guestName,
             party_size: walkInDraft.partySize,
+            duration_minutes: walkInDraft.durationMinutes,
             notes: walkInDraft.notes,
             tags: walkInDraft.tags,
           }),
@@ -1148,7 +1153,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <div className="floor-seating-prompt" role="status">
                   <strong>
                     {seatingMode === "walk-in"
-                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize}`
+                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize} · ${walkInDraft?.durationMinutes} min turn`
                       : selectedPending?.guest_name}
                   </strong>
                   {seatingMode === "walk-in" && walkInDraft && (walkInDraft.tags.length > 0 || walkInDraft.notes) && (
@@ -1182,6 +1187,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     setWalkInOpen(true);
                     setWalkInPartySize(2);
                     setWalkInCustomPartySize("");
+                    setWalkInDurationMinutes(data?.selected_shift.default_turn_minutes || 90);
                     setWalkInGuestQuery("");
                     setWalkInNotes("");
                     setWalkInTags([]);
@@ -1555,6 +1561,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <small id="walk-in-party-size-error" className="floor-party-size-error" role="alert">Enter a whole-number party size from 9 to 40.</small>
                   )}
                 </fieldset>
+                <label>
+                  Expected turn
+                  <select
+                    value={walkInDurationMinutes}
+                    onChange={(event) => setWalkInDurationMinutes(Number(event.target.value))}
+                  >
+                    {[...new Set([...WALK_IN_TURN_TIMES, walkInDurationMinutes])]
+                      .sort((left, right) => left - right)
+                      .map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                  </select>
+                </label>
                 <label>
                   Guest name <small>Optional</small>
                   <span className="floor-guest-search-field">
