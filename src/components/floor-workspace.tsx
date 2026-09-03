@@ -143,6 +143,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "paid",
 ];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
+const FLOOR_TABLE_COLLISION_CLEARANCE = 4;
 const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const subscribeToHydration = () => () => undefined;
@@ -233,6 +234,10 @@ type FloorTableDrag = {
   maximumDeltaX: number;
   minimumDeltaY: number;
   maximumDeltaY: number;
+  selectedBounds: Array<{ id: number; bounds: FloorTableBounds }>;
+  obstacleBounds: FloorTableBounds[];
+  lastDeltaX: number;
+  lastDeltaY: number;
 };
 
 type FloorMarqueeDrag = {
@@ -250,7 +255,14 @@ type FloorMarqueeBounds = {
   height: number;
 };
 
-function floorTableVisualBounds(element: HTMLElement) {
+type FloorTableBounds = {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
+
+function floorTableVisualBounds(element: HTMLElement): FloorTableBounds {
   const surface = element.querySelector<HTMLElement>(".floor-table-surface");
   const rectangles = [
     (surface || element).getBoundingClientRect(),
@@ -263,6 +275,47 @@ function floorTableVisualBounds(element: HTMLElement) {
     top: Math.min(...rectangles.map((bounds) => bounds.top)),
     bottom: Math.max(...rectangles.map((bounds) => bounds.bottom)),
   };
+}
+
+function translatedFloorTableBounds(
+  bounds: FloorTableBounds,
+  deltaX: number,
+  deltaY: number,
+): FloorTableBounds {
+  return {
+    left: bounds.left + deltaX,
+    right: bounds.right + deltaX,
+    top: bounds.top + deltaY,
+    bottom: bounds.bottom + deltaY,
+  };
+}
+
+function floorTableBoundsOverlap(
+  left: FloorTableBounds,
+  right: FloorTableBounds,
+  clearance = 0,
+) {
+  return left.left < right.right + clearance
+    && left.right > right.left - clearance
+    && left.top < right.bottom + clearance
+    && left.bottom > right.top - clearance;
+}
+
+function floorTableOverlapIds(stage: HTMLElement) {
+  const tables = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+    .map((element) => ({
+      id: Number(element.dataset.floorTableId),
+      bounds: floorTableVisualBounds(element),
+    }));
+  const overlappingIds = new Set<number>();
+  tables.forEach((table, index) => {
+    tables.slice(index + 1).forEach((other) => {
+      if (!floorTableBoundsOverlap(table.bounds, other.bounds)) return;
+      overlappingIds.add(table.id);
+      overlappingIds.add(other.id);
+    });
+  });
+  return overlappingIds;
 }
 
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
@@ -689,7 +742,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       : [tableId];
     const stage = floorStageRef.current;
     if (!stage) return;
-    const selectedElements = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+    const tableElements = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"));
+    const selectedElements = tableElements
       .filter((element) => selectedIds.includes(Number(element.dataset.floorTableId)));
     if (!selectedElements.length) return;
     const selectedRects = selectedElements.map(floorTableVisualBounds);
@@ -717,6 +771,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       maximumDeltaX: stageBounds.right - selectedBounds.right,
       minimumDeltaY: stageBounds.top - selectedBounds.top,
       maximumDeltaY: stageBounds.bottom - selectedBounds.bottom,
+      selectedBounds: selectedElements.map((element) => ({
+        id: Number(element.dataset.floorTableId),
+        bounds: floorTableVisualBounds(element),
+      })),
+      obstacleBounds: tableElements
+        .filter((element) => !selectedIds.includes(Number(element.dataset.floorTableId)))
+        .map(floorTableVisualBounds),
+      lastDeltaX: 0,
+      lastDeltaY: 0,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -733,8 +796,76 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
     if (!drag.moved) return;
     const stageBounds = stage.getBoundingClientRect();
-    const deltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
-    const deltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
+    const desiredDeltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
+    const desiredDeltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
+    const collidesAt = (deltaX: number, deltaY: number) => drag.selectedBounds.some(({ bounds }) => {
+      const movedBounds = translatedFloorTableBounds(bounds, deltaX, deltaY);
+      return drag.obstacleBounds.some((obstacle) => floorTableBoundsOverlap(
+        movedBounds,
+        obstacle,
+        FLOOR_TABLE_COLLISION_CLEARANCE,
+      ));
+    });
+    const advanceWithoutOverlap = (
+      startX: number,
+      startY: number,
+      targetX: number,
+      targetY: number,
+    ) => {
+      const distance = Math.hypot(targetX - startX, targetY - startY);
+      const steps = Math.max(1, Math.ceil(distance / 2));
+      let validX = startX;
+      let validY = startY;
+      for (let step = 1; step <= steps; step += 1) {
+        const progress = step / steps;
+        const candidateX = startX + (targetX - startX) * progress;
+        const candidateY = startY + (targetY - startY) * progress;
+        if (collidesAt(candidateX, candidateY)) break;
+        validX = candidateX;
+        validY = candidateY;
+      }
+      return { x: validX, y: validY };
+    };
+    const direct = advanceWithoutOverlap(
+      drag.lastDeltaX,
+      drag.lastDeltaY,
+      desiredDeltaX,
+      desiredDeltaY,
+    );
+    const xFirst = advanceWithoutOverlap(
+      direct.x,
+      direct.y,
+      desiredDeltaX,
+      direct.y,
+    );
+    const xThenY = advanceWithoutOverlap(
+      xFirst.x,
+      xFirst.y,
+      xFirst.x,
+      desiredDeltaY,
+    );
+    const yFirst = advanceWithoutOverlap(
+      direct.x,
+      direct.y,
+      direct.x,
+      desiredDeltaY,
+    );
+    const yThenX = advanceWithoutOverlap(
+      yFirst.x,
+      yFirst.y,
+      desiredDeltaX,
+      yFirst.y,
+    );
+    const candidates = [direct, xThenY, yThenX];
+    const resolved = candidates.reduce((closest, candidate) => {
+      const candidateDistance = Math.hypot(desiredDeltaX - candidate.x, desiredDeltaY - candidate.y);
+      const closestDistance = Math.hypot(desiredDeltaX - closest.x, desiredDeltaY - closest.y);
+      return candidateDistance < closestDistance ? candidate : closest;
+    });
+    const deltaX = resolved.x;
+    const deltaY = resolved.y;
+    drag.lastDeltaX = deltaX;
+    drag.lastDeltaY = deltaY;
     const xPercent = (deltaX / stageBounds.width) * 100;
     const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
@@ -837,6 +968,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   async function saveFloorLayout() {
     if (floorHasInvalidTableNumbers) {
       setError("Every table needs a unique table number before the floor can be saved.");
+      return;
+    }
+    const stage = floorStageRef.current;
+    if (stage && floorTableOverlapIds(stage).size > 0) {
+      setError("Tables cannot overlap. Move the overlapping tables apart before saving the floor.");
       return;
     }
     if (!editedTables.length && !deletedTableIds.length) {
