@@ -255,6 +255,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInPartySize, setWalkInPartySize] = useState(2);
+  const [walkInCustomPartySize, setWalkInCustomPartySize] = useState("");
   const [walkInGuestQuery, setWalkInGuestQuery] = useState("");
   const [walkInGuestResults, setWalkInGuestResults] = useState<GuestRecord[]>([]);
   const [walkInSelectedGuest, setWalkInSelectedGuest] = useState<GuestRecord | null>(null);
@@ -932,6 +933,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function continueWalkIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!Number.isInteger(walkInPartySize) || walkInPartySize < 1 || walkInPartySize > 40) return;
     setWalkInDraft({
       partySize: walkInPartySize,
       guestId: walkInSelectedGuest?.id || null,
@@ -1145,6 +1147,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   onClick={() => {
                     setWalkInOpen(true);
                     setWalkInPartySize(2);
+                    setWalkInCustomPartySize("");
                     setWalkInGuestQuery("");
                     setWalkInSelectedGuest(null);
                     setWalkInGuestResults([]);
@@ -1473,19 +1476,48 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <button type="button" className="floor-dialog-close" onClick={() => setWalkInOpen(false)} aria-label="Close walk-in"><X aria-hidden="true" /></button>
                 <span>Seat without a reservation</span>
                 <h2 id="walk-in-title">Add a walk-in</h2>
-                <p>Enter the party size, then optionally find or add the guest.</p>
-                <label>
-                  Party size
-                  <input
-                    type="number"
-                    min={1}
-                    max={40}
-                    required
-                    value={walkInPartySize}
-                    onChange={(event) => setWalkInPartySize(Number(event.target.value))}
-                    autoFocus
-                  />
-                </label>
+                <p>Choose the party size, then optionally find or add the guest.</p>
+                <fieldset className="floor-party-size-picker">
+                  <legend>Party size</legend>
+                  <div className="floor-party-size-options">
+                    {Array.from({ length: 8 }, (_, index) => index + 1).map((partySize) => (
+                      <button
+                        type="button"
+                        key={partySize}
+                        className={walkInCustomPartySize === "" && walkInPartySize === partySize ? "selected" : ""}
+                        aria-pressed={walkInCustomPartySize === "" && walkInPartySize === partySize}
+                        onClick={() => {
+                          setWalkInPartySize(partySize);
+                          setWalkInCustomPartySize("");
+                        }}
+                        autoFocus={partySize === 2}
+                      >
+                        {partySize}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min={9}
+                      max={40}
+                      step={1}
+                      inputMode="numeric"
+                      aria-label="Party size 9 or more"
+                      aria-describedby={walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize)) ? "walk-in-party-size-error" : undefined}
+                      aria-invalid={walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize))}
+                      className={walkInCustomPartySize !== "" && Number.isInteger(walkInPartySize) && walkInPartySize >= 9 && walkInPartySize <= 40 ? "selected" : ""}
+                      placeholder="9+"
+                      value={walkInCustomPartySize}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setWalkInCustomPartySize(value);
+                        setWalkInPartySize(value === "" ? 2 : Number(value));
+                      }}
+                    />
+                  </div>
+                  {walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize)) && (
+                    <small id="walk-in-party-size-error" className="floor-party-size-error" role="alert">Enter a whole-number party size from 9 to 40.</small>
+                  )}
+                </fieldset>
                 <label>
                   Guest name <small>Optional</small>
                   <span className="floor-guest-search-field">
@@ -1537,7 +1569,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     Add “{walkInGuestQuery.trim()}” to guests
                   </button>
                 )}
-                <button type="submit" className="floor-dialog-submit">
+                <button
+                  type="submit"
+                  className="floor-dialog-submit"
+                  disabled={!Number.isInteger(walkInPartySize) || walkInPartySize < 1 || walkInPartySize > 40 || (walkInCustomPartySize !== "" && walkInPartySize < 9)}
+                >
                   Continue to tables
                 </button>
               </form>
