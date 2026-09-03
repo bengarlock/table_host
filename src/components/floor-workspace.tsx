@@ -229,6 +229,10 @@ type FloorTableDrag = {
   startY: number;
   moved: boolean;
   origins: Array<{ id: number; positionX: number; positionY: number }>;
+  minimumDeltaX: number;
+  maximumDeltaX: number;
+  minimumDeltaY: number;
+  maximumDeltaY: number;
 };
 
 type FloorMarqueeDrag = {
@@ -644,6 +648,23 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const selectedIds = editorSelectedTableIds.includes(tableId)
       ? editorSelectedTableIds
       : [tableId];
+    const stage = floorStageRef.current;
+    if (!stage) return;
+    const selectedElements = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+      .filter((element) => selectedIds.includes(Number(element.dataset.floorTableId)));
+    if (!selectedElements.length) return;
+    const selectedRects = selectedElements.flatMap((element) => [
+      element.getBoundingClientRect(),
+      ...Array.from(element.querySelectorAll<HTMLElement>(".chair"))
+        .map((chair) => chair.getBoundingClientRect()),
+    ]);
+    const selectedBounds = {
+      left: Math.min(...selectedRects.map((bounds) => bounds.left)),
+      right: Math.max(...selectedRects.map((bounds) => bounds.right)),
+      top: Math.min(...selectedRects.map((bounds) => bounds.top)),
+      bottom: Math.max(...selectedRects.map((bounds) => bounds.bottom)),
+    };
+    const stageBounds = stage.getBoundingClientRect();
     setEditorSelectedTableIds(selectedIds);
     floorTableDragRef.current = {
       pointerId: event.pointerId,
@@ -657,6 +678,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           positionX: table.position_x,
           positionY: table.position_y,
         })),
+      minimumDeltaX: stageBounds.left - selectedBounds.left,
+      maximumDeltaX: stageBounds.right - selectedBounds.right,
+      minimumDeltaY: stageBounds.top - selectedBounds.top,
+      maximumDeltaY: stageBounds.bottom - selectedBounds.bottom,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -665,14 +690,16 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const drag = floorTableDragRef.current;
     const stage = floorStageRef.current;
     if (!drag || drag.pointerId !== event.pointerId || !stage) return;
-    const deltaX = event.clientX - drag.startX;
-    const deltaY = event.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(deltaX, deltaY) > 3) {
+    const rawDeltaX = event.clientX - drag.startX;
+    const rawDeltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(rawDeltaX, rawDeltaY) > 3) {
       drag.moved = true;
       setMovingEditorTables(true);
     }
     if (!drag.moved) return;
     const stageBounds = stage.getBoundingClientRect();
+    const deltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
+    const deltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
     const xPercent = (deltaX / stageBounds.width) * 100;
     const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
@@ -680,8 +707,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       const origin = origins.get(table.id);
       return origin ? {
         ...table,
-        position_x: Math.round(clamp(origin.positionX + xPercent, 3, 97) * 100) / 100,
-        position_y: Math.round(clamp(origin.positionY + yPercent, 4, 96) * 100) / 100,
+        position_x: Math.round((origin.positionX + xPercent) * 100) / 100,
+        position_y: Math.round((origin.positionY + yPercent) * 100) / 100,
       } : table;
     }));
   }
