@@ -3445,6 +3445,10 @@ textarea {
   display: none;
 }
 
+.floor-service-layout.editing-floor .floor-plan-panel {
+  overflow-y: auto;
+}
+
 .floor-editor-console {
   display: grid;
   align-items: stretch;
@@ -3646,6 +3650,11 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 14px;
   background-color: #121512;
+  background-image:
+    linear-gradient(rgba(81, 88, 77, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(81, 88, 77, 0.12) 1px, transparent 1px),
+    radial-gradient(circle at 70% 20%, rgba(217, 170, 98, 0.055), transparent 24rem);
+  background-size: 28px 28px, 28px 28px, auto;
 }
 
 /* Preserve the floor's design-space geometry when the visible canvas narrows. */
@@ -3654,11 +3663,6 @@ textarea {
   top: 0;
   left: 0;
   transform-origin: top left;
-  background-image:
-    linear-gradient(rgba(81, 88, 77, 0.12) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(81, 88, 77, 0.12) 1px, transparent 1px),
-    radial-gradient(circle at 70% 20%, rgba(217, 170, 98, 0.055), transparent 24rem);
-  background-size: 28px 28px, 28px 28px, auto;
 }
 
 .floor-canvas.assigning {

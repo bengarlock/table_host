@@ -113,6 +113,12 @@ type WalkInDraft = {
   guestName: string;
 };
 
+type FloorStageMetrics = {
+  width: number;
+  height: number;
+  scale: number;
+};
+
 type GridData = {
   restaurant: { id: number; name: string };
   service_date: string;
@@ -262,9 +268,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
-  const [floorScale, setFloorScale] = useState(1);
+  const [floorStageMetrics, setFloorStageMetrics] = useState<FloorStageMetrics>({
+    width: FLOOR_DESIGN_MIN_WIDTH,
+    height: 420,
+    scale: 1,
+  });
   const resolveCurrentService = useRef(!initialServiceDate);
   const floorCanvasRef = useRef<HTMLDivElement>(null);
+  const floorStageRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
   const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
   const floorLoadRequestRef = useRef(0);
@@ -333,15 +344,27 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   useEffect(() => {
     const canvas = floorCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas || editingFloor) return;
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width;
+      const height = entry.contentRect.height;
       const nextScale = width > 0 ? Math.min(1, width / FLOOR_DESIGN_MIN_WIDTH) : 1;
-      setFloorScale((current) => Math.abs(current - nextScale) < 0.001 ? current : nextScale);
+      const nextMetrics = {
+        width: width > 0 ? width / nextScale : FLOOR_DESIGN_MIN_WIDTH,
+        height: height > 0 ? height / nextScale : 420,
+        scale: nextScale,
+      };
+      setFloorStageMetrics((current) => (
+        Math.abs(current.width - nextMetrics.width) < 0.5
+          && Math.abs(current.height - nextMetrics.height) < 0.5
+          && Math.abs(current.scale - nextMetrics.scale) < 0.001
+          ? current
+          : nextMetrics
+      ));
     });
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, []);
+  }, [editingFloor]);
 
   useEffect(() => {
     if (!walkInOpen) return;
@@ -629,8 +652,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function moveSelectedTables(event: ReactPointerEvent<HTMLButtonElement>) {
     const drag = floorTableDragRef.current;
-    const canvas = floorCanvasRef.current;
-    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const stage = floorStageRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !stage) return;
     const deltaX = event.clientX - drag.startX;
     const deltaY = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(deltaX, deltaY) > 3) {
@@ -638,8 +661,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       setMovingEditorTables(true);
     }
     if (!drag.moved) return;
-    const xPercent = (deltaX / canvas.clientWidth) * 100;
-    const yPercent = (deltaY / canvas.clientHeight) * 100;
+    const stageBounds = stage.getBoundingClientRect();
+    const xPercent = (deltaX / stageBounds.width) * 100;
+    const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
     setEditedTables((current) => current.map((table) => {
       const origin = origins.get(table.id);
@@ -1315,17 +1339,21 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               <div
                 ref={floorCanvasRef}
                 className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
+                style={editingFloor ? {
+                  minHeight: `${floorStageMetrics.height * floorStageMetrics.scale}px`,
+                } : undefined}
                 onPointerDown={beginFloorMarquee}
                 onPointerMove={updateFloorMarquee}
                 onPointerUp={finishFloorMarquee}
                 onPointerCancel={finishFloorMarquee}
               >
                 <div
+                  ref={floorStageRef}
                   className="floor-canvas-stage"
                   style={{
-                    width: floorScale < 1 ? `${FLOOR_DESIGN_MIN_WIDTH}px` : "100%",
-                    height: floorScale < 1 ? `${100 / floorScale}%` : "100%",
-                    transform: `scale(${floorScale})`,
+                    width: `${floorStageMetrics.width}px`,
+                    height: `${floorStageMetrics.height}px`,
+                    transform: `scale(${floorStageMetrics.scale})`,
                   }}
                 >
                   {loading && !data ? (
