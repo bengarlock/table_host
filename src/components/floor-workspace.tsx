@@ -16,6 +16,7 @@ import {
   Rows3,
   Save,
   Search,
+  Tag,
   Trash2,
   TriangleAlert,
   UserPlus,
@@ -111,6 +112,8 @@ type WalkInDraft = {
   partySize: number;
   guestId: number | null;
   guestName: string;
+  notes: string;
+  tags: string[];
 };
 
 type FloorStageMetrics = {
@@ -139,6 +142,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "paid",
 ];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
+const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
@@ -257,6 +261,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [walkInPartySize, setWalkInPartySize] = useState(2);
   const [walkInCustomPartySize, setWalkInCustomPartySize] = useState("");
   const [walkInGuestQuery, setWalkInGuestQuery] = useState("");
+  const [walkInNotes, setWalkInNotes] = useState("");
+  const [walkInTags, setWalkInTags] = useState<string[]>([]);
+  const [walkInTagInput, setWalkInTagInput] = useState("");
   const [walkInGuestResults, setWalkInGuestResults] = useState<GuestRecord[]>([]);
   const [walkInSelectedGuest, setWalkInSelectedGuest] = useState<GuestRecord | null>(null);
   const [walkInDraft, setWalkInDraft] = useState<WalkInDraft | null>(null);
@@ -931,13 +938,30 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
   }
 
+  function toggleWalkInTag(value: string) {
+    setWalkInTags((current) => (
+      current.includes(value) ? current.filter((tag) => tag !== value) : [...current, value]
+    ));
+  }
+
+  function addWalkInTag() {
+    const value = walkInTagInput.trim();
+    if (value && !walkInTags.includes(value)) {
+      setWalkInTags((current) => [...current, value]);
+    }
+    setWalkInTagInput("");
+  }
+
   function continueWalkIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!Number.isInteger(walkInPartySize) || walkInPartySize < 1 || walkInPartySize > 40) return;
+    const pendingTag = walkInTagInput.trim();
     setWalkInDraft({
       partySize: walkInPartySize,
       guestId: walkInSelectedGuest?.id || null,
       guestName: walkInSelectedGuest?.full_name || walkInGuestQuery.trim(),
+      notes: walkInNotes.trim(),
+      tags: pendingTag && !walkInTags.includes(pendingTag) ? [...walkInTags, pendingTag] : walkInTags,
     });
     setSelectedPendingId(null);
     setSelectedTableIds([]);
@@ -981,6 +1005,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             guest_id: walkInDraft.guestId || undefined,
             guest_name: walkInDraft.guestName,
             party_size: walkInDraft.partySize,
+            notes: walkInDraft.notes,
+            tags: walkInDraft.tags,
           }),
         });
         const payload = (await response.json()) as Reservation | Record<string, unknown>;
@@ -1125,6 +1151,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize}`
                       : selectedPending?.guest_name}
                   </strong>
+                  {seatingMode === "walk-in" && walkInDraft && (walkInDraft.tags.length > 0 || walkInDraft.notes) && (
+                    <span>
+                      {[
+                        walkInDraft.tags.length > 0 ? `Tags: ${walkInDraft.tags.join(", ")}` : "",
+                        walkInDraft.notes ? `Note: ${walkInDraft.notes}` : "",
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                   <span>Select one or more available tables, then finish seating.</span>
                 </div>
               )}
@@ -1149,6 +1183,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     setWalkInPartySize(2);
                     setWalkInCustomPartySize("");
                     setWalkInGuestQuery("");
+                    setWalkInNotes("");
+                    setWalkInTags([]);
+                    setWalkInTagInput("");
                     setWalkInSelectedGuest(null);
                     setWalkInGuestResults([]);
                   }}
@@ -1569,6 +1606,61 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     Add “{walkInGuestQuery.trim()}” to guests
                   </button>
                 )}
+                <label>
+                  Reservation note <small>Optional</small>
+                  <textarea
+                    rows={2}
+                    maxLength={5000}
+                    value={walkInNotes}
+                    onChange={(event) => setWalkInNotes(event.target.value)}
+                    placeholder="Occasion, seating request, accessibility…"
+                  />
+                </label>
+                <fieldset className="tag-picker floor-walk-in-tags">
+                  <legend><Tag aria-hidden="true" /> Reservation tags <small>Optional</small></legend>
+                  <div className="tag-options">
+                    {WALK_IN_RESERVATION_TAGS.map((tag) => (
+                      <button
+                        type="button"
+                        key={tag}
+                        className={walkInTags.includes(tag) ? "selected" : ""}
+                        aria-pressed={walkInTags.includes(tag)}
+                        onClick={() => toggleWalkInTag(tag)}
+                      >
+                        {walkInTags.includes(tag) && <Check aria-hidden="true" />}
+                        {tag}
+                      </button>
+                    ))}
+                    {walkInTags.filter((tag) => !WALK_IN_RESERVATION_TAGS.includes(tag)).map((tag) => (
+                      <button
+                        type="button"
+                        key={tag}
+                        className="selected"
+                        aria-pressed="true"
+                        onClick={() => toggleWalkInTag(tag)}
+                      >
+                        <Check aria-hidden="true" />
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="custom-tag">
+                    <input
+                      maxLength={40}
+                      value={walkInTagInput}
+                      onChange={(event) => setWalkInTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addWalkInTag();
+                        }
+                      }}
+                      placeholder="Add a reservation tag"
+                      aria-label="Custom reservation tag"
+                    />
+                    <button type="button" onClick={addWalkInTag} disabled={!walkInTagInput.trim()}>Add</button>
+                  </div>
+                </fieldset>
                 <button
                   type="submit"
                   className="floor-dialog-submit"

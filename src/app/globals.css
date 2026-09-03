@@ -4055,6 +4055,8 @@ textarea {
 
 .floor-walk-in-dialog {
   width: min(470px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 
 .floor-party-size-picker {
@@ -4120,6 +4122,36 @@ textarea {
   color: #ffb69d;
   font-size: 0.52rem;
   font-weight: 600;
+}
+
+.floor-dialog textarea {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #111411;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+  outline: none;
+}
+
+.floor-dialog textarea:focus {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 3px rgba(217, 170, 98, 0.07);
+}
+
+.floor-walk-in-tags legend small {
+  color: var(--text-muted);
+  font-size: 0.52rem;
+  font-weight: 500;
+}
+
+.floor-walk-in-tags .tag-options button {
+  padding: 6px 8px;
+  font-size: 0.56rem;
 }
 
 .floor-dialog label > small {
