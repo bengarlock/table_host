@@ -250,6 +250,21 @@ type FloorMarqueeBounds = {
   height: number;
 };
 
+function floorTableVisualBounds(element: HTMLElement) {
+  const surface = element.querySelector<HTMLElement>(".floor-table-surface");
+  const rectangles = [
+    (surface || element).getBoundingClientRect(),
+    ...Array.from(element.querySelectorAll<HTMLElement>(".chair"))
+      .map((chair) => chair.getBoundingClientRect()),
+  ];
+  return {
+    left: Math.min(...rectangles.map((bounds) => bounds.left)),
+    right: Math.max(...rectangles.map((bounds) => bounds.right)),
+    top: Math.min(...rectangles.map((bounds) => bounds.top)),
+    bottom: Math.max(...rectangles.map((bounds) => bounds.bottom)),
+  };
+}
+
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
   const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
   const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
@@ -543,11 +558,35 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function spaceSelectedTables() {
     if (editorSelectedTables.length < 2) return;
-    const ordered = [...editorSelectedTables].sort((left, right) => left.position_x - right.position_x);
-    const first = ordered[0].position_x;
-    const last = ordered.at(-1)?.position_x || first;
-    const gap = ordered.length > 1 ? (last - first) / (ordered.length - 1) : 0;
-    const positions = new Map(ordered.map((table, index) => [table.id, Math.round(first + gap * index)]));
+    const stage = floorStageRef.current;
+    if (!stage) return;
+    const elementsById = new Map(
+      Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+        .map((element) => [Number(element.dataset.floorTableId), element]),
+    );
+    const ordered = editorSelectedTables
+      .map((table) => {
+        const element = elementsById.get(table.id);
+        return element ? { table, bounds: floorTableVisualBounds(element) } : null;
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((left, right) => left.bounds.left - right.bounds.left);
+    if (ordered.length < 2) return;
+    const groupLeft = Math.min(...ordered.map((item) => item.bounds.left));
+    const groupRight = Math.max(...ordered.map((item) => item.bounds.right));
+    const occupiedWidth = ordered.reduce(
+      (total, item) => total + item.bounds.right - item.bounds.left,
+      0,
+    );
+    const gap = (groupRight - groupLeft - occupiedWidth) / (ordered.length - 1);
+    const stageWidth = stage.getBoundingClientRect().width;
+    let nextLeft = groupLeft;
+    const positions = new Map<number, number>();
+    ordered.forEach(({ table, bounds }) => {
+      const deltaPercent = ((nextLeft - bounds.left) / stageWidth) * 100;
+      positions.set(table.id, Math.round((table.position_x + deltaPercent) * 100) / 100);
+      nextLeft += bounds.right - bounds.left + gap;
+    });
     setEditedTables((current) => current.map((table) =>
       positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
     ));
@@ -653,11 +692,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const selectedElements = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
       .filter((element) => selectedIds.includes(Number(element.dataset.floorTableId)));
     if (!selectedElements.length) return;
-    const selectedRects = selectedElements.flatMap((element) => [
-      element.getBoundingClientRect(),
-      ...Array.from(element.querySelectorAll<HTMLElement>(".chair"))
-        .map((chair) => chair.getBoundingClientRect()),
-    ]);
+    const selectedRects = selectedElements.map(floorTableVisualBounds);
     const selectedBounds = {
       left: Math.min(...selectedRects.map((bounds) => bounds.left)),
       right: Math.max(...selectedRects.map((bounds) => bounds.right)),
