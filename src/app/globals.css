@@ -3591,6 +3591,11 @@ textarea {
   width: 104px;
 }
 
+.floor-editor-fields input[aria-invalid="true"] {
+  border-color: #ef754c;
+  box-shadow: 0 0 0 2px rgba(239, 117, 76, 0.16);
+}
+
 .floor-editor-fields input:focus,
 .floor-editor-fields select:focus {
   border-color: var(--accent);
@@ -3614,6 +3619,23 @@ textarea {
   border-color: #d2a35c;
   background: #a87331;
   color: #fff8eb;
+}
+
+.floor-editor-validation {
+  display: flex;
+  max-width: 140px;
+  align-items: flex-start;
+  gap: 5px;
+  color: #ffb69d;
+  font-size: 0.49rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.floor-editor-validation svg {
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
 }
 
 .floor-canvas {
@@ -3767,6 +3789,22 @@ textarea {
 .floor-table.editor-selected .floor-table-surface {
   border-color: #f0bd6f;
   box-shadow: 0 0 0 4px rgba(217, 170, 98, 0.24), 0 16px 34px rgba(0, 0, 0, 0.4);
+}
+
+.floor-table.duplicate-number .floor-table-surface,
+.floor-table.missing-number .floor-table-surface {
+  border-color: #ff8059;
+  background: #71311f;
+  box-shadow: 0 0 0 5px rgba(239, 117, 76, 0.28), 0 16px 34px rgba(0, 0, 0, 0.4);
+}
+
+.floor-canvas.editing .floor-table.duplicate-number .floor-table-label strong,
+.floor-canvas.editing .floor-table.duplicate-number .floor-table-label small,
+.floor-canvas.editing .floor-table.duplicate-number .floor-table-label em,
+.floor-canvas.editing .floor-table.missing-number .floor-table-label strong,
+.floor-canvas.editing .floor-table.missing-number .floor-table-label small,
+.floor-canvas.editing .floor-table.missing-number .floor-table-label em {
+  color: #fff3ed;
 }
 
 .floor-table.drop-target .floor-table-surface {

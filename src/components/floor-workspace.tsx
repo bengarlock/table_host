@@ -412,6 +412,25 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
     [editedTables, editorSelectedTableIds],
   );
+  const selectedEditorTable = editorSelectedTables.length === 1 ? editorSelectedTables[0] : null;
+  const duplicateTableNumberIds = useMemo(() => {
+    const idsByNumber = new Map<string, number[]>();
+    editedTables.forEach((table) => {
+      const number = table.name.trim().toLocaleLowerCase();
+      if (!number) return;
+      idsByNumber.set(number, [...(idsByNumber.get(number) || []), table.id]);
+    });
+    return new Set(
+      [...idsByNumber.values()]
+        .filter((ids) => ids.length > 1)
+        .flat(),
+    );
+  }, [editedTables]);
+  const missingTableNumberIds = useMemo(
+    () => new Set(editedTables.filter((table) => !table.name.trim()).map((table) => table.id)),
+    [editedTables],
+  );
+  const floorHasInvalidTableNumbers = duplicateTableNumberIds.size > 0 || missingTableNumberIds.size > 0;
   const editorValues = useMemo(() => {
     const first = editorSelectedTables[0];
     if (!first) return null;
@@ -719,6 +738,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   async function saveFloorLayout() {
+    if (floorHasInvalidTableNumbers) {
+      setError("Every table needs a unique table number before the floor can be saved.");
+      return;
+    }
     if (!editedTables.length && !deletedTableIds.length) {
       cancelFloorEditing();
       return;
@@ -732,6 +755,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         body: JSON.stringify({
           tables: editedTables.filter((table) => table.id > 0).map((table) => ({
             id: table.id,
+            name: table.name.trim(),
             capacity: table.capacity,
             shape: table.shape,
             position_x: table.position_x,
@@ -754,6 +778,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           })),
           clones: editedTables.filter((table) => table.id < 0 && !table.is_new).map((table) => ({
             source_id: table.clone_source_id,
+            name: table.name.trim(),
             capacity: table.capacity,
             shape: table.shape,
             position_x: table.position_x,
@@ -1186,6 +1211,20 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                     <div className="floor-editor-fields">
                       <label>
+                        Table number
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={40}
+                          value={selectedEditorTable?.name ?? ""}
+                          placeholder={editorSelectedTables.length > 1 ? "Select one" : "No table"}
+                          disabled={!selectedEditorTable}
+                          aria-invalid={selectedEditorTable ? duplicateTableNumberIds.has(selectedEditorTable.id) || missingTableNumberIds.has(selectedEditorTable.id) : undefined}
+                          aria-describedby={floorHasInvalidTableNumbers ? "floor-table-number-error" : undefined}
+                          onChange={(event) => updateEditorSelection({ name: event.target.value })}
+                        />
+                      </label>
+                      <label>
                         Seats
                         <input
                           type="number"
@@ -1258,8 +1297,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-actions">
+                    {floorHasInvalidTableNumbers && (
+                      <small id="floor-table-number-error" className="floor-editor-validation" role="alert">
+                        <TriangleAlert aria-hidden="true" />
+                        {duplicateTableNumberIds.size > 0 ? "Duplicate table numbers must be changed." : "Every table needs a number."}
+                      </small>
+                    )}
                     <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
-                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving}>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidTableNumbers}>
                       {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
                       {saving ? "Saving…" : "Save Floor"}
                     </button>
@@ -1289,12 +1334,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
                   const editorSelected = editorSelectedTableIds.includes(table.id);
+                  const duplicateTableNumber = editingFloor && duplicateTableNumberIds.has(table.id);
+                  const missingTableNumber = editingFloor && missingTableNumberIds.has(table.id);
                   return (
                     <button
                       type="button"
                       key={table.id}
                       data-floor-table-id={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}`}
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}`}
                       style={{
                         left: `${table.position_x}%`,
                         top: `${table.position_y}%`,
@@ -1329,7 +1376,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
                       aria-label={editingFloor
-                        ? `Table ${table.name}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}`
+                        ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}`
                         : reservation
                           ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
                           : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
@@ -1346,7 +1393,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (
-                          <><small>{table.capacity} seats</small><em>{editingFloor ? `${table.rotation}°` : "Available"}</em></>
+                          <><small>{table.capacity} seats</small><em>{duplicateTableNumber ? "Duplicate number" : missingTableNumber ? "Number required" : editingFloor ? `${table.rotation}°` : "Available"}</em></>
                         )}
                       </span>
                     </button>
