@@ -16,6 +16,7 @@ import {
   Rows3,
   Save,
   Search,
+  Tag,
   Trash2,
   TriangleAlert,
   UserPlus,
@@ -109,8 +110,17 @@ type GuestSearchResponse = { results: GuestRecord[] };
 
 type WalkInDraft = {
   partySize: number;
+  durationMinutes: number;
   guestId: number | null;
   guestName: string;
+  notes: string;
+  tags: string[];
+};
+
+type FloorStageMetrics = {
+  width: number;
+  height: number;
+  scale: number;
 };
 
 type GridData = {
@@ -133,6 +143,8 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "paid",
 ];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
+const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
+const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
@@ -249,7 +261,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInPartySize, setWalkInPartySize] = useState(2);
+  const [walkInCustomPartySize, setWalkInCustomPartySize] = useState("");
+  const [walkInDurationMinutes, setWalkInDurationMinutes] = useState(90);
   const [walkInGuestQuery, setWalkInGuestQuery] = useState("");
+  const [walkInNotes, setWalkInNotes] = useState("");
+  const [walkInTags, setWalkInTags] = useState<string[]>([]);
+  const [walkInTagInput, setWalkInTagInput] = useState("");
   const [walkInGuestResults, setWalkInGuestResults] = useState<GuestRecord[]>([]);
   const [walkInSelectedGuest, setWalkInSelectedGuest] = useState<GuestRecord | null>(null);
   const [walkInDraft, setWalkInDraft] = useState<WalkInDraft | null>(null);
@@ -262,9 +279,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
-  const [floorScale, setFloorScale] = useState(1);
+  const [floorStageMetrics, setFloorStageMetrics] = useState<FloorStageMetrics>({
+    width: FLOOR_DESIGN_MIN_WIDTH,
+    height: 420,
+    scale: 1,
+  });
   const resolveCurrentService = useRef(!initialServiceDate);
   const floorCanvasRef = useRef<HTMLDivElement>(null);
+  const floorStageRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
   const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
   const floorLoadRequestRef = useRef(0);
@@ -333,15 +355,27 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   useEffect(() => {
     const canvas = floorCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas || editingFloor) return;
     const observer = new ResizeObserver(([entry]) => {
       const width = entry.contentRect.width;
+      const height = entry.contentRect.height;
       const nextScale = width > 0 ? Math.min(1, width / FLOOR_DESIGN_MIN_WIDTH) : 1;
-      setFloorScale((current) => Math.abs(current - nextScale) < 0.001 ? current : nextScale);
+      const nextMetrics = {
+        width: width > 0 ? width / nextScale : FLOOR_DESIGN_MIN_WIDTH,
+        height: height > 0 ? height / nextScale : 420,
+        scale: nextScale,
+      };
+      setFloorStageMetrics((current) => (
+        Math.abs(current.width - nextMetrics.width) < 0.5
+          && Math.abs(current.height - nextMetrics.height) < 0.5
+          && Math.abs(current.scale - nextMetrics.scale) < 0.001
+          ? current
+          : nextMetrics
+      ));
     });
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, []);
+  }, [editingFloor]);
 
   useEffect(() => {
     if (!walkInOpen) return;
@@ -412,6 +446,25 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
     [editedTables, editorSelectedTableIds],
   );
+  const selectedEditorTable = editorSelectedTables.length === 1 ? editorSelectedTables[0] : null;
+  const duplicateTableNumberIds = useMemo(() => {
+    const idsByNumber = new Map<string, number[]>();
+    editedTables.forEach((table) => {
+      const number = table.name.trim().toLocaleLowerCase();
+      if (!number) return;
+      idsByNumber.set(number, [...(idsByNumber.get(number) || []), table.id]);
+    });
+    return new Set(
+      [...idsByNumber.values()]
+        .filter((ids) => ids.length > 1)
+        .flat(),
+    );
+  }, [editedTables]);
+  const missingTableNumberIds = useMemo(
+    () => new Set(editedTables.filter((table) => !table.name.trim()).map((table) => table.id)),
+    [editedTables],
+  );
+  const floorHasInvalidTableNumbers = duplicateTableNumberIds.size > 0 || missingTableNumberIds.size > 0;
   const editorValues = useMemo(() => {
     const first = editorSelectedTables[0];
     if (!first) return null;
@@ -610,8 +663,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function moveSelectedTables(event: ReactPointerEvent<HTMLButtonElement>) {
     const drag = floorTableDragRef.current;
-    const canvas = floorCanvasRef.current;
-    if (!drag || drag.pointerId !== event.pointerId || !canvas) return;
+    const stage = floorStageRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !stage) return;
     const deltaX = event.clientX - drag.startX;
     const deltaY = event.clientY - drag.startY;
     if (!drag.moved && Math.hypot(deltaX, deltaY) > 3) {
@@ -619,8 +672,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       setMovingEditorTables(true);
     }
     if (!drag.moved) return;
-    const xPercent = (deltaX / canvas.clientWidth) * 100;
-    const yPercent = (deltaY / canvas.clientHeight) * 100;
+    const stageBounds = stage.getBoundingClientRect();
+    const xPercent = (deltaX / stageBounds.width) * 100;
+    const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
     setEditedTables((current) => current.map((table) => {
       const origin = origins.get(table.id);
@@ -719,6 +773,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   async function saveFloorLayout() {
+    if (floorHasInvalidTableNumbers) {
+      setError("Every table needs a unique table number before the floor can be saved.");
+      return;
+    }
     if (!editedTables.length && !deletedTableIds.length) {
       cancelFloorEditing();
       return;
@@ -732,6 +790,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         body: JSON.stringify({
           tables: editedTables.filter((table) => table.id > 0).map((table) => ({
             id: table.id,
+            name: table.name.trim(),
             capacity: table.capacity,
             shape: table.shape,
             position_x: table.position_x,
@@ -754,6 +813,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           })),
           clones: editedTables.filter((table) => table.id < 0 && !table.is_new).map((table) => ({
             source_id: table.clone_source_id,
+            name: table.name.trim(),
             capacity: table.capacity,
             shape: table.shape,
             position_x: table.position_x,
@@ -881,12 +941,31 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
   }
 
+  function toggleWalkInTag(value: string) {
+    setWalkInTags((current) => (
+      current.includes(value) ? current.filter((tag) => tag !== value) : [...current, value]
+    ));
+  }
+
+  function addWalkInTag() {
+    const value = walkInTagInput.trim();
+    if (value && !walkInTags.includes(value)) {
+      setWalkInTags((current) => [...current, value]);
+    }
+    setWalkInTagInput("");
+  }
+
   function continueWalkIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!Number.isInteger(walkInPartySize) || walkInPartySize < 1 || walkInPartySize > 40) return;
+    const pendingTag = walkInTagInput.trim();
     setWalkInDraft({
       partySize: walkInPartySize,
+      durationMinutes: walkInDurationMinutes,
       guestId: walkInSelectedGuest?.id || null,
       guestName: walkInSelectedGuest?.full_name || walkInGuestQuery.trim(),
+      notes: walkInNotes.trim(),
+      tags: pendingTag && !walkInTags.includes(pendingTag) ? [...walkInTags, pendingTag] : walkInTags,
     });
     setSelectedPendingId(null);
     setSelectedTableIds([]);
@@ -930,6 +1009,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             guest_id: walkInDraft.guestId || undefined,
             guest_name: walkInDraft.guestName,
             party_size: walkInDraft.partySize,
+            duration_minutes: walkInDraft.durationMinutes,
+            notes: walkInDraft.notes,
+            tags: walkInDraft.tags,
           }),
         });
         const payload = (await response.json()) as Reservation | Record<string, unknown>;
@@ -1071,9 +1153,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <div className="floor-seating-prompt" role="status">
                   <strong>
                     {seatingMode === "walk-in"
-                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize}`
+                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize} · ${walkInDraft?.durationMinutes} min turn`
                       : selectedPending?.guest_name}
                   </strong>
+                  {seatingMode === "walk-in" && walkInDraft && (walkInDraft.tags.length > 0 || walkInDraft.notes) && (
+                    <span>
+                      {[
+                        walkInDraft.tags.length > 0 ? `Tags: ${walkInDraft.tags.join(", ")}` : "",
+                        walkInDraft.notes ? `Note: ${walkInDraft.notes}` : "",
+                      ].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
                   <span>Select one or more available tables, then finish seating.</span>
                 </div>
               )}
@@ -1096,7 +1186,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   onClick={() => {
                     setWalkInOpen(true);
                     setWalkInPartySize(2);
+                    setWalkInCustomPartySize("");
+                    setWalkInDurationMinutes(data?.selected_shift.default_turn_minutes || 90);
                     setWalkInGuestQuery("");
+                    setWalkInNotes("");
+                    setWalkInTags([]);
+                    setWalkInTagInput("");
                     setWalkInSelectedGuest(null);
                     setWalkInGuestResults([]);
                   }}
@@ -1186,6 +1281,20 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                     <div className="floor-editor-fields">
                       <label>
+                        Table number
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={40}
+                          value={selectedEditorTable?.name ?? ""}
+                          placeholder={editorSelectedTables.length > 1 ? "Select one" : "No table"}
+                          disabled={!selectedEditorTable}
+                          aria-invalid={selectedEditorTable ? duplicateTableNumberIds.has(selectedEditorTable.id) || missingTableNumberIds.has(selectedEditorTable.id) : undefined}
+                          aria-describedby={floorHasInvalidTableNumbers ? "floor-table-number-error" : undefined}
+                          onChange={(event) => updateEditorSelection({ name: event.target.value })}
+                        />
+                      </label>
+                      <label>
                         Seats
                         <input
                           type="number"
@@ -1258,8 +1367,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-actions">
+                    {floorHasInvalidTableNumbers && (
+                      <small id="floor-table-number-error" className="floor-editor-validation" role="alert">
+                        <TriangleAlert aria-hidden="true" />
+                        {duplicateTableNumberIds.size > 0 ? "Duplicate table numbers must be changed." : "Every table needs a number."}
+                      </small>
+                    )}
                     <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
-                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving}>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidTableNumbers}>
                       {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
                       {saving ? "Saving…" : "Save Floor"}
                     </button>
@@ -1270,17 +1385,21 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               <div
                 ref={floorCanvasRef}
                 className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
+                style={editingFloor ? {
+                  minHeight: `${floorStageMetrics.height * floorStageMetrics.scale}px`,
+                } : undefined}
                 onPointerDown={beginFloorMarquee}
                 onPointerMove={updateFloorMarquee}
                 onPointerUp={finishFloorMarquee}
                 onPointerCancel={finishFloorMarquee}
               >
                 <div
+                  ref={floorStageRef}
                   className="floor-canvas-stage"
                   style={{
-                    width: floorScale < 1 ? `${FLOOR_DESIGN_MIN_WIDTH}px` : "100%",
-                    height: floorScale < 1 ? `${100 / floorScale}%` : "100%",
-                    transform: `scale(${floorScale})`,
+                    width: `${floorStageMetrics.width}px`,
+                    height: `${floorStageMetrics.height}px`,
+                    transform: `scale(${floorStageMetrics.scale})`,
                   }}
                 >
                   {loading && !data ? (
@@ -1289,12 +1408,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
                   const editorSelected = editorSelectedTableIds.includes(table.id);
+                  const duplicateTableNumber = editingFloor && duplicateTableNumberIds.has(table.id);
+                  const missingTableNumber = editingFloor && missingTableNumberIds.has(table.id);
                   return (
                     <button
                       type="button"
                       key={table.id}
                       data-floor-table-id={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}`}
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}`}
                       style={{
                         left: `${table.position_x}%`,
                         top: `${table.position_y}%`,
@@ -1329,7 +1450,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
                       aria-label={editingFloor
-                        ? `Table ${table.name}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}`
+                        ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}`
                         : reservation
                           ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
                           : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
@@ -1346,7 +1467,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (
-                          <><small>{table.capacity} seats</small><em>{editingFloor ? `${table.rotation}°` : "Available"}</em></>
+                          <><small>{table.capacity} seats</small><em>{duplicateTableNumber ? "Duplicate number" : missingTableNumber ? "Number required" : editingFloor ? `${table.rotation}°` : "Available"}</em></>
                         )}
                       </span>
                     </button>
@@ -1398,18 +1519,58 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <button type="button" className="floor-dialog-close" onClick={() => setWalkInOpen(false)} aria-label="Close walk-in"><X aria-hidden="true" /></button>
                 <span>Seat without a reservation</span>
                 <h2 id="walk-in-title">Add a walk-in</h2>
-                <p>Enter the party size, then optionally find or add the guest.</p>
+                <p>Choose the party size, then optionally find or add the guest.</p>
+                <fieldset className="floor-party-size-picker">
+                  <legend>Party size</legend>
+                  <div className="floor-party-size-options">
+                    {Array.from({ length: 8 }, (_, index) => index + 1).map((partySize) => (
+                      <button
+                        type="button"
+                        key={partySize}
+                        className={walkInCustomPartySize === "" && walkInPartySize === partySize ? "selected" : ""}
+                        aria-pressed={walkInCustomPartySize === "" && walkInPartySize === partySize}
+                        onClick={() => {
+                          setWalkInPartySize(partySize);
+                          setWalkInCustomPartySize("");
+                        }}
+                        autoFocus={partySize === 2}
+                      >
+                        {partySize}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min={9}
+                      max={40}
+                      step={1}
+                      inputMode="numeric"
+                      aria-label="Party size 9 or more"
+                      aria-describedby={walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize)) ? "walk-in-party-size-error" : undefined}
+                      aria-invalid={walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize))}
+                      className={walkInCustomPartySize !== "" && Number.isInteger(walkInPartySize) && walkInPartySize >= 9 && walkInPartySize <= 40 ? "selected" : ""}
+                      placeholder="9+"
+                      value={walkInCustomPartySize}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setWalkInCustomPartySize(value);
+                        setWalkInPartySize(value === "" ? 2 : Number(value));
+                      }}
+                    />
+                  </div>
+                  {walkInCustomPartySize !== "" && (walkInPartySize < 9 || walkInPartySize > 40 || !Number.isInteger(walkInPartySize)) && (
+                    <small id="walk-in-party-size-error" className="floor-party-size-error" role="alert">Enter a whole-number party size from 9 to 40.</small>
+                  )}
+                </fieldset>
                 <label>
-                  Party size
-                  <input
-                    type="number"
-                    min={1}
-                    max={40}
-                    required
-                    value={walkInPartySize}
-                    onChange={(event) => setWalkInPartySize(Number(event.target.value))}
-                    autoFocus
-                  />
+                  Expected turn
+                  <select
+                    value={walkInDurationMinutes}
+                    onChange={(event) => setWalkInDurationMinutes(Number(event.target.value))}
+                  >
+                    {[...new Set([...WALK_IN_TURN_TIMES, walkInDurationMinutes])]
+                      .sort((left, right) => left - right)
+                      .map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                  </select>
                 </label>
                 <label>
                   Guest name <small>Optional</small>
@@ -1462,7 +1623,66 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     Add “{walkInGuestQuery.trim()}” to guests
                   </button>
                 )}
-                <button type="submit" className="floor-dialog-submit">
+                <label>
+                  Reservation note <small>Optional</small>
+                  <textarea
+                    rows={2}
+                    maxLength={5000}
+                    value={walkInNotes}
+                    onChange={(event) => setWalkInNotes(event.target.value)}
+                    placeholder="Occasion, seating request, accessibility…"
+                  />
+                </label>
+                <fieldset className="tag-picker floor-walk-in-tags">
+                  <legend><Tag aria-hidden="true" /> Reservation tags <small>Optional</small></legend>
+                  <div className="tag-options">
+                    {WALK_IN_RESERVATION_TAGS.map((tag) => (
+                      <button
+                        type="button"
+                        key={tag}
+                        className={walkInTags.includes(tag) ? "selected" : ""}
+                        aria-pressed={walkInTags.includes(tag)}
+                        onClick={() => toggleWalkInTag(tag)}
+                      >
+                        {walkInTags.includes(tag) && <Check aria-hidden="true" />}
+                        {tag}
+                      </button>
+                    ))}
+                    {walkInTags.filter((tag) => !WALK_IN_RESERVATION_TAGS.includes(tag)).map((tag) => (
+                      <button
+                        type="button"
+                        key={tag}
+                        className="selected"
+                        aria-pressed="true"
+                        onClick={() => toggleWalkInTag(tag)}
+                      >
+                        <Check aria-hidden="true" />
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="custom-tag">
+                    <input
+                      maxLength={40}
+                      value={walkInTagInput}
+                      onChange={(event) => setWalkInTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addWalkInTag();
+                        }
+                      }}
+                      placeholder="Add a reservation tag"
+                      aria-label="Custom reservation tag"
+                    />
+                    <button type="button" onClick={addWalkInTag} disabled={!walkInTagInput.trim()}>Add</button>
+                  </div>
+                </fieldset>
+                <button
+                  type="submit"
+                  className="floor-dialog-submit"
+                  disabled={!Number.isInteger(walkInPartySize) || walkInPartySize < 1 || walkInPartySize > 40 || (walkInCustomPartySize !== "" && walkInPartySize < 9)}
+                >
                   Continue to tables
                 </button>
               </form>
