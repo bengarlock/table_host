@@ -91,6 +91,11 @@ type NewGuestFocus = "firstName" | "lastName" | "phone";
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
+const TURN_TIME_PRESETS = Array.from({ length: 11 }, (_, index) => 60 + index * 15);
+
+function normalizeTurnTime(value: number) {
+  return Math.max(60, Math.round(value / 15) * 15);
+}
 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -152,6 +157,7 @@ export function BookingWizard({
   presentation = "modal",
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
+  const initialTurnTime = normalizeTurnTime(initialDuration);
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(
@@ -162,7 +168,8 @@ export function BookingWizard({
   );
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
-  const [durationMinutes, setDurationMinutes] = useState(initialDuration);
+  const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
+  const [customDurationInput, setCustomDurationInput] = useState(String(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
@@ -294,6 +301,24 @@ export function BookingWizard({
     const currentSize = Number(partySizeInput);
     const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
     updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
+  }
+
+  function updateTurnTime(value: number) {
+    setDurationMinutes(value);
+    setCustomDurationInput(String(value));
+    invalidateTimeSelection();
+  }
+
+  function updateCustomTurnTime(value: string) {
+    setCustomDurationInput(value);
+    const nextDuration = Number(value);
+    if (!Number.isInteger(nextDuration) || nextDuration < 60 || nextDuration % 15 !== 0) {
+      setDurationMinutes(0);
+      invalidateTimeSelection();
+      return;
+    }
+    setDurationMinutes(nextDuration);
+    invalidateTimeSelection();
   }
 
   async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
@@ -588,9 +613,31 @@ export function BookingWizard({
                 </div>
                 <span className="party-size-manual-hint">9–40 guests</span>
               </div>
-              <label className="turn-time-field">Expected turn<select {...IGNORE_AUTOFILL} value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
-                {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
-              </select></label>
+              <label className="turn-time-field">
+                Expected turn
+                <select
+                  {...IGNORE_AUTOFILL}
+                  value={TURN_TIME_PRESETS.includes(durationMinutes) ? String(durationMinutes) : "custom"}
+                  onChange={(event) => updateTurnTime(event.target.value === "custom" ? 225 : Number(event.target.value))}
+                >
+                  {TURN_TIME_PRESETS.map((value) => <option key={value} value={value}>{value} minutes</option>)}
+                  <option value="custom">More than 210 minutes…</option>
+                </select>
+              </label>
+              <label className="turn-time-custom">
+                Custom turn time
+                <input
+                  {...IGNORE_AUTOFILL}
+                  type="number"
+                  min={60}
+                  step={15}
+                  inputMode="numeric"
+                  value={customDurationInput}
+                  aria-invalid={durationMinutes === 0}
+                  onChange={(event) => updateCustomTurnTime(event.currentTarget.value)}
+                />
+                <span>60+ minutes, in 15-minute increments</span>
+              </label>
             </div>
           )}
 
