@@ -171,7 +171,7 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [partySize, setPartySize] = useState(2);
-  const [partySizeInput, setPartySizeInput] = useState("9");
+  const [partySizeInput, setPartySizeInput] = useState("2");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
   const [turnTimeInput, setTurnTimeInput] = useState(formatTurnTime(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
@@ -182,9 +182,7 @@ export function BookingWizard({
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [reservationTags, setReservationTags] = useState<string[]>([]);
-  const [customReservationTag, setCustomReservationTag] = useState("");
   const [guestTags, setGuestTags] = useState<string[]>([]);
-  const [customGuestTag, setCustomGuestTag] = useState("");
   const [selectedGuest, setSelectedGuest] = useState<GuestRecord | null>(null);
   const [guestQuery, setGuestQuery] = useState("");
   const [guestResults, setGuestResults] = useState<GuestRecord[]>([]);
@@ -342,13 +340,9 @@ export function BookingWizard({
   }
 
   function confirmTableAssignment() {
-    const selectedCapacity = assignmentGrid?.tables
-      .filter((table) => assignmentDraftTableIds.includes(table.id))
-      .reduce((total, table) => total + table.capacity, 0) || 0;
-    if (assignmentDraftTableIds.length && selectedCapacity < partySize) return;
     setSelectedTableIds(assignmentDraftTableIds);
     setTablePickerOpen(false);
-    advanceTo(selectedGuest ? 5 : 4);
+    setStep(2);
   }
 
   async function continueWithoutTableAssignment() {
@@ -391,6 +385,7 @@ export function BookingWizard({
 
   function updatePartySize(nextSize: number) {
     const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
+    setPartySizeInput(String(normalizedSize));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
     invalidateTimeSelection();
@@ -399,7 +394,7 @@ export function BookingWizard({
   function updateManualPartySize(value: string) {
     setPartySizeInput(value);
     const nextSize = Number(value);
-    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > 40) {
+    if (!Number.isInteger(nextSize) || nextSize < 1 || nextSize > 40) {
       if (partySize !== 0) invalidateTimeSelection();
       setPartySize(0);
       return;
@@ -411,8 +406,8 @@ export function BookingWizard({
 
   function adjustManualPartySize(amount: number) {
     const currentSize = Number(partySizeInput);
-    const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
-    updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
+    const startingSize = Number.isInteger(currentSize) ? currentSize : 1;
+    updateManualPartySize(String(Math.min(40, Math.max(1, startingSize + amount))));
   }
 
   function updateTurnTime(value: string) {
@@ -442,18 +437,6 @@ export function BookingWizard({
     setGuestTags((current) =>
       current.includes(value) ? current.filter((tag) => tag !== value) : [...current, value],
     );
-  }
-
-  function addCustomReservationTag() {
-    const value = customReservationTag.trim();
-    if (value && !reservationTags.includes(value)) setReservationTags((current) => [...current, value]);
-    setCustomReservationTag("");
-  }
-
-  function addCustomGuestTag() {
-    const value = customGuestTag.trim();
-    if (value && !guestTags.includes(value)) setGuestTags((current) => [...current, value]);
-    setCustomGuestTag("");
   }
 
   function chooseGuest(guest: GuestRecord) {
@@ -657,55 +640,57 @@ export function BookingWizard({
           {step === 2 && (
             <div className="wizard-step">
               <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
-              <fieldset className="party-size-picker">
-                <legend>Quick select</legend>
-                <div className="party-size-options">
-                  {PARTY_SIZE_PRESETS.map((size) => (
+              <div className="party-size-fields">
+                <fieldset className="party-size-picker">
+                  <legend>Quick select</legend>
+                  <div className="party-size-options">
+                    {PARTY_SIZE_PRESETS.map((size) => (
+                      <button
+                        type="button"
+                        key={size}
+                        className={partySize === size ? "selected" : ""}
+                        aria-pressed={partySize === size}
+                        onClick={() => updatePartySize(size)}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="party-size-manual">
+                  <span id="manual-party-size-label">Enter party size</span>
+                  <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
                     <button
                       type="button"
-                      key={size}
-                      className={partySize === size ? "selected" : ""}
-                      aria-pressed={partySize === size}
-                      onClick={() => updatePartySize(size)}
+                      aria-label="Decrease party size"
+                      onClick={() => adjustManualPartySize(-1)}
+                      disabled={Number(partySizeInput) <= 1}
                     >
-                      {size}
+                      <Minus aria-hidden="true" />
                     </button>
-                  ))}
+                    <input
+                      {...IGNORE_AUTOFILL}
+                      type="number"
+                      min={1}
+                      max={40}
+                      inputMode="numeric"
+                      value={partySizeInput}
+                      aria-labelledby="manual-party-size-label"
+                      aria-invalid={partySize >= 9 && !stageIsFilled(2)}
+                      onFocus={() => updateManualPartySize(partySizeInput)}
+                      onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Increase party size"
+                      onClick={() => adjustManualPartySize(1)}
+                      disabled={Number(partySizeInput) >= 40}
+                    >
+                      <Plus aria-hidden="true" />
+                    </button>
+                  </div>
+                  <span className="party-size-manual-hint">1–40 guests</span>
                 </div>
-              </fieldset>
-              <div className="party-size-manual">
-                <span id="manual-party-size-label">Enter party size</span>
-                <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
-                  <button
-                    type="button"
-                    aria-label="Decrease party size"
-                    onClick={() => adjustManualPartySize(-1)}
-                    disabled={Number(partySizeInput) <= 9}
-                  >
-                    <Minus aria-hidden="true" />
-                  </button>
-                  <input
-                    {...IGNORE_AUTOFILL}
-                    type="number"
-                    min={9}
-                    max={40}
-                    inputMode="numeric"
-                    value={partySizeInput}
-                    aria-labelledby="manual-party-size-label"
-                    aria-invalid={partySize >= 9 && !stageIsFilled(2)}
-                    onFocus={() => updateManualPartySize(partySizeInput)}
-                    onChange={(event) => updateManualPartySize(event.currentTarget.value)}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Increase party size"
-                    onClick={() => adjustManualPartySize(1)}
-                    disabled={Number(partySizeInput) >= 40}
-                  >
-                    <Plus aria-hidden="true" />
-                  </button>
-                </div>
-                <span className="party-size-manual-hint">9–40 guests</span>
               </div>
               <div className="turn-time-field">
                 <span id="expected-turn-time-label">Expected turn</span>
@@ -851,29 +836,43 @@ export function BookingWizard({
               <div className="booking-detail-sections">
                 <section className="booking-detail-section reservation-detail-section" aria-labelledby="reservation-detail-heading">
                   <div className="booking-detail-section-heading"><Tag aria-hidden="true" /><div><h4 id="reservation-detail-heading">This reservation</h4><p>Saved only for this visit.</p></div></div>
-                  <div className="wizard-fields">
-                    <label>Reservation notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
-                  </div>
                   <fieldset className="tag-picker">
                     <legend>Reservation tags</legend>
                     <div className="tag-options">
-                      {RESERVATION_TAGS.map((tag) => <button type="button" key={tag} className={reservationTags.includes(tag) ? "selected" : ""} onClick={() => toggleReservationTag(tag)}>{reservationTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
+                      {RESERVATION_TAGS.map((tag) => {
+                        const selected = reservationTags.includes(tag);
+                        return (
+                          <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationTag(tag)}>
+                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="custom-tag"><input {...IGNORE_AUTOFILL} value={customReservationTag} onChange={(event) => setCustomReservationTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomReservationTag(); } }} placeholder="Add a reservation tag" /><button type="button" onClick={addCustomReservationTag} disabled={!customReservationTag.trim()}>Add</button></div>
                   </fieldset>
+                  <div className="wizard-fields">
+                    <label>Reservation notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
+                  </div>
                 </section>
                 <section className="booking-detail-section guest-detail-section" aria-labelledby="guest-detail-heading">
                   <div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h4 id="guest-detail-heading">Guest profile</h4><p>Persists for this guest on future visits.</p></div></div>
-                  <div className="wizard-fields">
-                    <label>Guest notes<textarea {...IGNORE_AUTOFILL} name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
-                  </div>
                   <fieldset className="tag-picker">
                     <legend>Guest tags</legend>
                     <div className="tag-options">
-                      {GUEST_TAGS.map((tag) => <button type="button" key={tag} className={guestTags.includes(tag) ? "selected" : ""} onClick={() => toggleGuestTag(tag)}>{guestTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
+                      {GUEST_TAGS.map((tag) => {
+                        const selected = guestTags.includes(tag);
+                        return (
+                          <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleGuestTag(tag)}>
+                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="custom-tag"><input {...IGNORE_AUTOFILL} value={customGuestTag} onChange={(event) => setCustomGuestTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomGuestTag(); } }} placeholder="Add a guest tag" /><button type="button" onClick={addCustomGuestTag} disabled={!customGuestTag.trim()}>Add</button></div>
                   </fieldset>
+                  <div className="wizard-fields">
+                    <label>Guest notes<textarea {...IGNORE_AUTOFILL} name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
+                  </div>
                 </section>
               </div>
             </form>

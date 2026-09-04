@@ -13,7 +13,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
@@ -86,6 +87,8 @@ type TableMove = {
 
 type GridData = {
   restaurant: { id: number; name: string };
+  training_mode: boolean;
+  data_mode: "training" | "production";
   service_date: string;
   current_service_date: string;
   booking_allowed: boolean;
@@ -143,12 +146,16 @@ function readError(payload: unknown) {
 type ReservationGridProps = {
   initialServiceDate?: string;
   initialShiftSlug?: string;
+  shouldSyncServiceUrl?: () => boolean;
 };
 
 export function ReservationGrid({
   initialServiceDate,
   initialShiftSlug,
+  shouldSyncServiceUrl,
 }: ReservationGridProps) {
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
   const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
   const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
@@ -167,6 +174,19 @@ export function ReservationGrid({
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
 
+  useLayoutEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  const syncServiceUrl = useCallback((
+    nextServiceDate: string,
+    nextShiftSlug: string,
+    mode: "push" | "replace" = "push",
+  ) => {
+    if (pathnameRef.current !== "/reservations" || shouldSyncServiceUrl?.() === false) return;
+    writeServiceUrl(nextServiceDate, nextShiftSlug, mode, appPath("/reservations"));
+  }, [shouldSyncServiceUrl]);
+
   const loadGrid = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -182,7 +202,7 @@ export function ReservationGrid({
         const closest = closestServiceOccurrence(next.shifts);
         const currentDate = next.current_service_date || closest?.date || todayLocal();
         const currentShift = closest?.shiftSlug || next.selected_shift.slug;
-        writeServiceUrl(currentDate, currentShift, "replace");
+        syncServiceUrl(currentDate, currentShift, "replace");
         if (currentDate !== serviceDate || currentShift !== next.selected_shift.slug) {
           setServiceDate(currentDate);
           setShiftSlug(currentShift);
@@ -191,13 +211,13 @@ export function ReservationGrid({
       }
       setData(next);
       setShiftSlug(next.selected_shift.slug);
-      writeServiceUrl(serviceDate, next.selected_shift.slug, "replace");
+      syncServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load the reservation grid.");
     } finally {
       setLoading(false);
     }
-  }, [serviceDate, shiftSlug]);
+  }, [serviceDate, shiftSlug, syncServiceUrl]);
 
   useEffect(() => {
     // The grid is intentionally refreshed whenever the active service date or shift changes.
@@ -286,14 +306,14 @@ export function ReservationGrid({
   function chooseDate(next: string) {
     setDraft(null);
     setSelected(null);
-    writeServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
+    syncServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(next);
   }
 
   function chooseShift(next: string) {
     setDraft(null);
     setSelected(null);
-    writeServiceUrl(serviceDate, next);
+    syncServiceUrl(serviceDate, next);
     setShiftSlug(next);
   }
 
@@ -303,7 +323,7 @@ export function ReservationGrid({
     const closest = closestServiceOccurrence(data?.shifts || []);
     const currentDate = data?.current_service_date || closest?.date || todayLocal();
     const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
-    writeServiceUrl(currentDate, currentShift);
+    syncServiceUrl(currentDate, currentShift);
     setServiceDate(currentDate);
     setShiftSlug(currentShift);
   }
@@ -465,6 +485,7 @@ export function ReservationGrid({
     <div className="reservation-page">
       <section className="grid-toolbar" aria-label="Reservation grid controls">
         <div className="toolbar-leading">
+          {data?.training_mode && <span className="training-mode-indicator">Training mode</span>}
           <div className="shift-tabs" aria-label="Shift">
             {data?.shifts.map((shift) => (
               <button
