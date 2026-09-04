@@ -2642,6 +2642,12 @@ textarea {
 
 .tag-options svg {
   width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+}
+
+.tag-options .tag-check-placeholder {
+  visibility: hidden;
 }
 
 .custom-tag {

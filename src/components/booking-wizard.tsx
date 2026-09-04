@@ -843,7 +843,15 @@ export function BookingWizard({
                   <fieldset className="tag-picker">
                     <legend>Reservation tags</legend>
                     <div className="tag-options">
-                      {RESERVATION_TAGS.map((tag) => <button type="button" key={tag} className={reservationTags.includes(tag) ? "selected" : ""} onClick={() => toggleReservationTag(tag)}>{reservationTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
+                      {RESERVATION_TAGS.map((tag) => {
+                        const selected = reservationTags.includes(tag);
+                        return (
+                          <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationTag(tag)}>
+                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
                   </fieldset>
                   <div className="wizard-fields">
@@ -855,7 +863,15 @@ export function BookingWizard({
                   <fieldset className="tag-picker">
                     <legend>Guest tags</legend>
                     <div className="tag-options">
-                      {GUEST_TAGS.map((tag) => <button type="button" key={tag} className={guestTags.includes(tag) ? "selected" : ""} onClick={() => toggleGuestTag(tag)}>{guestTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
+                      {GUEST_TAGS.map((tag) => {
+                        const selected = guestTags.includes(tag);
+                        return (
+                          <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleGuestTag(tag)}>
+                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
                   </fieldset>
                   <div className="wizard-fields">
