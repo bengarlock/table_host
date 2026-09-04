@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  ArrowRightLeft,
   ArrowRight,
   Building2,
   Check,
@@ -468,6 +469,14 @@ export function BookingWizard({
     setGuestSearchError("");
   }
 
+  function swapGuestNames() {
+    setNewGuest((current) => ({
+      ...current,
+      firstName: current.lastName,
+      lastName: current.firstName,
+    }));
+  }
+
   async function createGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGuestSearchLoading(true);
@@ -769,8 +778,13 @@ export function BookingWizard({
                 <form {...IGNORE_AUTOFILL} className="new-guest-form" onSubmit={createGuest}>
                   <div className="new-guest-heading"><div><h4>Create guest record</h4><p>Add their core contact information. Notes and tags come next.</p></div><button type="button" onClick={() => setCreatingGuest(false)}>Cancel</button></div>
                   <div className="wizard-fields two-column">
-                    <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, firstName: capitalizeNameInitial(current.firstName) }))} /></label>
-                    <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, lastName: capitalizeNameInitial(current.lastName) }))} /></label>
+                    <div className="guest-name-fields full-width">
+                      <label>First name<input {...IGNORE_AUTOFILL} required autoFocus={newGuestFocus === "firstName"} value={newGuest.firstName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, firstName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, firstName: capitalizeNameInitial(current.firstName) }))} /></label>
+                      <button type="button" className="guest-name-swap" aria-label="Swap first and last names" title="Swap first and last names" onClick={swapGuestNames}>
+                        <ArrowRightLeft aria-hidden="true" />
+                      </button>
+                      <label>Last name<input {...IGNORE_AUTOFILL} autoFocus={newGuestFocus === "lastName"} value={newGuest.lastName} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, lastName: value })); }} onBlur={() => setNewGuest((current) => ({ ...current, lastName: capitalizeNameInitial(current.lastName) }))} /></label>
+                    </div>
                     <label>Phone number<PhoneInput autoFocus={newGuestFocus === "phone"} normalizeInitialValue value={newGuest.phone} onChange={(value) => setNewGuest((current) => ({ ...current, phone: value }))} /></label>
                     <label>Email<input {...IGNORE_AUTOFILL} type="text" inputMode="email" value={newGuest.email} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, email: value })); }} /></label>
                     <label className="full-width">Company<input {...IGNORE_AUTOFILL} value={newGuest.company} onInput={(event) => { const value = event.currentTarget.value; setNewGuest((current) => ({ ...current, company: value })); }} /></label>

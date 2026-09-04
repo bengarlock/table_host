@@ -1645,6 +1645,40 @@ textarea {
   gap: 5px;
 }
 
+.guest-name-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+}
+
+.guest-name-fields label {
+  min-width: 0;
+}
+
+.guest-name-swap {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  cursor: pointer;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.guest-name-swap:hover,
+.guest-name-swap:focus-visible {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.guest-name-swap svg {
+  width: 18px;
+}
+
 .create-guest-action {
   display: flex;
   min-height: 42px;
@@ -4917,6 +4951,18 @@ textarea {
 
   .wizard-fields .full-width {
     grid-column: auto;
+  }
+
+  .guest-name-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-name-swap {
+    justify-self: center;
+  }
+
+  .guest-name-swap svg {
+    transform: rotate(90deg);
   }
 
   .guest-management-header {
