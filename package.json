@@ -5,12 +5,15 @@
   "scripts": {
     "predev": "node scripts/validate-backend-target.mjs development",
     "dev": "next dev",
+    "prebuild": "npm run lint",
     "build": "next build",
     "prestart": "node scripts/validate-backend-target.mjs production",
     "start": "next start",
     "backend:check:dev": "node scripts/validate-backend-target.mjs development",
     "backend:check:production": "node scripts/validate-backend-target.mjs production",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright install chromium && playwright test",
+    "deploy:check": "npm run lint && npm run test:e2e"
   },
   "dependencies": {
     "libphonenumber-js": "^1.13.12",
@@ -22,6 +25,7 @@
     "sharp": "0.35.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
