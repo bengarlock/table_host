@@ -698,7 +698,7 @@ export function BookingWizard({
                       value={partySizeInput}
                       aria-labelledby="manual-party-size-label"
                       aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > MAX_PARTY_SIZE}
-                      onFocus={() => updateManualPartySize(partySizeInput)}
+                      onFocus={() => updateManualPartySize("")}
                       onChange={(event) => updateManualPartySize(event.currentTarget.value)}
                     />
                     <button

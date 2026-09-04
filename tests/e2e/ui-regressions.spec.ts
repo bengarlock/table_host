@@ -172,6 +172,12 @@ test("booking restores time selection before optional table assignment", async (
   expect(manualBounds!.y).toBeGreaterThanOrEqual(quickSelectBounds!.y + quickSelectBounds!.height);
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("9");
+  await manualPartySize.click();
+  await expect(manualPartySize).toHaveValue("");
+  await manualPartySize.fill("12");
+  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("12 guests");
+  await page.getByRole("button", { name: "4", exact: true }).click();
+  await expect(manualPartySize).toHaveValue("12");
   await expect(page.getByRole("button", { name: "Assign Tables" })).toHaveCount(0);
   await page.locator("footer").getByRole("button", { name: "Time" }).click();
 
