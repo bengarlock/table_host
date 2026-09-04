@@ -120,8 +120,6 @@ export function ReservationTablePicker({
 
   const selectedTables = tables.filter((table) => selectedTableIds.includes(table.id));
   const selectedCapacity = selectedTables.reduce((total, table) => total + table.capacity, 0);
-  const hasEnoughSeats = selectedCapacity >= partySize;
-  const canConfirm = selectedTables.length === 0 || hasEnoughSeats;
 
   useLayoutEffect(() => {
     const viewport = floorViewportRef.current;
@@ -256,10 +254,10 @@ export function ReservationTablePicker({
         <footer>
           <div aria-live="polite">
             <strong>{selectedTables.length || "No"} table{selectedTables.length === 1 ? "" : "s"} selected</strong>
-            <span>{selectedCapacity} of {partySize} seats assigned</span>
+            <span>{selectedCapacity} cover{selectedCapacity === 1 ? "" : "s"} selected · Party of {partySize}</span>
           </div>
           <button type="button" className="reservation-table-cancel" onClick={onClose}>Cancel</button>
-          <button type="button" className="reservation-table-confirm" onClick={onConfirm} disabled={!canConfirm}>
+          <button type="button" className="reservation-table-confirm" onClick={onConfirm}>
             <Check aria-hidden="true" /> {selectedTables.length ? "Assign selected tables" : "Continue without tables"}
           </button>
         </footer>

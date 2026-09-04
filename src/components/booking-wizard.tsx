@@ -340,10 +340,6 @@ export function BookingWizard({
   }
 
   function confirmTableAssignment() {
-    const selectedCapacity = assignmentGrid?.tables
-      .filter((table) => assignmentDraftTableIds.includes(table.id))
-      .reduce((total, table) => total + table.capacity, 0) || 0;
-    if (assignmentDraftTableIds.length && selectedCapacity < partySize) return;
     setSelectedTableIds(assignmentDraftTableIds);
     setTablePickerOpen(false);
     setStep(2);
