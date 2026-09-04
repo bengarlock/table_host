@@ -76,14 +76,18 @@ type DiningTable = {
 };
 
 type ServiceStatus =
+  | "booked"
   | "confirmed"
+  | "late"
+  | "not_confirmed"
   | "seated"
   | "entree"
   | "dessert"
   | "check_dropped"
   | "paid"
   | "complete"
-  | "cancelled";
+  | "cancelled"
+  | "no_show";
 
 type Reservation = {
   id: number;
@@ -169,6 +173,7 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
   "check_dropped",
   "paid",
 ];
+const WAITING_STATUSES: ServiceStatus[] = ["booked", "confirmed", "late", "not_confirmed"];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
 const FLOOR_TABLE_COLLISION_CLEARANCE = 4;
 const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
@@ -184,9 +189,14 @@ const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "complete", label: "Done" },
 ];
 const RESERVATION_STATUS_OPTIONS = [
+  { value: "booked" as const, label: "Booked" },
   { value: "confirmed" as const, label: "Confirmed" },
-  ...SERVICE_STEPS,
+  { value: "late" as const, label: "Late" },
+  { value: "not_confirmed" as const, label: "Not Confirmed" },
+  { value: "cancelled" as const, label: "Cancelled" },
+  { value: "no_show" as const, label: "No-show" },
 ];
+const SERVICE_LIFECYCLE_STATUSES = SERVICE_STEPS.map((step) => step.value);
 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -248,7 +258,11 @@ function chairPositions(table: DiningTable): CSSProperties[] {
 }
 
 function statusLabel(status: ServiceStatus) {
-  return SERVICE_STEPS.find((step) => step.value === status)?.label || status;
+  return [...RESERVATION_STATUS_OPTIONS, ...SERVICE_STEPS].find((step) => step.value === status)?.label || status;
+}
+
+function statusOptionsFor(status: ServiceStatus) {
+  return SERVICE_LIFECYCLE_STATUSES.includes(status) ? SERVICE_STEPS : RESERVATION_STATUS_OPTIONS;
 }
 
 function readError(payload: unknown) {
@@ -552,12 +566,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }, [walkInGuestQuery, walkInOpen]);
 
   const unassignedReservations = useMemo(
-    () => data?.reservations.filter((reservation) => reservation.is_unassigned) || [],
+    () => data?.reservations.filter(
+      (reservation) => reservation.is_unassigned && WAITING_STATUSES.includes(reservation.status),
+    ) || [],
     [data],
   );
   const pendingReservations = useMemo(
     () => data?.reservations.filter(
-      (reservation) => reservation.status === "confirmed" || reservation.is_unassigned,
+      (reservation) => WAITING_STATUSES.includes(reservation.status),
     ) || [],
     [data],
   );
@@ -1260,7 +1276,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     reservation: Reservation,
     updates: ReservationUpdate,
   ) {
-    if (!liveService && updates.status !== undefined) return false;
+    if (!liveService && updates.status !== undefined && SERVICE_LIFECYCLE_STATUSES.includes(updates.status)) return false;
     setSaving(true);
     setError("");
     try {
@@ -1287,7 +1303,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (activeByTable.has(table.id) || !liveService) return;
     void updateReservation(reservation, {
       table_ids: [table.id],
-      status: reservation.status === "confirmed" ? "seated" : reservation.status,
+      status: WAITING_STATUSES.includes(reservation.status) ? "seated" : reservation.status,
     });
   }
 
@@ -1415,7 +1431,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (seatingMode === "reservation" && selectedPending) {
       const completed = await updateReservation(selectedPending, {
         table_ids: selectedTableIds,
-        status: selectedPending.status === "confirmed" ? "seated" : selectedPending.status,
+        status: WAITING_STATUSES.includes(selectedPending.status) ? "seated" : selectedPending.status,
       });
       if (completed) cancelSeating();
       return;
@@ -2021,9 +2037,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         <select
                           value={reservationEditDraft.status}
                           onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, status: event.target.value as ServiceStatus }))}
-                          disabled={saving || !liveService}
+                          disabled={saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))}
                         >
-                          {RESERVATION_STATUS_OPTIONS.map((option) => (
+                          {statusOptionsFor(focusedReservation.status).map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
                         </select>

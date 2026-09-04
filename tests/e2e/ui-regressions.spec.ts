@@ -113,7 +113,7 @@ for (const futureDate of [true, false]) {
     const seat = page.getByRole("button", { name: "Mark seated", exact: true });
     if (futureDate) {
       await expect(seat).toBeDisabled();
-      await expect(page.getByRole("button", { name: "Complete", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Complete", exact: true })).toHaveCount(0);
       await expect(page.getByText("Reservations cannot be seated or marked as served on future dates.")).toBeVisible();
       await expect(page.getByRole("button", { name: "Cancel reservation", exact: true })).toBeEnabled();
       expect(updates).toBe(0);
@@ -198,7 +198,13 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await expect(details.getByLabel("Party size")).toHaveValue("12");
   await expect(details.getByLabel("Time")).toHaveValue("17:00");
   await expect(details.getByLabel("Expected turn (minutes)")).toHaveValue("90");
-  await expect(details.getByLabel("Status")).toHaveValue("confirmed");
+  const statusSelect = details.getByLabel("Status");
+  await expect(statusSelect).toHaveValue("confirmed");
+  await expect(statusSelect.locator("option")).toHaveText([
+    "Booked", "Confirmed", "Late", "Not Confirmed", "Cancelled", "No-show",
+  ]);
+  expect((await statusSelect.boundingBox())!.height).toBeGreaterThanOrEqual(56);
+  await expect(statusSelect.locator('option[value="seated"]')).toHaveCount(0);
   await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
   await expect(details.getByLabel("Tags")).toHaveValue("VIP, Birthday");
   await expect(details.getByLabel("Reservation note")).toHaveValue("Window table if possible.");
@@ -208,7 +214,7 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await details.getByLabel("Party size").fill("10");
   await details.getByLabel("Time").fill("18:15");
   await details.getByLabel("Expected turn (minutes)").fill("120");
-  await details.getByLabel("Status").selectOption("seated");
+  await statusSelect.selectOption("late");
   await details.getByLabel("Tags").fill("VIP, Anniversary");
   await details.getByLabel("Reservation note").fill("Updated reservation note.");
   await details.getByRole("button", { name: "Save changes" }).click();
@@ -219,10 +225,30 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     duration_minutes: 120,
     notes: "Updated reservation note.",
     tags: ["VIP", "Anniversary"],
-    status: "seated",
+    status: "late",
   });
   await details.getByRole("button", { name: "Close reservation details" }).click();
   await expect(details).toHaveCount(0);
+});
+
+test("seated reservations only offer touch-friendly service statuses", async ({ page }) => {
+  const reservation = {
+    id: 103, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Service Guest", party_size: 2, start_time: "17:00", duration_minutes: 90,
+    status: "seated", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+  };
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 2 } },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Table 1, Service Guest, Seated" }).click();
+  const statusSelect = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByLabel("Status");
+  await expect(statusSelect.locator("option")).toHaveText([
+    "Seated", "Entree", "Dessert", "Check dropped", "Paid", "Done",
+  ]);
+  expect((await statusSelect.boundingBox())!.height).toBeGreaterThanOrEqual(56);
+  await expect(statusSelect.locator('option[value="confirmed"]')).toHaveCount(0);
 });
 
 async function mockAvailability(page: Page) {

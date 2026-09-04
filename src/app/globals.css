@@ -4965,10 +4965,17 @@ textarea {
 }
 
 .floor-reservation-status-select select {
+  min-height: 56px;
   cursor: pointer;
   border-color: var(--accent-line);
   background: var(--accent-soft);
   color: #e6c28b;
+  touch-action: manipulation;
+}
+
+.floor-reservation-status-select option {
+  min-height: 48px;
+  padding: 14px 12px;
 }
 
 .floor-reservation-status-select select:disabled {

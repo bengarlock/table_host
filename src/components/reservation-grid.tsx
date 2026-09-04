@@ -57,14 +57,18 @@ type Reservation = {
   start_time: string;
   duration_minutes: number;
   status:
+    | "booked"
     | "confirmed"
+    | "late"
+    | "not_confirmed"
     | "seated"
     | "entree"
     | "dessert"
     | "check_dropped"
     | "paid"
     | "complete"
-    | "cancelled";
+    | "cancelled"
+    | "no_show";
   assignment_type: "soft" | "hard";
   guest_phone: string;
   guest_email: string;
@@ -85,6 +89,9 @@ type TableMove = {
   triggered_by_guest_name: string | null;
   created_at: string;
 };
+
+const WAITING_RESERVATION_STATUSES: Reservation["status"][] = ["booked", "confirmed", "late", "not_confirmed"];
+const ACTIVE_SERVICE_STATUSES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid"];
 
 type GridData = {
   restaurant: { id: number; name: string };
@@ -819,8 +826,8 @@ export function ReservationGrid({
                   )}
                 </section>
                 <div className="status-actions">
-                  {selected.status !== "seated" && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving || !serviceStatusAllowed}>Mark seated</button>}
-                  {selected.status !== "complete" && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving || !serviceStatusAllowed}>Complete</button>}
+                  {WAITING_RESERVATION_STATUSES.includes(selected.status) && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving || !serviceStatusAllowed}>Mark seated</button>}
+                  {ACTIVE_SERVICE_STATUSES.includes(selected.status) && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving || !serviceStatusAllowed}>Complete</button>}
                 </div>
                 {!serviceStatusAllowed && <p role="status">Reservations cannot be seated or marked as served on future dates.</p>}
                 <button className="danger-action" type="button" onClick={() => void cancelReservation()} disabled={saving}>Cancel reservation</button>
