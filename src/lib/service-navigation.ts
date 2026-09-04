@@ -56,8 +56,10 @@ export function writeServiceUrl(
   serviceDate: string,
   shiftSlug: string,
   mode: "push" | "replace" = "push",
+  pathname?: string,
 ) {
   const url = new URL(window.location.href);
+  if (pathname) url.pathname = pathname;
   url.searchParams.set("date", serviceDate);
   url.searchParams.set("shift", shiftSlug);
   const nextUrl = `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
