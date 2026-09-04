@@ -1479,7 +1479,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           <strong>{(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join("+")}</strong>
                         </span>
                       )}
-                      <GripVertical />
+                      {liveService && <GripVertical className="floor-reservation-move-indicator" />}
                     </span>
                   </button>
                 )) : (
