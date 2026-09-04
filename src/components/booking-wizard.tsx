@@ -29,6 +29,7 @@ import {
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
+import { formatTurnTime } from "@/lib/turn-time";
 import { capitalizeNameInitial } from "@/lib/guest-names";
 import { ReservationFloorBooking } from "@/lib/reservation-table-availability";
 
@@ -110,12 +111,6 @@ const MAX_PARTY_SIZE = 32_767;
 
 function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
-}
-
-function formatTurnTime(value: number) {
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return `${hours}:${String(minutes).padStart(2, "0")}`;
 }
 
 function parseTurnTime(value: string) {

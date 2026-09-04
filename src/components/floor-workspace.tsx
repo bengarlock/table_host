@@ -40,6 +40,7 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import { formatTurnTime } from "@/lib/turn-time";
 import {
   closestServiceOccurrence,
   localDateValue,
@@ -1489,7 +1490,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <div className="floor-seating-prompt" role="status">
                   <strong>
                     {seatingMode === "walk-in"
-                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize} · ${walkInDraft?.durationMinutes} min turn`
+                      ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize} · ${formatTurnTime(walkInDraft?.durationMinutes ?? walkInDurationMinutes)} turn`
                       : selectedPending?.guest_name}
                   </strong>
                   {seatingMode === "walk-in" && walkInDraft && (walkInDraft.tags.length > 0 || walkInDraft.notes) && (
@@ -1924,7 +1925,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   >
                     {[...new Set([...WALK_IN_TURN_TIMES, walkInDurationMinutes])]
                       .sort((left, right) => left - right)
-                      .map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}
+                      .map((minutes) => <option key={minutes} value={minutes}>{formatTurnTime(minutes)}</option>)}
                   </select>
                 </label>
                 <label>

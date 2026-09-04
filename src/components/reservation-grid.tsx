@@ -18,6 +18,7 @@ import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo,
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
+import { formatTurnTime } from "@/lib/turn-time";
 import {
   closestServiceOccurrence,
   moveServiceDate,
@@ -675,7 +676,7 @@ export function ReservationGrid({
                               )}
                               <span>{reservation.guest_name}</span>
                               <small>
-                                {reservation.party_size} guests · {reservation.duration_minutes} min
+                                {reservation.party_size} guests · {formatTurnTime(reservation.duration_minutes)} turn
                                 {warnings.length ? ` · ${warnings.join(" · ")}` : ""}
                               </small>
                             </button>
@@ -706,7 +707,7 @@ export function ReservationGrid({
                 <div className="form-pair">
                   <label>Party size<input {...IGNORE_AUTOFILL} name="party_size" type="number" min="1" max={draft.capacity} defaultValue={Math.min(2, draft.capacity)} required /></label>
                   <label>Turn time<select {...IGNORE_AUTOFILL} name="duration_minutes" defaultValue={data.selected_shift.default_turn_minutes}>
-                    {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} min</option>)}
+                    {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{formatTurnTime(value)}</option>)}
                   </select></label>
                 </div>
                 <label>Notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={3} placeholder="Occasion, preferences, accessibility…" /></label>
@@ -744,7 +745,7 @@ export function ReservationGrid({
                 </button>
                 <dl className="reservation-details">
                   <div><dt>Party</dt><dd>{selected.party_size} guests</dd></div>
-                  <div><dt>Turn</dt><dd>{selected.duration_minutes} minutes</dd></div>
+                  <div><dt>Turn</dt><dd>{formatTurnTime(selected.duration_minutes)}</dd></div>
                   <div><dt>Status</dt><dd>{selected.status}</dd></div>
                   {selected.guest_phone && <div><dt>Phone</dt><dd>{selected.guest_phone}</dd></div>}
                   {selected.guest_email && <div><dt>Email</dt><dd>{selected.guest_email}</dd></div>}
