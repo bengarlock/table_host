@@ -2057,17 +2057,14 @@ textarea {
 }
 
 .party-size-fields {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: center;
+  display: grid;
+  justify-items: center;
   gap: 18px;
   width: 100%;
 }
 
 .party-size-picker {
   display: grid;
-  flex: 1 1 390px;
   gap: 9px;
   width: 100%;
   max-width: 520px;
@@ -2127,7 +2124,6 @@ textarea {
 
 .party-size-manual {
   display: grid;
-  flex: 1 1 250px;
   gap: 8px;
   width: 100%;
   max-width: 320px;

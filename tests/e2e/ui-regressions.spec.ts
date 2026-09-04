@@ -161,6 +161,15 @@ test("booking restores time selection before optional table assignment", async (
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
   await page.getByRole("button", { name: "Party size" }).click();
+  const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
+  await expect(manualPartySize).toHaveValue("9");
+  const quickSelectBounds = await page.locator(".party-size-picker").boundingBox();
+  const manualBounds = await page.locator(".party-size-manual").boundingBox();
+  expect(quickSelectBounds).not.toBeNull();
+  expect(manualBounds).not.toBeNull();
+  expect(manualBounds!.y).toBeGreaterThanOrEqual(quickSelectBounds!.y + quickSelectBounds!.height);
+  await page.getByRole("button", { name: "4", exact: true }).click();
+  await expect(manualPartySize).toHaveValue("9");
   await expect(page.getByRole("button", { name: "Assign Tables" })).toHaveCount(0);
   await page.locator("footer").getByRole("button", { name: "Time & tables" }).click();
 
