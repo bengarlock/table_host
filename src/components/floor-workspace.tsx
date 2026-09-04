@@ -236,8 +236,11 @@ type FloorTableDrag = {
   maximumDeltaX: number;
   minimumDeltaY: number;
   maximumDeltaY: number;
-  selectedBounds: Array<{ id: number; bounds: FloorTableBounds }>;
-  obstacleBounds: FloorTableBounds[];
+  collisionPairs: Array<{
+    selectedBounds: FloorTableBounds;
+    obstacleBounds: FloorTableBounds;
+    maximumOverlapArea: number;
+  }>;
   lastDeltaX: number;
   lastDeltaY: number;
 };
@@ -301,6 +304,24 @@ function floorTableBoundsOverlap(
     && left.right > right.left - clearance
     && left.top < right.bottom + clearance
     && left.bottom > right.top - clearance;
+}
+
+function floorTableOverlapArea(
+  left: FloorTableBounds,
+  right: FloorTableBounds,
+  clearance = 0,
+) {
+  const overlapWidth = Math.max(
+    0,
+    Math.min(left.right, right.right + clearance)
+      - Math.max(left.left, right.left - clearance),
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(left.bottom, right.bottom + clearance)
+      - Math.max(left.top, right.top - clearance),
+  );
+  return overlapWidth * overlapHeight;
 }
 
 function floorTableOverlapIds(stage: HTMLElement) {
@@ -749,6 +770,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       .filter((element) => selectedIds.includes(Number(element.dataset.floorTableId)));
     if (!selectedElements.length) return;
     const selectedRects = selectedElements.map(floorTableVisualBounds);
+    const obstacleRects = tableElements
+      .filter((element) => !selectedIds.includes(Number(element.dataset.floorTableId)))
+      .map(floorTableVisualBounds);
     const selectedBounds = {
       left: Math.min(...selectedRects.map((bounds) => bounds.left)),
       right: Math.max(...selectedRects.map((bounds) => bounds.right)),
@@ -773,13 +797,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       maximumDeltaX: stageBounds.right - selectedBounds.right,
       minimumDeltaY: stageBounds.top - selectedBounds.top,
       maximumDeltaY: stageBounds.bottom - selectedBounds.bottom,
-      selectedBounds: selectedElements.map((element) => ({
-        id: Number(element.dataset.floorTableId),
-        bounds: floorTableVisualBounds(element),
-      })),
-      obstacleBounds: tableElements
-        .filter((element) => !selectedIds.includes(Number(element.dataset.floorTableId)))
-        .map(floorTableVisualBounds),
+      collisionPairs: selectedRects.flatMap((selectedTableBounds) => obstacleRects.map((obstacleBounds) => ({
+        selectedBounds: selectedTableBounds,
+        obstacleBounds,
+        maximumOverlapArea: floorTableOverlapArea(
+          selectedTableBounds,
+          obstacleBounds,
+          FLOOR_TABLE_COLLISION_CLEARANCE,
+        ),
+      }))),
       lastDeltaX: 0,
       lastDeltaY: 0,
     };
@@ -800,14 +826,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const stageBounds = stage.getBoundingClientRect();
     const desiredDeltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
     const desiredDeltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
-    const collidesAt = (deltaX: number, deltaY: number) => drag.selectedBounds.some(({ bounds }) => {
-      const movedBounds = translatedFloorTableBounds(bounds, deltaX, deltaY);
-      return drag.obstacleBounds.some((obstacle) => floorTableBoundsOverlap(
-        movedBounds,
-        obstacle,
-        FLOOR_TABLE_COLLISION_CLEARANCE,
-      ));
-    });
+    const overlapAreaAt = (
+      pair: FloorTableDrag["collisionPairs"][number],
+      deltaX: number,
+      deltaY: number,
+    ) => floorTableOverlapArea(
+      translatedFloorTableBounds(pair.selectedBounds, deltaX, deltaY),
+      pair.obstacleBounds,
+      FLOOR_TABLE_COLLISION_CLEARANCE,
+    );
+    const collidesAt = (deltaX: number, deltaY: number) => drag.collisionPairs.some(
+      (pair) => overlapAreaAt(pair, deltaX, deltaY) > pair.maximumOverlapArea,
+    );
     const advanceWithoutOverlap = (
       startX: number,
       startY: number,
@@ -866,6 +896,13 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     });
     const deltaX = resolved.x;
     const deltaY = resolved.y;
+    // Let legacy touching tables move apart, then prevent that overlap from increasing again.
+    drag.collisionPairs.forEach((pair) => {
+      pair.maximumOverlapArea = Math.min(
+        pair.maximumOverlapArea,
+        overlapAreaAt(pair, deltaX, deltaY),
+      );
+    });
     drag.lastDeltaX = deltaX;
     drag.lastDeltaY = deltaY;
     const xPercent = (deltaX / stageBounds.width) * 100;
