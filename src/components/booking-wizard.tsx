@@ -796,7 +796,11 @@ export function BookingWizard({
                             <button
                               type="button"
                               key={optionKey}
-                              className={[option.available ? "" : "is-unavailable", selected ? "selected" : ""].filter(Boolean).join(" ")}
+                              className={[
+                                option.available ? "" : "is-unavailable",
+                                selected ? "selected" : "",
+                                selected && !option.available ? "confirm-overbook" : "",
+                              ].filter(Boolean).join(" ")}
                               aria-pressed={selected}
                               aria-label={`${displayTime(option.start_time)}, ${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
                               onClick={() => chooseTime(option)}

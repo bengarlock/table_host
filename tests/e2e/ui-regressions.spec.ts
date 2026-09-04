@@ -224,5 +224,8 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   const unavailableTime = page.getByRole("button", { name: /^5:00 PM,/ });
   await expect(unavailableTime).toBeEnabled();
   await unavailableTime.click();
+  await expect(unavailableTime).toHaveAttribute("aria-pressed", "true");
+  await expect(unavailableTime).toHaveClass(/confirm-overbook/);
+  await expect(unavailableTime).toHaveCSS("background-color", "rgba(164, 44, 35, 0.28)");
   await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
 });
