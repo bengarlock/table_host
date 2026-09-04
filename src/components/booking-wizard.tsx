@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Building2,
   Check,
+  LayoutGrid,
   LoaderCircle,
   Mail,
   Minus,
@@ -18,10 +19,15 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { PhoneInput } from "@/components/phone-input";
+import {
+  ReservationFloorTable,
+  ReservationTablePicker,
+} from "@/components/reservation-table-picker";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { capitalizeNameInitial } from "@/lib/guest-names";
+import { ReservationFloorBooking } from "@/lib/reservation-table-availability";
 
 type AvailabilityOption = {
   service_date: string;
@@ -37,6 +43,11 @@ type AvailabilityOption = {
 
 type AvailabilityResponse = {
   options: AvailabilityOption[];
+};
+
+type AssignmentGridResponse = {
+  tables: ReservationFloorTable[];
+  reservations: ReservationFloorBooking[];
 };
 
 type BookingWizardProps = {
@@ -114,26 +125,6 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function displayHour(time: string) {
-  const hour = Number(time.split(":")[0]);
-  return `${hour % 12 || 12} ${hour >= 12 ? "PM" : "AM"}`;
-}
-
-function groupTimesByHour(options: AvailabilityOption[]) {
-  const groups = new Map<string, AvailabilityOption[]>();
-  [...options]
-    .sort((left, right) => left.start_time.localeCompare(right.start_time))
-    .forEach((option) => {
-      const hour = option.start_time.slice(0, 2);
-      groups.set(hour, [...(groups.get(hour) || []), option]);
-    });
-  return [...groups.entries()].map(([hour, hourOptions]) => ({
-    hour,
-    label: displayHour(`${hour}:00`),
-    options: hourOptions,
-  }));
-}
-
 function displayDateSummary(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -184,7 +175,11 @@ export function BookingWizard({
   const [turnTimeInput, setTurnTimeInput] = useState(formatTurnTime(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
-  const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
+  const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
+  const [assignmentDraftTableIds, setAssignmentDraftTableIds] = useState<number[]>([]);
+  const [assignmentGrid, setAssignmentGrid] = useState<AssignmentGridResponse | null>(null);
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [reservationTags, setReservationTags] = useState<string[]>([]);
   const [customReservationTag, setCustomReservationTag] = useState("");
   const [guestTags, setGuestTags] = useState<string[]>([]);
@@ -257,15 +252,19 @@ export function BookingWizard({
   function stageIsFilled(stage: number) {
     if (stage === 1) return Boolean(serviceDate);
     if (stage === 2) return partySize > 0 && durationMinutes > 0;
-    if (stage === 3) return Boolean(selectedOption);
-    if (stage === 4) return Boolean(selectedOption && selectedGuest);
-    return Boolean(selectedOption && selectedGuest);
+    if (stage === 3) return Boolean(selectedOption && selectedTableIds.length);
+    if (stage === 4) return Boolean(selectedOption && selectedTableIds.length && selectedGuest);
+    return Boolean(selectedOption && selectedTableIds.length && selectedGuest);
   }
 
   function stageValue(stage: number) {
     if (stage === 1) return serviceDate ? displayDateSummary(serviceDate) : "";
     if (stage === 2) return partySize > 0 ? `${partySize} ${partySize === 1 ? "guest" : "guests"}` : "";
-    if (stage === 3) return selectedOption ? displayTime(selectedOption.start_time) : "";
+    if (stage === 3) {
+      if (!selectedOption) return "";
+      const tableCount = selectedTableIds.length;
+      return `${displayTime(selectedOption.start_time)}${tableCount ? ` · ${tableCount} table${tableCount === 1 ? "" : "s"}` : ""}`;
+    }
     if (stage === 4) return selectedGuest?.full_name || "";
     if (!selectedGuest) return "";
     return "Ready";
@@ -274,18 +273,80 @@ export function BookingWizard({
   function invalidateTimeSelection() {
     setOptions([]);
     setSelectedOption(null);
-    setPendingOverbookKey(null);
+    setSelectedTableIds([]);
+    setAssignmentDraftTableIds([]);
+    setAssignmentGrid(null);
+    setTablePickerOpen(false);
   }
 
   function chooseTime(option: AvailabilityOption) {
-    if (option.table_id === null) return;
-    const optionKey = `${option.shift_slug}-${option.start_time}`;
-    if (!option.available && pendingOverbookKey !== optionKey) {
-      setPendingOverbookKey(optionKey);
-      return;
-    }
-    setPendingOverbookKey(null);
     setSelectedOption(option);
+    setSelectedTableIds([]);
+    setAssignmentDraftTableIds([]);
+  }
+
+  async function loadAssignmentContext(shiftSlug: string, preserveSelection = false) {
+    const shift = shifts.find((item) => item.slug === shiftSlug);
+    if (!shift) return;
+    setAssignmentLoading(true);
+    setError("");
+    const availabilityQuery = new URLSearchParams({
+      service_date: serviceDate,
+      desired_time: shift.start_time,
+      party_size: String(partySize),
+      duration_minutes: String(durationMinutes),
+    });
+    const gridQuery = new URLSearchParams({
+      date: serviceDate,
+      shift: shift.slug,
+    });
+    try {
+      const [availabilityResponse, gridResponse] = await Promise.all([
+        fetch(`${appPath("/api/grid/availability")}?${availabilityQuery}`, { cache: "no-store" }),
+        fetch(`${appPath("/api/grid")}?${gridQuery}`, { cache: "no-store" }),
+      ]);
+      const availabilityPayload = (await availabilityResponse.json()) as AvailabilityResponse | Record<string, unknown>;
+      const gridPayload = (await gridResponse.json()) as AssignmentGridResponse | Record<string, unknown>;
+      if (!availabilityResponse.ok) throw new Error(readError(availabilityPayload));
+      if (!gridResponse.ok) throw new Error(readError(gridPayload));
+
+      const shiftOptions = (availabilityPayload as AvailabilityResponse).options.filter(
+        (option) => option.shift_slug === shift.slug,
+      );
+      const preservedOption = preserveSelection && selectedOption?.shift_slug === shift.slug
+        ? shiftOptions.find((option) => option.start_time === selectedOption.start_time)
+        : null;
+      const nextOption = preservedOption || shiftOptions.find((option) => option.available) || shiftOptions[0];
+      if (!nextOption) throw new Error("No reservation times are configured for this shift.");
+
+      setSelectedShiftSlug(shift.slug);
+      setOptions(shiftOptions);
+      setSelectedOption(nextOption);
+      setAssignmentGrid(gridPayload as AssignmentGridResponse);
+      const keepTables = Boolean(preservedOption);
+      if (!keepTables) setSelectedTableIds([]);
+      setAssignmentDraftTableIds(keepTables ? selectedTableIds : []);
+      setTablePickerOpen(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load the floor plan.");
+    } finally {
+      setAssignmentLoading(false);
+    }
+  }
+
+  function toggleAssignmentTable(tableId: number) {
+    setAssignmentDraftTableIds((current) => current.includes(tableId)
+      ? current.filter((id) => id !== tableId)
+      : [...current, tableId]);
+  }
+
+  function confirmTableAssignment() {
+    const selectedCapacity = assignmentGrid?.tables
+      .filter((table) => assignmentDraftTableIds.includes(table.id))
+      .reduce((total, table) => total + table.capacity, 0) || 0;
+    if (!assignmentDraftTableIds.length || selectedCapacity < partySize) return;
+    setSelectedTableIds(assignmentDraftTableIds);
+    setTablePickerOpen(false);
     advanceTo(selectedGuest ? 5 : 4);
   }
 
@@ -330,38 +391,6 @@ export function BookingWizard({
   function adjustTurnTime(amount: number) {
     const startingDuration = durationMinutes >= 60 ? durationMinutes : 60;
     updateTurnTime(formatTurnTime(Math.max(60, startingDuration + amount)));
-  }
-
-  async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
-    const shift = shifts.find((item) => item.slug === shiftSlug);
-    if (!shift) return;
-    setLoading(true);
-    setError("");
-    setSelectedShiftSlug(shift.slug);
-    setSelectedOption(null);
-    setPendingOverbookKey(null);
-    setOptions([]);
-    const query = new URLSearchParams({
-      service_date: serviceDate,
-      desired_time: shift.start_time,
-      party_size: String(requestedPartySize),
-      duration_minutes: String(durationMinutes),
-    });
-    try {
-      const response = await fetch(`${appPath("/api/grid/availability")}?${query}`, { cache: "no-store" });
-      const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
-      if (!response.ok) throw new Error(readError(payload));
-      setOptions(
-        (payload as AvailabilityResponse).options.filter(
-          (option) => option.shift_slug === shift.slug,
-        ),
-      );
-      advanceTo(3);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to search available times.");
-    } finally {
-      setLoading(false);
-    }
   }
 
   function toggleReservationTag(value: string) {
@@ -467,7 +496,7 @@ export function BookingWizard({
 
   async function bookReservation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedOption || !selectedGuest) return;
+    if (!selectedOption || !selectedTableIds.length || !selectedGuest) return;
     setLoading(true);
     setError("");
     try {
@@ -477,7 +506,9 @@ export function BookingWizard({
         body: JSON.stringify({
           service_date: serviceDate,
           shift_slug: selectedOption.shift_slug,
-          table_id: selectedOption.table_id,
+          table_id: selectedTableIds[0],
+          table_ids: selectedTableIds,
+          assignment_type: "hard",
           guest_id: selectedGuest.id,
           guest_notes: guestDetails.guestNotes,
           guest_tags: guestTags,
@@ -486,7 +517,6 @@ export function BookingWizard({
           party_size: partySize,
           start_time: selectedOption.start_time,
           duration_minutes: durationMinutes,
-          allow_overbook: !selectedOption.available,
         }),
       });
       const payload = (await response.json()) as Record<string, unknown>;
@@ -518,7 +548,7 @@ export function BookingWizard({
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
-          {["Date", "Party", "Time", "Guest", "Details"].map((label, index) => {
+          {["Date", "Party", "Time & tables", "Guest", "Details"].map((label, index) => {
             const stage = index + 1;
             const filled = stageIsFilled(stage);
             const visited = stage <= furthestStep;
@@ -532,6 +562,11 @@ export function BookingWizard({
                   onClick={() => {
                     if (!navigable) return;
                     setError("");
+                    if (stage === 3) {
+                      setStep(2);
+                      void loadAssignmentContext(selectedShiftSlug, true);
+                      return;
+                    }
                     setStep(stage);
                   }}
                   disabled={!navigable}
@@ -580,10 +615,7 @@ export function BookingWizard({
                       key={size}
                       className={partySize === size ? "selected" : ""}
                       aria-pressed={partySize === size}
-                      onClick={() => {
-                        updatePartySize(size);
-                        void findTimes(selectedShiftSlug, size);
-                      }}
+                      onClick={() => updatePartySize(size)}
                     >
                       {size}
                     </button>
@@ -660,62 +692,15 @@ export function BookingWizard({
                 </div>
                 <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
               </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="wizard-step">
-              <div className="wizard-shift-picker" aria-label="Reservation shift">
-                {shifts.map((shift) => (
-                  <button
-                    type="button"
-                    key={shift.id}
-                    className={shift.slug === selectedShiftSlug ? "selected" : ""}
-                    aria-pressed={shift.slug === selectedShiftSlug}
-                    onClick={() => void findTimes(shift.slug)}
-                    disabled={loading}
-                  >
-                    <strong>{shift.name}</strong>
-                    <span>{displayTime(shift.start_time)}–{displayTime(shift.end_time)}</span>
-                  </button>
-                ))}
-              </div>
-              {options.length ? (
-                <div className="available-time-columns" aria-label="Reservation times grouped by hour">
-                  {groupTimesByHour(options).map((group) => (
-                    <section className="available-hour-group" key={group.hour} aria-labelledby={`time-hour-${group.hour}`}>
-                      <h4 id={`time-hour-${group.hour}`}>{group.label}</h4>
-                      <div>
-                        {group.options.map((option) => {
-                          const optionKey = `${option.shift_slug}-${option.start_time}`;
-                          const confirmingOverbook = pendingOverbookKey === optionKey;
-                          return (
-                            <button
-                              type="button"
-                              key={optionKey}
-                              className={[
-                                option.available ? "" : "is-unavailable",
-                                confirmingOverbook ? "confirm-overbook" : "",
-                              ].filter(Boolean).join(" ")}
-                              disabled={option.table_id === null}
-                              aria-pressed={confirmingOverbook}
-                              aria-label={`${displayTime(option.start_time)}, ${confirmingOverbook ? "confirm overbooking" : option.available ? `seats up to ${option.table_capacity}` : `${option.unavailable_reason}; click to request overbooking`}`}
-                              onClick={() => chooseTime(option)}
-                            >
-                              <strong>{displayTime(option.start_time)}</strong>
-                              <span>{confirmingOverbook ? "Confirm overbooking" : option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ) : loading ? (
-                <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking this shift…</div>
-              ) : (
-                <div className="no-availability"><Search aria-hidden="true" /><h4>No comfortable tables found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
-              )}
+              <button
+                type="button"
+                className="party-assign-tables-action"
+                onClick={() => void loadAssignmentContext(selectedShiftSlug, true)}
+                disabled={assignmentLoading || !stageIsFilled(2)}
+              >
+                {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <LayoutGrid aria-hidden="true" />}
+                {assignmentLoading ? "Loading floor…" : "Assign Tables"}
+              </button>
             </div>
           )}
 
@@ -800,7 +785,7 @@ export function BookingWizard({
 
           {step === 5 && selectedOption && selectedGuest && (
             <form {...IGNORE_AUTOFILL} id="booking-details-form" className="wizard-step" onSubmit={bookReservation}>
-              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · Table {selectedOption.table_name}</p></div></div>
+              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · Table{selectedTableIds.length === 1 ? "" : "s"} {assignmentGrid?.tables.filter((table) => selectedTableIds.includes(table.id)).map((table) => table.name).join(" + ")}</p></div></div>
               <div className="details-guest-summary">
                 <span className="guest-result-avatar" aria-hidden="true">{selectedGuest.first_name.slice(0, 1)}{selectedGuest.last_name.slice(0, 1)}</span>
                 <div><strong>{selectedGuest.full_name}</strong><small>{[selectedGuest.company, selectedGuest.phone_number, selectedGuest.email].filter(Boolean).join(" · ")}</small></div>
@@ -841,14 +826,34 @@ export function BookingWizard({
         </div>
 
         <footer className="wizard-footer">
-          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
+          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value === 4 ? 2 : value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={loading || !stageIsFilled(2)}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Find times</button>}
-          {step === 3 && !options.length && !loading && <button type="button" className="wizard-next" onClick={() => setStep(1)}>Change search <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
       </section>
+      {tablePickerOpen && assignmentGrid && selectedOption && (
+        <ReservationTablePicker
+          tables={assignmentGrid.tables}
+          reservations={assignmentGrid.reservations}
+          selectedTableIds={assignmentDraftTableIds}
+          partySize={partySize}
+          startTime={selectedOption.start_time}
+          durationMinutes={durationMinutes}
+          shifts={shifts}
+          selectedShiftSlug={selectedShiftSlug}
+          timeOptions={options}
+          loading={assignmentLoading}
+          onShiftChange={(shiftSlug) => void loadAssignmentContext(shiftSlug)}
+          onTimeChange={(startTime) => {
+            const option = options.find((item) => item.start_time === startTime);
+            if (option) chooseTime(option);
+          }}
+          onToggleTable={toggleAssignmentTable}
+          onClose={() => setTablePickerOpen(false)}
+          onConfirm={confirmTableAssignment}
+        />
+      )}
     </div>
   );
 }
