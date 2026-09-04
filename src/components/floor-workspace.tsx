@@ -13,12 +13,14 @@ import {
   PencilRuler,
   RotateCcw,
   RotateCw,
+  Redo2,
   Rows3,
   Save,
   Search,
   Tag,
   Trash2,
   TriangleAlert,
+  Undo2,
   UserPlus,
   Users,
   X,
@@ -226,6 +228,12 @@ type FloorWorkspaceProps = {
   initialShiftSlug?: string;
 };
 
+type FloorEditorSnapshot = {
+  tables: DiningTable[];
+  deletedTableIds: number[];
+  selectedTableIds: number[];
+};
+
 type FloorTableDrag = {
   pointerId: number;
   startX: number;
@@ -243,6 +251,8 @@ type FloorTableDrag = {
   }>;
   lastDeltaX: number;
   lastDeltaY: number;
+  initialSnapshot: FloorEditorSnapshot;
+  latestTables: DiningTable[];
 };
 
 type FloorMarqueeDrag = {
@@ -371,6 +381,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [editedTables, setEditedTables] = useState<DiningTable[]>([]);
   const [editorSelectedTableIds, setEditorSelectedTableIds] = useState<number[]>([]);
   const [deletedTableIds, setDeletedTableIds] = useState<number[]>([]);
+  const [floorUndoStack, setFloorUndoStack] = useState<FloorEditorSnapshot[]>([]);
+  const [floorRedoStack, setFloorRedoStack] = useState<FloorEditorSnapshot[]>([]);
   const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
@@ -584,6 +596,57 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setWalkInDraft(null);
   }
 
+  function captureFloorEditorSnapshot(
+    tables = editedTables,
+    deletedIds = deletedTableIds,
+    selectedIds = editorSelectedTableIds,
+  ): FloorEditorSnapshot {
+    return {
+      tables: tables.map((table) => ({ ...table })),
+      deletedTableIds: [...deletedIds],
+      selectedTableIds: [...selectedIds],
+    };
+  }
+
+  function sameFloorEditorDocument(left: FloorEditorSnapshot, right: FloorEditorSnapshot) {
+    return JSON.stringify(left.tables) === JSON.stringify(right.tables)
+      && JSON.stringify(left.deletedTableIds) === JSON.stringify(right.deletedTableIds);
+  }
+
+  function restoreFloorEditorSnapshot(snapshot: FloorEditorSnapshot) {
+    setEditedTables(snapshot.tables.map((table) => ({ ...table })));
+    setDeletedTableIds([...snapshot.deletedTableIds]);
+    setEditorSelectedTableIds([...snapshot.selectedTableIds]);
+    setDeleteConfirmationIds([]);
+    setError("");
+  }
+
+  function commitFloorEditorSnapshot(snapshot: FloorEditorSnapshot) {
+    const current = captureFloorEditorSnapshot();
+    if (sameFloorEditorDocument(current, snapshot)) return;
+    setFloorUndoStack((history) => [...history, current]);
+    setFloorRedoStack([]);
+    restoreFloorEditorSnapshot(snapshot);
+  }
+
+  function undoFloorEditorChange() {
+    const previous = floorUndoStack.at(-1);
+    if (!previous) return;
+    const current = captureFloorEditorSnapshot();
+    setFloorUndoStack((history) => history.slice(0, -1));
+    setFloorRedoStack((history) => [...history, current]);
+    restoreFloorEditorSnapshot(previous);
+  }
+
+  function redoFloorEditorChange() {
+    const next = floorRedoStack.at(-1);
+    if (!next) return;
+    const current = captureFloorEditorSnapshot();
+    setFloorRedoStack((history) => history.slice(0, -1));
+    setFloorUndoStack((history) => [...history, current]);
+    restoreFloorEditorSnapshot(next);
+  }
+
   function beginFloorEditing() {
     if (!data) return;
     setError("");
@@ -593,6 +656,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setEditedTables(data.tables.map((table) => ({ ...table })));
     setEditorSelectedTableIds([]);
     setDeletedTableIds([]);
+    setFloorUndoStack([]);
+    setFloorRedoStack([]);
     setDeleteConfirmationIds([]);
     setEditingFloor(true);
   }
@@ -603,6 +668,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setEditedTables([]);
     setEditorSelectedTableIds([]);
     setDeletedTableIds([]);
+    setFloorUndoStack([]);
+    setFloorRedoStack([]);
     setDeleteConfirmationIds([]);
     setMovingEditorTables(false);
     setFloorMarqueeBounds(null);
@@ -618,9 +685,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function updateEditorSelection(patch: Partial<DiningTable>) {
     if (!editorSelectedTableIds.length) return;
-    setEditedTables((current) => current.map((table) =>
+    const nextTables = editedTables.map((table) =>
       editorSelectedTableIds.includes(table.id) ? { ...table, ...patch } : table,
-    ));
+    );
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }
 
   function alignSelectedTables() {
@@ -663,16 +731,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       positions.set(table.id, Math.round((table.position_x + deltaPercent) * 100) / 100);
       nextLeft += bounds.right - bounds.left + gap;
     });
-    setEditedTables((current) => current.map((table) =>
+    const nextTables = editedTables.map((table) =>
       positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
-    ));
+    );
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }
 
   function rotateSelectedTables(amount: number) {
     if (!editorSelectedTableIds.length) return;
-    setEditedTables((current) => current.map((table) => editorSelectedTableIds.includes(table.id)
+    const nextTables = editedTables.map((table) => editorSelectedTableIds.includes(table.id)
       ? { ...table, rotation: (table.rotation + amount + 360) % 360 }
-      : table));
+      : table);
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }
 
   function cloneSelectedTables() {
@@ -703,8 +773,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       clone_source_id: table.is_new ? undefined : table.clone_source_id ?? table.id,
       is_new: table.is_new,
     }));
-    setEditedTables((current) => [...current, ...clones]);
-    setEditorSelectedTableIds(clones.map((table) => table.id));
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(
+      [...editedTables, ...clones],
+      deletedTableIds,
+      clones.map((table) => table.id),
+    ));
   }
 
   function createStandardTwoTop() {
@@ -732,9 +805,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       chair_layout: "across",
       is_new: true,
     };
-    setEditedTables((current) => [...current, table]);
-    setEditorSelectedTableIds([table.id]);
-    setDeleteConfirmationIds([]);
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(
+      [...editedTables, table],
+      deletedTableIds,
+      [table.id],
+    ));
   }
 
   function deleteSelectedTables() {
@@ -744,15 +819,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       return;
     }
     const selectedIds = new Set(editorSelectedTableIds);
-    setDeletedTableIds((current) => [
+    const nextDeletedTableIds = [
       ...new Set([
-        ...current,
+        ...deletedTableIds,
         ...editorSelectedTableIds.filter((id) => id > 0),
       ]),
-    ]);
-    setEditedTables((current) => current.filter((table) => !selectedIds.has(table.id)));
-    setEditorSelectedTableIds([]);
-    setDeleteConfirmationIds([]);
+    ];
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(
+      editedTables.filter((table) => !selectedIds.has(table.id)),
+      nextDeletedTableIds,
+      [],
+    ));
   }
 
   function beginTableMove(event: ReactPointerEvent<HTMLButtonElement>, tableId: number) {
@@ -808,6 +885,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       }))),
       lastDeltaX: 0,
       lastDeltaY: 0,
+      initialSnapshot: captureFloorEditorSnapshot(
+        editedTables,
+        deletedTableIds,
+        selectedIds,
+      ),
+      latestTables: editedTables,
     };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
@@ -908,20 +991,33 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const xPercent = (deltaX / stageBounds.width) * 100;
     const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
-    setEditedTables((current) => current.map((table) => {
+    setEditedTables((current) => {
+      const nextTables = current.map((table) => {
       const origin = origins.get(table.id);
       return origin ? {
         ...table,
         position_x: Math.round((origin.positionX + xPercent) * 100) / 100,
         position_y: Math.round((origin.positionY + yPercent) * 100) / 100,
       } : table;
-    }));
+      });
+      drag.latestTables = nextTables;
+      return nextTables;
+    });
   }
 
   function finishTableMove(event: ReactPointerEvent<HTMLButtonElement>) {
     const drag = floorTableDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     suppressEditorClickRef.current = drag.moved;
+    const completedSnapshot = captureFloorEditorSnapshot(
+      drag.latestTables,
+      deletedTableIds,
+      drag.initialSnapshot.selectedTableIds,
+    );
+    if (drag.moved && !sameFloorEditorDocument(drag.initialSnapshot, completedSnapshot)) {
+      setFloorUndoStack((history) => [...history, drag.initialSnapshot]);
+      setFloorRedoStack([]);
+    }
     floorTableDragRef.current = null;
     setMovingEditorTables(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -1487,6 +1583,25 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-tools">
+                    <div className="floor-editor-tool-group" aria-label="Floor change history">
+                      <span>History</span>
+                      <button
+                        type="button"
+                        onClick={undoFloorEditorChange}
+                        disabled={!floorUndoStack.length || saving}
+                        aria-label="Undo last floor change"
+                      >
+                        <Undo2 aria-hidden="true" /> Undo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={redoFloorEditorChange}
+                        disabled={!floorRedoStack.length || saving}
+                        aria-label="Redo last floor change"
+                      >
+                        <Redo2 aria-hidden="true" /> Redo
+                      </button>
+                    </div>
                     <div className="floor-editor-tool-group" aria-label="Table arrangement tools">
                       <span>Arrange</span>
                       <button type="button" onClick={createStandardTwoTop} disabled={saving}>
