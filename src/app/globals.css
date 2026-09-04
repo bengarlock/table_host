@@ -753,7 +753,7 @@ textarea {
 .grid-toolbar {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: max-content minmax(336px, 1fr) max-content;
   min-height: 64px;
   align-items: center;
   gap: 22px;
@@ -818,6 +818,28 @@ textarea {
   margin-right: 3px;
   color: var(--text);
   font-size: 0.88rem;
+}
+
+@media (max-width: 1200px) {
+  .grid-toolbar {
+    grid-template-areas:
+      "toolbar-leading service-summary"
+      "date-control date-control";
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+
+  .toolbar-leading {
+    grid-area: toolbar-leading;
+  }
+
+  .grid-toolbar > .date-control {
+    grid-area: date-control;
+    width: 100%;
+  }
+
+  .service-summary {
+    grid-area: service-summary;
+  }
 }
 
 .grid-alert {
@@ -5330,6 +5352,10 @@ textarea {
 
 @media (max-width: 900px) {
   .grid-toolbar {
+    grid-template-areas:
+      "toolbar-leading"
+      "date-control"
+      "service-summary";
     grid-template-columns: 1fr;
     align-items: stretch;
   }

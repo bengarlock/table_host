@@ -58,6 +58,35 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+test("reservation grid date controls do not overlap shift buttons", async ({ page }) => {
+  const shifts = [
+    { ...shift, id: 1, name: "Breakfast", slug: "breakfast", start_time: "07:00", end_time: "11:00" },
+    { ...shift, id: 2, name: "Lunch", slug: "lunch", start_time: "11:30", end_time: "16:00" },
+    { ...shift, id: 3 },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, training_mode: true, shifts },
+  }));
+
+  for (const viewport of [{ width: 2048, height: 1130 }, { width: 1180, height: 800 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+    const [shiftTabs, dateControl] = await Promise.all([
+      page.locator(".shift-tabs").boundingBox(),
+      page.getByLabel("Choose service date").boundingBox(),
+    ]);
+    expect(shiftTabs).not.toBeNull();
+    expect(dateControl).not.toBeNull();
+    const shiftsRight = shiftTabs!.x + shiftTabs!.width;
+    const dateRight = dateControl!.x + dateControl!.width;
+    const separated = shiftsRight <= dateControl!.x
+      || dateRight <= shiftTabs!.x
+      || shiftTabs!.y + shiftTabs!.height <= dateControl!.y
+      || dateControl!.y + dateControl!.height <= shiftTabs!.y;
+    expect(separated).toBe(true);
+  }
+});
+
 for (const futureDate of [true, false]) {
   test(`reservation seating is ${futureDate ? "blocked for future dates" : "available today"}`, async ({ page }) => {
     // The server's restaurant date is authoritative, even when the browser is ahead.
