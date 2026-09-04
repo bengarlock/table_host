@@ -4002,7 +4002,7 @@ textarea {
 .floor-panel-heading,
 .floor-plan-heading,
 .floor-plan-actions,
-.floor-reservation-list > button,
+.floor-reservation-card,
 .floor-reservation-details,
 .floor-status-dock,
 .floor-status-dock > div:first-of-type {
@@ -4082,13 +4082,14 @@ textarea {
   padding-right: 3px;
 }
 
-.floor-reservation-list > button {
+.floor-reservation-card {
+  display: flex;
+  align-items: center;
   width: 100%;
   min-height: 78px;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   gap: 10px;
   padding: 12px 11px;
-  cursor: grab;
   border: 1px solid var(--line);
   border-radius: 11px;
   background: #151815;
@@ -4097,26 +4098,51 @@ textarea {
   transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 
-.floor-reservation-list > button:hover,
-.floor-reservation-list > button:focus-visible,
-.floor-reservation-list > button.selected {
+.floor-reservation-card[draggable="true"] {
+  cursor: grab;
+}
+
+.floor-reservation-card:hover,
+.floor-reservation-card:focus-within,
+.floor-reservation-card.selected {
   border-color: var(--accent-line);
   background: var(--accent-soft);
   outline: none;
   transform: translateX(2px);
 }
 
-.floor-reservation-list > button.unassigned {
+.floor-reservation-card.unassigned {
   border-color: rgba(239, 117, 76, 0.68);
   background: linear-gradient(90deg, rgba(153, 49, 24, 0.26), #151815 38%);
   box-shadow: inset 3px 0 #ef754c;
 }
 
-.floor-reservation-list > button.unassigned:hover,
-.floor-reservation-list > button.unassigned:focus-visible,
-.floor-reservation-list > button.unassigned.selected {
+.floor-reservation-card.unassigned:hover,
+.floor-reservation-card.unassigned:focus-within,
+.floor-reservation-card.unassigned.selected {
   border-color: #ef754c;
   background: rgba(153, 49, 24, 0.28);
+}
+
+.floor-reservation-select {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  align-self: stretch;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.floor-reservation-select:focus-visible,
+.floor-reservation-table:focus-visible,
+.floor-reservation-unassigned:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .floor-reservation-list time {
@@ -4184,6 +4210,12 @@ textarea {
   border: 1px solid rgba(217, 170, 98, 0.24);
   border-radius: 8px;
   background: rgba(217, 170, 98, 0.07);
+  cursor: pointer;
+}
+
+.floor-reservation-table:hover {
+  border-color: var(--accent);
+  background: rgba(217, 170, 98, 0.15);
 }
 
 .floor-reservation-table small {
@@ -4211,6 +4243,7 @@ textarea {
   border: 1px solid rgba(239, 117, 76, 0.55);
   border-radius: 8px;
   background: rgba(153, 49, 24, 0.2);
+  cursor: pointer;
 }
 
 .floor-reservation-unassigned svg {

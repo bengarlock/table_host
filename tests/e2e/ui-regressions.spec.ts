@@ -68,6 +68,7 @@ for (const futureDate of [true, false]) {
       status: "confirmed", assignment_type: "soft", guest_tags: [], tags: [], notes: "",
     };
     let updates = 0;
+    let lastUpdate: Record<string, unknown> | null = null;
     await page.route("**/api/grid?*", (route) => route.fulfill({
       json: { ...gridPayload, current_service_date: futureDate ? "2026-09-03" : serviceDate,
         reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
@@ -75,7 +76,8 @@ for (const futureDate of [true, false]) {
     await page.route("**/api/grid/reservations/101/moves", (route) => route.fulfill({ json: [] }));
     await page.route("**/api/grid/reservations/101", async (route) => {
       updates++;
-      await route.fulfill({ json: { ...reservation, status: "seated" } });
+      lastUpdate = route.request().postDataJSON() as Record<string, unknown>;
+      await route.fulfill({ json: { ...reservation, ...lastUpdate } });
     });
     await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
     await page.getByRole("button", { name: /Future Guest, party of 2/ }).click();
@@ -91,12 +93,20 @@ for (const futureDate of [true, false]) {
       await expect(page.getByRole("button", { name: "Seat", exact: true })).toBeDisabled();
       await expect(page.getByRole("button", { name: "Walk In", exact: true })).toBeDisabled();
       await expect(page.locator(".floor-reservation-move-indicator")).toHaveCount(0);
+      await page.getByRole("button", { name: "Reassign Future Guest from Table 1" }).click();
+      await expect(page.getByText("Select one or more available tables, then save the assignment.")).toBeVisible();
+      await page.locator('[data-floor-table-id="1"]').click();
+      await page.locator('[data-floor-table-id="2"]').click();
+      await page.getByRole("button", { name: "Save Table Assignment", exact: true }).click();
+      expect(updates).toBe(1);
+      expect(lastUpdate).toEqual({ table_ids: [2] });
     } else {
       await expect(seat).toBeEnabled();
       await seat.click();
       await expect(seat).toHaveCount(0);
       expect(updates).toBe(1);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+      await expect(page.getByRole("button", { name: "Reassign Future Guest from Table 1" })).toBeVisible();
       await expect(page.locator(".floor-reservation-move-indicator")).toHaveCount(1);
     }
   });

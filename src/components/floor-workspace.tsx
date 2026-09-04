@@ -363,7 +363,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
-  const [seatingMode, setSeatingMode] = useState<"reservation" | "walk-in" | null>(null);
+  const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
   const [walkInPartySize, setWalkInPartySize] = useState(2);
@@ -1207,7 +1207,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     reservation: Reservation,
     updates: { table_id?: number; table_ids?: number[]; status?: ServiceStatus },
   ) {
-    if (!liveService) return false;
+    const tableAssignmentOnly = updates.status === undefined
+      && (updates.table_id !== undefined || updates.table_ids !== undefined);
+    if (!liveService && !tableAssignmentOnly) return false;
     setSaving(true);
     setError("");
     try {
@@ -1244,6 +1246,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         ? current.filter((selectedId) => selectedId !== tableId)
         : [...current, tableId],
     );
+  }
+
+  function beginTableReassignment(reservation: Reservation) {
+    setSelectedPendingId(reservation.id);
+    setFocusedReservationId(null);
+    setWalkInDraft(null);
+    setSelectedTableIds(
+      reservation.table_ids.length
+        ? reservation.table_ids
+        : reservation.table_id === null ? [] : [reservation.table_id],
+    );
+    setSeatingMode("reassignment");
   }
 
   async function createWalkInGuest() {
@@ -1325,6 +1339,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         table_ids: selectedTableIds,
         status: selectedPending.status === "confirmed" ? "seated" : selectedPending.status,
       });
+      if (completed) cancelSeating();
+      return;
+    }
+
+    if (seatingMode === "reassignment" && selectedPending) {
+      const completed = await updateReservation(selectedPending, { table_ids: selectedTableIds });
       if (completed) cancelSeating();
       return;
     }
@@ -1437,16 +1457,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 {loading && !data ? (
                   <div className="floor-empty"><LoaderCircle className="spin" aria-hidden="true" /> Loading service…</div>
                 ) : pendingReservations.length ? pendingReservations.map((reservation) => (
-                  <button
-                    type="button"
+                  <article
                     key={reservation.id}
                     draggable={liveService && !seatingMode}
-                    className={`${selectedPendingId === reservation.id ? "selected" : ""}${reservation.is_unassigned ? " unassigned" : ""}`}
-                    onClick={() => {
-                      if (!seatingMode) {
-                        setSelectedPendingId((current) => current === reservation.id ? null : reservation.id);
-                      }
-                    }}
+                    className={`floor-reservation-card${selectedPendingId === reservation.id ? " selected" : ""}${reservation.is_unassigned ? " unassigned" : ""}`}
                     onDragStart={() => {
                       if (seatingMode) return;
                       setDraggedReservationId(reservation.id);
@@ -1456,32 +1470,52 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       setDraggedReservationId(null);
                       setDropTargetTableId(null);
                     }}
-                    aria-label={reservation.is_unassigned
-                      ? `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, unassigned and needs a table`
-                      : `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, assigned to ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
-                    aria-pressed={selectedPendingId === reservation.id}
                   >
-                    <time>{displayTime(reservation.start_time)}</time>
-                    <span className="floor-reservation-details">
-                      <strong>{reservation.guest_name}</strong>
-                      <small><Users aria-hidden="true" /> Party of {reservation.party_size}</small>
-                      {reservation.notes && <em>{reservation.notes}</em>}
-                    </span>
-                    <span className="floor-reservation-tail" aria-hidden="true">
+                    <button
+                      type="button"
+                      className="floor-reservation-select"
+                      onClick={() => {
+                        if (!seatingMode) {
+                          setSelectedPendingId((current) => current === reservation.id ? null : reservation.id);
+                        }
+                      }}
+                      aria-label={reservation.is_unassigned
+                        ? `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, unassigned and needs a table`
+                        : `${displayTime(reservation.start_time)}, ${reservation.guest_name}, party of ${reservation.party_size}, assigned to ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
+                      aria-pressed={selectedPendingId === reservation.id}
+                    >
+                      <time>{displayTime(reservation.start_time)}</time>
+                      <span className="floor-reservation-details">
+                        <strong>{reservation.guest_name}</strong>
+                        <small><Users aria-hidden="true" /> Party of {reservation.party_size}</small>
+                        {reservation.notes && <em>{reservation.notes}</em>}
+                      </span>
+                    </button>
+                    <span className="floor-reservation-tail">
                       {reservation.is_unassigned ? (
-                        <span className="floor-reservation-unassigned">
-                          <TriangleAlert />
+                        <button
+                          type="button"
+                          className="floor-reservation-unassigned"
+                          onClick={() => beginTableReassignment(reservation)}
+                          aria-label={`Assign a table to ${reservation.guest_name}`}
+                        >
+                          <TriangleAlert aria-hidden="true" />
                           <strong>Unassigned</strong>
-                        </span>
+                        </button>
                       ) : (
-                        <span className="floor-reservation-table">
+                        <button
+                          type="button"
+                          className="floor-reservation-table"
+                          onClick={() => beginTableReassignment(reservation)}
+                          aria-label={`Reassign ${reservation.guest_name} from ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
+                        >
                           <small>{reservation.table_names.length > 1 ? "Tables" : "Table"}</small>
                           <strong>{(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join("+")}</strong>
-                        </span>
+                        </button>
                       )}
-                      {liveService && <GripVertical className="floor-reservation-move-indicator" />}
+                      {liveService && <GripVertical className="floor-reservation-move-indicator" aria-hidden="true" />}
                     </span>
-                  </button>
+                  </article>
                 )) : (
                   <div className="floor-empty"><Check aria-hidden="true" /><strong>All caught up</strong><span>No pending parties for this shift.</span></div>
                 )}
@@ -1501,7 +1535,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ].filter(Boolean).join(" · ")}
                     </span>
                   )}
-                  <span>Select one or more available tables, then finish seating.</span>
+                  <span>
+                    {seatingMode === "reassignment"
+                      ? "Select one or more available tables, then save the assignment."
+                      : "Select one or more available tables, then finish seating."}
+                  </span>
                 </div>
               )}
               <div className="floor-reservation-actions">
@@ -1511,12 +1549,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   onClick={() => void seatOrFinish()}
                   disabled={
                     saving
-                    || !liveService
+                    || (!liveService && seatingMode !== "reassignment")
                     || (!seatingMode && !selectedPending)
                     || (Boolean(seatingMode) && selectedTableIds.length === 0)
                   }
                 >
-                  {seatingMode ? "Finish Seating" : "Seat"}
+                  {seatingMode === "reassignment" ? "Save Table Assignment" : seatingMode ? "Finish Seating" : "Seat"}
                 </button>
                 <button
                   type="button"
@@ -1783,10 +1821,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       onClick={(event) => {
                         if (editingFloor) {
                           selectEditorTable(table.id, event.shiftKey || event.metaKey);
+                        } else if (seatingMode) {
+                          if (seatingMode === "reassignment" || !reservation || reservation.id === selectedPending?.id) {
+                            toggleSeatingTable(table.id);
+                          }
                         } else if (reservation) {
                           setFocusedReservationId(reservation.id);
-                        } else if (seatingMode) {
-                          toggleSeatingTable(table.id);
                         }
                       }}
                       onPointerDown={(event) => beginTableMove(event, table.id)}
@@ -1807,7 +1847,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
                       aria-label={editingFloor
                         ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}`
-                        : reservation
+                        : seatingMode === "reassignment" && reservation
+                          ? `Table ${table.name}, currently assigned to ${reservation.guest_name}${selectedTableIds.includes(table.id) ? ", selected for reassignment" : ", not selected for reassignment"}`
+                          : reservation
                           ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
                           : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
                     >
