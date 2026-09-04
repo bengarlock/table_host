@@ -175,7 +175,6 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
 ];
 const WAITING_STATUSES: ServiceStatus[] = ["booked", "confirmed", "late", "not_confirmed"];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
-const FLOOR_TABLE_COLLISION_CLEARANCE = 4;
 const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const subscribeToHydration = () => () => undefined;
@@ -293,13 +292,6 @@ type FloorTableDrag = {
   maximumDeltaX: number;
   minimumDeltaY: number;
   maximumDeltaY: number;
-  collisionPairs: Array<{
-    selectedBounds: FloorTableBounds;
-    obstacleBounds: FloorTableBounds;
-    maximumOverlapArea: number;
-  }>;
-  lastDeltaX: number;
-  lastDeltaY: number;
   initialSnapshot: FloorEditorSnapshot;
   latestTables: DiningTable[];
 };
@@ -341,19 +333,6 @@ function floorTableVisualBounds(element: HTMLElement): FloorTableBounds {
   };
 }
 
-function translatedFloorTableBounds(
-  bounds: FloorTableBounds,
-  deltaX: number,
-  deltaY: number,
-): FloorTableBounds {
-  return {
-    left: bounds.left + deltaX,
-    right: bounds.right + deltaX,
-    top: bounds.top + deltaY,
-    bottom: bounds.bottom + deltaY,
-  };
-}
-
 function floorTableBoundsOverlap(
   left: FloorTableBounds,
   right: FloorTableBounds,
@@ -363,24 +342,6 @@ function floorTableBoundsOverlap(
     && left.right > right.left - clearance
     && left.top < right.bottom + clearance
     && left.bottom > right.top - clearance;
-}
-
-function floorTableOverlapArea(
-  left: FloorTableBounds,
-  right: FloorTableBounds,
-  clearance = 0,
-) {
-  const overlapWidth = Math.max(
-    0,
-    Math.min(left.right, right.right + clearance)
-      - Math.max(left.left, right.left - clearance),
-  );
-  const overlapHeight = Math.max(
-    0,
-    Math.min(left.bottom, right.bottom + clearance)
-      - Math.max(left.top, right.top - clearance),
-  );
-  return overlapWidth * overlapHeight;
 }
 
 function floorTableOverlapIds(stage: HTMLElement) {
@@ -435,6 +396,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [floorRedoStack, setFloorRedoStack] = useState<FloorEditorSnapshot[]>([]);
   const [deleteConfirmationIds, setDeleteConfirmationIds] = useState<number[]>([]);
   const [movingEditorTables, setMovingEditorTables] = useState(false);
+  const [overlappingTableIds, setOverlappingTableIds] = useState<Set<number>>(new Set());
   const [floorMarqueeBounds, setFloorMarqueeBounds] = useState<FloorMarqueeBounds | null>(null);
   const [floorStageMetrics, setFloorStageMetrics] = useState<FloorStageMetrics>({
     width: FLOOR_DESIGN_MIN_WIDTH,
@@ -535,6 +497,21 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }, [editingFloor]);
 
   useEffect(() => {
+    const stage = floorStageRef.current;
+    if (!editingFloor || !stage) {
+      setOverlappingTableIds((current) => current.size ? new Set() : current);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const next = floorTableOverlapIds(stage);
+      setOverlappingTableIds((current) => (
+        current.size === next.size && [...current].every((id) => next.has(id)) ? current : next
+      ));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [editedTables, editingFloor, floorStageMetrics]);
+
+  useEffect(() => {
     if (!walkInOpen) return;
     const query = walkInGuestQuery.trim();
     if (!query) return;
@@ -624,6 +601,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     [editedTables],
   );
   const floorHasInvalidTableNumbers = duplicateTableNumberIds.size > 0 || missingTableNumberIds.size > 0;
+  const floorHasOverlappingTables = overlappingTableIds.size > 0;
   const editorValues = useMemo(() => {
     const first = editorSelectedTables[0];
     if (!first) return null;
@@ -917,9 +895,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       .filter((element) => selectedIds.includes(Number(element.dataset.floorTableId)));
     if (!selectedElements.length) return;
     const selectedRects = selectedElements.map(floorTableVisualBounds);
-    const obstacleRects = tableElements
-      .filter((element) => !selectedIds.includes(Number(element.dataset.floorTableId)))
-      .map(floorTableVisualBounds);
     const selectedBounds = {
       left: Math.min(...selectedRects.map((bounds) => bounds.left)),
       right: Math.max(...selectedRects.map((bounds) => bounds.right)),
@@ -944,17 +919,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       maximumDeltaX: stageBounds.right - selectedBounds.right,
       minimumDeltaY: stageBounds.top - selectedBounds.top,
       maximumDeltaY: stageBounds.bottom - selectedBounds.bottom,
-      collisionPairs: selectedRects.flatMap((selectedTableBounds) => obstacleRects.map((obstacleBounds) => ({
-        selectedBounds: selectedTableBounds,
-        obstacleBounds,
-        maximumOverlapArea: floorTableOverlapArea(
-          selectedTableBounds,
-          obstacleBounds,
-          FLOOR_TABLE_COLLISION_CLEARANCE,
-        ),
-      }))),
-      lastDeltaX: 0,
-      lastDeltaY: 0,
       initialSnapshot: captureFloorEditorSnapshot(
         editedTables,
         deletedTableIds,
@@ -977,87 +941,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
     if (!drag.moved) return;
     const stageBounds = stage.getBoundingClientRect();
-    const desiredDeltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
-    const desiredDeltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
-    const overlapAreaAt = (
-      pair: FloorTableDrag["collisionPairs"][number],
-      deltaX: number,
-      deltaY: number,
-    ) => floorTableOverlapArea(
-      translatedFloorTableBounds(pair.selectedBounds, deltaX, deltaY),
-      pair.obstacleBounds,
-      FLOOR_TABLE_COLLISION_CLEARANCE,
-    );
-    const collidesAt = (deltaX: number, deltaY: number) => drag.collisionPairs.some(
-      (pair) => overlapAreaAt(pair, deltaX, deltaY) > pair.maximumOverlapArea,
-    );
-    const advanceWithoutOverlap = (
-      startX: number,
-      startY: number,
-      targetX: number,
-      targetY: number,
-    ) => {
-      const distance = Math.hypot(targetX - startX, targetY - startY);
-      const steps = Math.max(1, Math.ceil(distance / 2));
-      let validX = startX;
-      let validY = startY;
-      for (let step = 1; step <= steps; step += 1) {
-        const progress = step / steps;
-        const candidateX = startX + (targetX - startX) * progress;
-        const candidateY = startY + (targetY - startY) * progress;
-        if (collidesAt(candidateX, candidateY)) break;
-        validX = candidateX;
-        validY = candidateY;
-      }
-      return { x: validX, y: validY };
-    };
-    const direct = advanceWithoutOverlap(
-      drag.lastDeltaX,
-      drag.lastDeltaY,
-      desiredDeltaX,
-      desiredDeltaY,
-    );
-    const xFirst = advanceWithoutOverlap(
-      direct.x,
-      direct.y,
-      desiredDeltaX,
-      direct.y,
-    );
-    const xThenY = advanceWithoutOverlap(
-      xFirst.x,
-      xFirst.y,
-      xFirst.x,
-      desiredDeltaY,
-    );
-    const yFirst = advanceWithoutOverlap(
-      direct.x,
-      direct.y,
-      direct.x,
-      desiredDeltaY,
-    );
-    const yThenX = advanceWithoutOverlap(
-      yFirst.x,
-      yFirst.y,
-      desiredDeltaX,
-      yFirst.y,
-    );
-    const candidates = [direct, xThenY, yThenX];
-    const resolved = candidates.reduce((closest, candidate) => {
-      const candidateDistance = Math.hypot(desiredDeltaX - candidate.x, desiredDeltaY - candidate.y);
-      const closestDistance = Math.hypot(desiredDeltaX - closest.x, desiredDeltaY - closest.y);
-      return candidateDistance < closestDistance ? candidate : closest;
-    });
-    const deltaX = resolved.x;
-    const deltaY = resolved.y;
-    // Let legacy touching tables move apart, then prevent that overlap from increasing again.
-    drag.collisionPairs.forEach((pair) => {
-      pair.maximumOverlapArea = Math.min(
-        pair.maximumOverlapArea,
-        overlapAreaAt(pair, deltaX, deltaY),
-      );
-    });
-    drag.lastDeltaX = deltaX;
-    drag.lastDeltaY = deltaY;
+    const deltaX = clamp(rawDeltaX, drag.minimumDeltaX, drag.maximumDeltaX);
+    const deltaY = clamp(rawDeltaY, drag.minimumDeltaY, drag.maximumDeltaY);
     const xPercent = (deltaX / stageBounds.width) * 100;
     const yPercent = (deltaY / stageBounds.height) * 100;
     const origins = new Map(drag.origins.map((origin) => [origin.id, origin]));
@@ -1856,14 +1741,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-actions">
-                    {floorHasInvalidTableNumbers && (
+                    {(floorHasInvalidTableNumbers || floorHasOverlappingTables) && (
                       <small id="floor-table-number-error" className="floor-editor-validation" role="alert">
                         <TriangleAlert aria-hidden="true" />
-                        {duplicateTableNumberIds.size > 0 ? "Duplicate table numbers must be changed." : "Every table needs a number."}
+                        {floorHasOverlappingTables
+                          ? "Overlapping tables must be moved apart before saving."
+                          : duplicateTableNumberIds.size > 0
+                            ? "Duplicate table numbers must be changed."
+                            : "Every table needs a number."}
                       </small>
                     )}
                     <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
-                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidTableNumbers}>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidTableNumbers || floorHasOverlappingTables}>
                       {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
                       {saving ? "Saving…" : "Save Floor"}
                     </button>
@@ -1904,7 +1793,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       type="button"
                       key={table.id}
                       data-floor-table-id={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}`}
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}${overlappingTableIds.has(table.id) ? " overlapping-table" : ""}`}
                       style={{
                         left: `${table.position_x}%`,
                         top: `${table.position_y}%`,
@@ -1941,7 +1830,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
                       aria-label={editingFloor
-                        ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}`
+                          ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}${overlappingTableIds.has(table.id) ? ", overlaps another table" : ""}`
                         : seatingMode === "reassignment" && reservation
                           ? `Table ${table.name}, currently assigned to ${reservation.guest_name}${selectedTableIds.includes(table.id) ? ", selected for reassignment" : ", not selected for reassignment"}`
                           : reservation

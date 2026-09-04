@@ -4790,7 +4790,8 @@ textarea {
 }
 
 .floor-table.duplicate-number .floor-table-surface,
-.floor-table.missing-number .floor-table-surface {
+.floor-table.missing-number .floor-table-surface,
+.floor-table.overlapping-table .floor-table-surface {
   border-color: #ff8059;
   background: #71311f;
   box-shadow: 0 0 0 5px rgba(239, 117, 76, 0.28), 0 16px 34px rgba(0, 0, 0, 0.4);
@@ -4801,7 +4802,10 @@ textarea {
 .floor-canvas.editing .floor-table.duplicate-number .floor-table-label em,
 .floor-canvas.editing .floor-table.missing-number .floor-table-label strong,
 .floor-canvas.editing .floor-table.missing-number .floor-table-label small,
-.floor-canvas.editing .floor-table.missing-number .floor-table-label em {
+.floor-canvas.editing .floor-table.missing-number .floor-table-label em,
+.floor-canvas.editing .floor-table.overlapping-table .floor-table-label strong,
+.floor-canvas.editing .floor-table.overlapping-table .floor-table-label small,
+.floor-canvas.editing .floor-table.overlapping-table .floor-table-label em {
   color: #fff3ed;
 }
 

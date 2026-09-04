@@ -350,6 +350,59 @@ test("floor changes can be undone and redone", async ({ page }) => {
   await expect(floorTables).toHaveCount(3);
 });
 
+test("floor tables can cross each other but overlapping drops block saving", async ({ page }) => {
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      tables: [
+        { ...gridPayload.tables[0], position_x: 18, position_y: 45 },
+        { ...gridPayload.tables[1], position_x: 50, position_y: 45 },
+      ],
+    },
+  }));
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+
+  const first = page.locator('[data-floor-table-id="1"]');
+  const second = page.locator('[data-floor-table-id="2"]');
+  const stage = page.locator(".floor-canvas-stage");
+  const [firstStart, secondBounds, stageBounds] = await Promise.all([
+    first.boundingBox(), second.boundingBox(), stage.boundingBox(),
+  ]);
+  expect(firstStart).not.toBeNull();
+  expect(secondBounds).not.toBeNull();
+  expect(stageBounds).not.toBeNull();
+
+  await page.mouse.move(firstStart!.x + firstStart!.width / 2, firstStart!.y + firstStart!.height / 2);
+  await page.mouse.down();
+  const beyondSecondX = Math.min(
+    stageBounds!.x + stageBounds!.width - firstStart!.width / 2 - 8,
+    secondBounds!.x + secondBounds!.width + firstStart!.width / 2 + 36,
+  );
+  await page.mouse.move(beyondSecondX, secondBounds!.y + secondBounds!.height / 2, { steps: 20 });
+  await page.mouse.up();
+  const crossedBounds = await first.boundingBox();
+  expect(crossedBounds).not.toBeNull();
+  expect(crossedBounds!.x).toBeGreaterThan(secondBounds!.x + secondBounds!.width);
+  await expect(page.locator(".floor-table.overlapping-table")).toHaveCount(0);
+
+  await page.mouse.move(crossedBounds!.x + crossedBounds!.width / 2, crossedBounds!.y + crossedBounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    secondBounds!.x + secondBounds!.width / 2,
+    secondBounds!.y + secondBounds!.height / 2,
+    { steps: 10 },
+  );
+  await page.mouse.up();
+
+  await expect(first).toHaveClass(/overlapping-table/);
+  await expect(second).toHaveClass(/overlapping-table/);
+  await expect(first.locator(".floor-table-surface")).toHaveCSS("border-color", "rgb(255, 128, 89)");
+  await expect(second.locator(".floor-table-surface")).toHaveCSS("border-color", "rgb(255, 128, 89)");
+  await expect(page.getByText("Overlapping tables must be moved apart before saving.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeDisabled();
+});
+
 test("booking restores time selection before optional table assignment", async ({ page }) => {
   await mockGrid(page);
   await mockAvailability(page);
