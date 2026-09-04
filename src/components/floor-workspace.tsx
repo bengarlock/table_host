@@ -169,7 +169,7 @@ function displayTime(time: string) {
 
 function displayTableAssignment(tableNames: string[]) {
   if (tableNames.length <= 3) return tableNames.join("+");
-  return `${tableNames[0]} +${tableNames.length - 1}`;
+  return `${tableNames[0]} + ${tableNames.length - 1} more`;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

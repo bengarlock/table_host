@@ -127,7 +127,7 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   const assignment = page.getByRole("button", {
     name: "Reassign Large Assignment from Tables 10, 11, 12, 14, 15, 16",
   });
-  await expect(assignment).toContainText("10 +5");
+  await expect(assignment).toContainText("10 + 5 more");
   await expect(assignment).not.toContainText("10+11+12+14+15+16");
 });
 
