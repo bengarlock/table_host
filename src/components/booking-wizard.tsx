@@ -171,7 +171,7 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [partySize, setPartySize] = useState(2);
-  const [partySizeInput, setPartySizeInput] = useState("9");
+  const [partySizeInput, setPartySizeInput] = useState("2");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
   const [turnTimeInput, setTurnTimeInput] = useState(formatTurnTime(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
@@ -391,6 +391,7 @@ export function BookingWizard({
 
   function updatePartySize(nextSize: number) {
     const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
+    setPartySizeInput(String(normalizedSize));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
     invalidateTimeSelection();
@@ -399,7 +400,7 @@ export function BookingWizard({
   function updateManualPartySize(value: string) {
     setPartySizeInput(value);
     const nextSize = Number(value);
-    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > 40) {
+    if (!Number.isInteger(nextSize) || nextSize < 1 || nextSize > 40) {
       if (partySize !== 0) invalidateTimeSelection();
       setPartySize(0);
       return;
@@ -411,8 +412,8 @@ export function BookingWizard({
 
   function adjustManualPartySize(amount: number) {
     const currentSize = Number(partySizeInput);
-    const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
-    updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
+    const startingSize = Number.isInteger(currentSize) ? currentSize : 1;
+    updateManualPartySize(String(Math.min(40, Math.max(1, startingSize + amount))));
   }
 
   function updateTurnTime(value: string) {
@@ -680,14 +681,14 @@ export function BookingWizard({
                     type="button"
                     aria-label="Decrease party size"
                     onClick={() => adjustManualPartySize(-1)}
-                    disabled={Number(partySizeInput) <= 9}
+                    disabled={Number(partySizeInput) <= 1}
                   >
                     <Minus aria-hidden="true" />
                   </button>
                   <input
                     {...IGNORE_AUTOFILL}
                     type="number"
-                    min={9}
+                    min={1}
                     max={40}
                     inputMode="numeric"
                     value={partySizeInput}
@@ -705,7 +706,7 @@ export function BookingWizard({
                     <Plus aria-hidden="true" />
                   </button>
                 </div>
-                <span className="party-size-manual-hint">9–40 guests</span>
+                <span className="party-size-manual-hint">1–40 guests</span>
               </div>
               <div className="turn-time-field">
                 <span id="expected-turn-time-label">Expected turn</span>
