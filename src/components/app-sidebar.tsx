@@ -3,18 +3,18 @@
 import { Armchair, BookOpenText, CalendarPlus2, ContactRound } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import hostStandIcon from "@/app/icon.png";
 
 type AppSidebarProps = {
-  onBookReservation?: () => void;
   onNavigateAttempt?: () => boolean;
 };
 
-export function AppSidebar({ onBookReservation, onNavigateAttempt }: AppSidebarProps) {
+export function AppSidebar({ onNavigateAttempt }: AppSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
+  const bookingPageActive = pathname === "/reservations/book";
+  const reservationsPageActive = pathname === "/reservations";
 
   function navigationAllowed() {
     return onNavigateAttempt?.() ?? true;
@@ -22,15 +22,6 @@ export function AppSidebar({ onBookReservation, onNavigateAttempt }: AppSidebarP
 
   function guardNavigation(event: ReactMouseEvent<HTMLAnchorElement>) {
     if (!navigationAllowed()) event.preventDefault();
-  }
-
-  function bookReservation() {
-    if (!navigationAllowed()) return;
-    if (onBookReservation) {
-      onBookReservation();
-      return;
-    }
-    router.push("/reservations?book=1");
   }
 
   return (
@@ -49,15 +40,16 @@ export function AppSidebar({ onBookReservation, onNavigateAttempt }: AppSidebarP
       <nav className="sidebar-nav">
         <ul className="nav-list">
           <li>
-            <button
-              type="button"
-              className="nav-link nav-action"
-              onClick={bookReservation}
+            <Link
+              className="nav-link"
+              href="/reservations/book"
+              onClick={guardNavigation}
               aria-label="Book a reservation"
+              aria-current={bookingPageActive ? "page" : undefined}
               data-tooltip="Book a reservation"
             >
               <CalendarPlus2 className="nav-icon" aria-hidden="true" />
-            </button>
+            </Link>
           </li>
           <li>
             <Link
@@ -65,7 +57,7 @@ export function AppSidebar({ onBookReservation, onNavigateAttempt }: AppSidebarP
               href="/reservations"
               onClick={guardNavigation}
               aria-label="Reservations"
-              aria-current={pathname.startsWith("/reservations") ? "page" : undefined}
+              aria-current={reservationsPageActive ? "page" : undefined}
               data-tooltip="Reservations"
             >
               <BookOpenText className="nav-icon" aria-hidden="true" />

@@ -7,7 +7,9 @@ import {
   Check,
   LoaderCircle,
   Mail,
+  Minus,
   Phone,
+  Plus,
   Search,
   Tag,
   Users,
@@ -44,6 +46,7 @@ type BookingWizardProps = {
   shifts: ShiftChoice[];
   onClose: () => void;
   onBooked: (serviceDate: string, shiftSlug: string) => void;
+  presentation?: "modal" | "page";
 };
 
 type ShiftChoice = {
@@ -88,6 +91,11 @@ type NewGuestFocus = "firstName" | "lastName" | "phone";
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
+const TURN_TIME_PRESETS = Array.from({ length: 11 }, (_, index) => 60 + index * 15);
+
+function normalizeTurnTime(value: number) {
+  return Math.max(60, Math.round(value / 15) * 15);
+}
 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -146,8 +154,10 @@ export function BookingWizard({
   shifts,
   onClose,
   onBooked,
+  presentation = "modal",
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
+  const initialTurnTime = normalizeTurnTime(initialDuration);
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(
@@ -157,8 +167,9 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [partySize, setPartySize] = useState(2);
-  const [partySizeInput, setPartySizeInput] = useState("2");
-  const [durationMinutes, setDurationMinutes] = useState(initialDuration);
+  const [partySizeInput, setPartySizeInput] = useState("9");
+  const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
+  const [customDurationInput, setCustomDurationInput] = useState(String(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
@@ -268,7 +279,6 @@ export function BookingWizard({
 
   function updatePartySize(nextSize: number) {
     const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
-    setPartySizeInput(String(normalizedSize));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
     invalidateTimeSelection();
@@ -277,13 +287,37 @@ export function BookingWizard({
   function updateManualPartySize(value: string) {
     setPartySizeInput(value);
     const nextSize = Number(value);
-    if (!Number.isInteger(nextSize) || nextSize < 1 || nextSize > 40) {
+    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > 40) {
       if (partySize !== 0) invalidateTimeSelection();
       setPartySize(0);
       return;
     }
     if (nextSize === partySize) return;
     setPartySize(nextSize);
+    invalidateTimeSelection();
+  }
+
+  function adjustManualPartySize(amount: number) {
+    const currentSize = Number(partySizeInput);
+    const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
+    updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
+  }
+
+  function updateTurnTime(value: number) {
+    setDurationMinutes(value);
+    setCustomDurationInput(String(value));
+    invalidateTimeSelection();
+  }
+
+  function updateCustomTurnTime(value: string) {
+    setCustomDurationInput(value);
+    const nextDuration = Number(value);
+    if (!Number.isInteger(nextDuration) || nextDuration < 60 || nextDuration % 15 !== 0) {
+      setDurationMinutes(0);
+      invalidateTimeSelection();
+      return;
+    }
+    setDurationMinutes(nextDuration);
     invalidateTimeSelection();
   }
 
@@ -455,10 +489,15 @@ export function BookingWizard({
   }
 
   return (
-    <div className="wizard-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
+    <div className={presentation === "page" ? "booking-page-shell" : "wizard-backdrop"} role="presentation" onMouseDown={(event) => {
+      if (presentation === "modal" && event.target === event.currentTarget) onClose();
     }}>
-      <section className={`booking-wizard${step === 1 ? " date-step" : ""}`} role="dialog" aria-modal="true" aria-labelledby="booking-wizard-title">
+      <section
+        className={`booking-wizard${step === 1 ? " date-step" : ""}`}
+        role={presentation === "modal" ? "dialog" : "region"}
+        aria-modal={presentation === "modal" ? true : undefined}
+        aria-labelledby="booking-wizard-title"
+      >
         <header className="wizard-header">
           <div>
             <p>New reservation</p>
@@ -540,23 +579,65 @@ export function BookingWizard({
                   ))}
                 </div>
               </fieldset>
-              <label className="party-size-manual">
-                Enter party size
+              <div className="party-size-manual">
+                <span id="manual-party-size-label">Enter party size</span>
+                <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
+                  <button
+                    type="button"
+                    aria-label="Decrease party size"
+                    onClick={() => adjustManualPartySize(-1)}
+                    disabled={Number(partySizeInput) <= 9}
+                  >
+                    <Minus aria-hidden="true" />
+                  </button>
+                  <input
+                    {...IGNORE_AUTOFILL}
+                    type="number"
+                    min={9}
+                    max={40}
+                    inputMode="numeric"
+                    value={partySizeInput}
+                    aria-labelledby="manual-party-size-label"
+                    aria-invalid={partySize >= 9 && !stageIsFilled(2)}
+                    onFocus={() => updateManualPartySize(partySizeInput)}
+                    onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase party size"
+                    onClick={() => adjustManualPartySize(1)}
+                    disabled={Number(partySizeInput) >= 40}
+                  >
+                    <Plus aria-hidden="true" />
+                  </button>
+                </div>
+                <span className="party-size-manual-hint">9–40 guests</span>
+              </div>
+              <label className="turn-time-field">
+                Expected turn
+                <select
+                  {...IGNORE_AUTOFILL}
+                  value={TURN_TIME_PRESETS.includes(durationMinutes) ? String(durationMinutes) : "custom"}
+                  onChange={(event) => updateTurnTime(event.target.value === "custom" ? 225 : Number(event.target.value))}
+                >
+                  {TURN_TIME_PRESETS.map((value) => <option key={value} value={value}>{value} minutes</option>)}
+                  <option value="custom">More than 210 minutes…</option>
+                </select>
+              </label>
+              <label className="turn-time-custom">
+                Custom turn time
                 <input
                   {...IGNORE_AUTOFILL}
                   type="number"
-                  min={1}
-                  max={40}
+                  min={60}
+                  step={15}
                   inputMode="numeric"
-                  value={partySizeInput}
-                  aria-invalid={!stageIsFilled(2)}
-                  onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                  value={customDurationInput}
+                  aria-invalid={durationMinutes === 0}
+                  onChange={(event) => updateCustomTurnTime(event.currentTarget.value)}
                 />
-                <span>1–40 guests</span>
+                <span>60+ minutes, in 15-minute increments</span>
               </label>
-              <label className="turn-time-field">Expected turn<select {...IGNORE_AUTOFILL} value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
-                {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
-              </select></label>
             </div>
           )}
 
