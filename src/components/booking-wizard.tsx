@@ -348,7 +348,7 @@ export function BookingWizard({
     if (assignmentDraftTableIds.length && selectedCapacity < partySize) return;
     setSelectedTableIds(assignmentDraftTableIds);
     setTablePickerOpen(false);
-    advanceTo(selectedGuest ? 5 : 4);
+    setStep(2);
   }
 
   async function continueWithoutTableAssignment() {
