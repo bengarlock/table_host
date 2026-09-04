@@ -125,6 +125,8 @@ type FloorStageMetrics = {
 
 type GridData = {
   restaurant: { id: number; name: string };
+  training_mode: boolean;
+  data_mode: "training" | "production";
   service_date: string;
   current_service_date: string;
   booking_allowed: boolean;
@@ -1239,7 +1241,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           <header className="floor-toolbar">
             <div>
               <p className="floor-kicker">Live service</p>
-              <h1>Floor plan</h1>
+              <div className="floor-title-row">
+                <h1>Floor plan</h1>
+                {data?.training_mode && <span className="training-mode-indicator">Training mode</span>}
+              </div>
             </div>
             <div className="shift-tabs" aria-label="Shift">
               {data?.shifts.map((shift) => (

@@ -90,7 +90,7 @@ export function AppSidebar({ onNavigateAttempt }: AppSidebarProps) {
           <li>
             <Link
               className="nav-link"
-              href="/settings"
+              href="/settings/general"
               onClick={guardNavigation}
               aria-label="Settings"
               aria-current={settingsPageActive ? "page" : undefined}

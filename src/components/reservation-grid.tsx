@@ -86,6 +86,8 @@ type TableMove = {
 
 type GridData = {
   restaurant: { id: number; name: string };
+  training_mode: boolean;
+  data_mode: "training" | "production";
   service_date: string;
   current_service_date: string;
   booking_allowed: boolean;
@@ -465,6 +467,7 @@ export function ReservationGrid({
     <div className="reservation-page">
       <section className="grid-toolbar" aria-label="Reservation grid controls">
         <div className="toolbar-leading">
+          {data?.training_mode && <span className="training-mode-indicator">Training mode</span>}
           <div className="shift-tabs" aria-label="Shift">
             {data?.shifts.map((shift) => (
               <button
