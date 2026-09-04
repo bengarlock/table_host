@@ -302,6 +302,9 @@ export function ReservationGrid({
   const bookingAllowed = data?.service_date === serviceDate && typeof data.booking_allowed === "boolean"
     ? data.booking_allowed
     : serviceDate >= (data?.current_service_date || todayLocal());
+  const serviceStatusAllowed = Boolean(
+    data && data.service_date === serviceDate && serviceDate <= data.current_service_date,
+  );
 
   function chooseDate(next: string) {
     setDraft(null);
@@ -363,6 +366,7 @@ export function ReservationGrid({
 
   async function updateStatus(status: Reservation["status"]) {
     if (!selected) return;
+    if (!serviceStatusAllowed && (status === "seated" || status === "complete")) return;
     setSaving(true);
     setError("");
     try {
@@ -814,9 +818,10 @@ export function ReservationGrid({
                   )}
                 </section>
                 <div className="status-actions">
-                  {selected.status !== "seated" && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving}>Mark seated</button>}
-                  {selected.status !== "complete" && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving}>Complete</button>}
+                  {selected.status !== "seated" && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving || !serviceStatusAllowed}>Mark seated</button>}
+                  {selected.status !== "complete" && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving || !serviceStatusAllowed}>Complete</button>}
                 </div>
+                {!serviceStatusAllowed && <p role="status">Reservations cannot be seated or marked as served on future dates.</p>}
                 <button className="danger-action" type="button" onClick={() => void cancelReservation()} disabled={saving}>Cancel reservation</button>
               </div>
             )}

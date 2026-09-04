@@ -58,6 +58,47 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+for (const futureDate of [true, false]) {
+  test(`reservation seating is ${futureDate ? "blocked for future dates" : "available today"}`, async ({ page }) => {
+    // The server's restaurant date is authoritative, even when the browser is ahead.
+    await page.clock.setFixedTime(new Date("2026-09-04T12:00:00Z"));
+    const reservation = {
+      id: 101, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Future Guest", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "confirmed", assignment_type: "soft", guest_tags: [], tags: [], notes: "",
+    };
+    let updates = 0;
+    await page.route("**/api/grid?*", (route) => route.fulfill({
+      json: { ...gridPayload, current_service_date: futureDate ? "2026-09-03" : serviceDate,
+        reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
+    }));
+    await page.route("**/api/grid/reservations/101/moves", (route) => route.fulfill({ json: [] }));
+    await page.route("**/api/grid/reservations/101", async (route) => {
+      updates++;
+      await route.fulfill({ json: { ...reservation, status: "seated" } });
+    });
+    await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+    await page.getByRole("button", { name: /Future Guest, party of 2/ }).click();
+    const seat = page.getByRole("button", { name: "Mark seated", exact: true });
+    if (futureDate) {
+      await expect(seat).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Complete", exact: true })).toBeDisabled();
+      await expect(page.getByText("Reservations cannot be seated or marked as served on future dates.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Cancel reservation", exact: true })).toBeEnabled();
+      expect(updates).toBe(0);
+      await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+      await expect(page.getByText("Viewing another service date. Return to today to seat parties or change table statuses.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Seat", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Walk In", exact: true })).toBeDisabled();
+    } else {
+      await expect(seat).toBeEnabled();
+      await seat.click();
+      await expect(seat).toHaveCount(0);
+      expect(updates).toBe(1);
+    }
+  });
+}
+
 async function mockAvailability(page: Page) {
   await page.route("**/api/grid/availability?*", async (route) => {
     const requestedPartySize = Number(new URL(route.request().url()).searchParams.get("party_size"));
