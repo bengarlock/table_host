@@ -3830,6 +3830,9 @@ textarea {
   background: transparent;
   color: var(--text);
   transform: translate(-50%, -50%) rotate(var(--table-rotation, 0deg));
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .floor-table-round {
@@ -3905,7 +3908,6 @@ textarea {
 .floor-canvas.editing .floor-table {
   cursor: grab;
   touch-action: none;
-  user-select: none;
 }
 
 .floor-canvas.moving-tables .floor-table {
