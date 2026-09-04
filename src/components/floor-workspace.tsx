@@ -17,6 +17,7 @@ import {
   Rows3,
   Save,
   Search,
+  Sparkles,
   Tag,
   Trash2,
   TriangleAlert,
@@ -359,6 +360,95 @@ function floorTableOverlapIds(stage: HTMLElement) {
     });
   });
   return overlappingIds;
+}
+
+type MeasuredFloorTable = {
+  table: DiningTable;
+  bounds: FloorTableBounds;
+  centerX: number;
+  centerY: number;
+};
+
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const ordered = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2;
+}
+
+function polishedAxisCenters(
+  items: MeasuredFloorTable[],
+  axis: "x" | "y",
+  stageStart: number,
+  stageEnd: number,
+) {
+  const centerOf = (item: MeasuredFloorTable) => axis === "x" ? item.centerX : item.centerY;
+  const startOf = (item: MeasuredFloorTable) => axis === "x" ? item.bounds.left : item.bounds.top;
+  const endOf = (item: MeasuredFloorTable) => axis === "x" ? item.bounds.right : item.bounds.bottom;
+  const sizes = items.map((item) => endOf(item) - startOf(item));
+  const typicalSize = median(sizes);
+  const alignmentTolerance = Math.max(18, typicalSize * 0.62);
+  const clusters: MeasuredFloorTable[][] = [];
+
+  [...items].sort((left, right) => centerOf(left) - centerOf(right)).forEach((item) => {
+    const current = clusters.at(-1);
+    const currentCenter = current
+      ? current.reduce((total, member) => total + centerOf(member), 0) / current.length
+      : 0;
+    if (!current || Math.abs(centerOf(item) - currentCenter) > alignmentTolerance) {
+      clusters.push([item]);
+    } else {
+      current.push(item);
+    }
+  });
+
+  const measuredClusters = clusters.map((members) => {
+    const existingStart = Math.min(...members.map(startOf));
+    const existingEnd = Math.max(...members.map(endOf));
+    const center = (existingStart + existingEnd) / 2;
+    const before = Math.max(...members.map((item) => centerOf(item) - startOf(item)));
+    const after = Math.max(...members.map((item) => endOf(item) - centerOf(item)));
+    return { members, existingStart, existingEnd, center, before, after, size: before + after };
+  }).sort((left, right) => left.center - right.center);
+
+  const gaps = measuredClusters.slice(1).map(
+    (cluster, index) => Math.max(0, cluster.existingStart - measuredClusters[index].existingEnd),
+  );
+  const splitThreshold = Math.max(
+    typicalSize * 1.5,
+    Math.min(median(gaps.filter((gap) => gap > 0)) * 2.5, typicalSize * 3),
+  );
+  const segments: typeof measuredClusters[] = [];
+  measuredClusters.forEach((cluster, index) => {
+    const previous = measuredClusters[index - 1];
+    const gap = previous ? cluster.existingStart - previous.existingEnd : 0;
+    if (!segments.length || gap > splitThreshold) segments.push([cluster]);
+    else segments.at(-1)!.push(cluster);
+  });
+
+  const targetCenters = new Map<number, number>();
+  segments.forEach((segment) => {
+    const occupiedSize = segment.reduce((total, cluster) => total + cluster.size, 0);
+    const existingStart = segment[0].existingStart;
+    const existingEnd = segment.at(-1)!.existingEnd;
+    const minimumGap = Math.max(12, typicalSize * 0.16);
+    const desiredSpan = Math.max(
+      existingEnd - existingStart,
+      occupiedSize + minimumGap * Math.max(0, segment.length - 1),
+    );
+    const availableSpan = stageEnd - stageStart;
+    const span = Math.min(desiredSpan, availableSpan);
+    const centeredStart = (existingStart + existingEnd - span) / 2;
+    const layoutStart = clamp(centeredStart, stageStart, Math.max(stageStart, stageEnd - span));
+    const gap = segment.length > 1 ? Math.max(0, (span - occupiedSize) / (segment.length - 1)) : 0;
+    let cursor = layoutStart;
+    segment.forEach((cluster) => {
+      const targetCenter = cursor + cluster.before;
+      cluster.members.forEach((item) => targetCenters.set(item.table.id, targetCenter));
+      cursor += cluster.size + gap;
+    });
+  });
+  return targetCenters;
 }
 
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
@@ -782,6 +872,45 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const nextTables = editedTables.map((table) =>
       positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
     );
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
+  }
+
+  function autoPolishFloor() {
+    const stage = floorStageRef.current;
+    if (!stage || editedTables.length < 2) return;
+    const elementsById = new Map(
+      Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+        .map((element) => [Number(element.dataset.floorTableId), element]),
+    );
+    const measured = editedTables.map((table) => {
+      const element = elementsById.get(table.id);
+      if (!element) return null;
+      const bounds = floorTableVisualBounds(element);
+      return {
+        table,
+        bounds,
+        centerX: (bounds.left + bounds.right) / 2,
+        centerY: (bounds.top + bounds.bottom) / 2,
+      };
+    }).filter((item): item is MeasuredFloorTable => item !== null);
+    if (measured.length < 2) return;
+
+    const stageBounds = stage.getBoundingClientRect();
+    const targetX = polishedAxisCenters(measured, "x", stageBounds.left, stageBounds.right);
+    const targetY = polishedAxisCenters(measured, "y", stageBounds.top, stageBounds.bottom);
+    const measuredById = new Map(measured.map((item) => [item.table.id, item]));
+    const nextTables = editedTables.map((table) => {
+      const item = measuredById.get(table.id);
+      if (!item) return table;
+      const xDelta = ((targetX.get(table.id)! - item.centerX) / stageBounds.width) * 100;
+      const yDelta = ((targetY.get(table.id)! - item.centerY) / stageBounds.height) * 100;
+      return {
+        ...table,
+        position_x: Math.round(clamp(table.position_x + xDelta, 0, 100) * 100) / 100,
+        position_y: Math.round(clamp(table.position_y + yDelta, 0, 100) * 100) / 100,
+      };
+    });
+    setError("");
     commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }
 
@@ -1642,6 +1771,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       </button>
                       <button type="button" onClick={spaceSelectedTables} disabled={editorSelectedTables.length < 2}>
                         <AlignHorizontalSpaceAround aria-hidden="true" /> Equal spacing
+                      </button>
+                      <button type="button" onClick={autoPolishFloor} disabled={editedTables.length < 2 || saving} title="Align and evenly space the entire floor plan">
+                        <Sparkles aria-hidden="true" /> Auto polish
                       </button>
                     </div>
                     <div className="floor-editor-tool-group" aria-label="Rotation tools">

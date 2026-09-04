@@ -403,6 +403,47 @@ test("floor tables can cross each other but overlapping drops block saving", asy
   await expect(page.getByRole("button", { name: "Save Floor" })).toBeDisabled();
 });
 
+test("auto polish aligns and evenly spaces floor rows and columns", async ({ page }) => {
+  const coordinates = [
+    [24.5, 24], [35.5, 25.5], [45, 24.5],
+    [25.5, 50.5], [34.5, 49], [46, 51],
+    [24, 75.5], [35, 74], [45.5, 76],
+  ];
+  const tables = coordinates.map(([position_x, position_y], index) => ({
+    ...gridPayload.tables[index % gridPayload.tables.length],
+    id: index + 1,
+    name: String(index + 1),
+    width: 72,
+    height: 64,
+    position_x,
+    position_y,
+  }));
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, tables },
+  }));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+  await page.getByRole("button", { name: "Auto polish" }).click();
+
+  const centers = await Promise.all(tables.map(async (table) => {
+    const bounds = await page.locator(`[data-floor-table-id="${table.id}"]`).boundingBox();
+    expect(bounds).not.toBeNull();
+    return { x: bounds!.x + bounds!.width / 2, y: bounds!.y + bounds!.height / 2 };
+  }));
+  for (const row of [[0, 1, 2], [3, 4, 5], [6, 7, 8]]) {
+    expect(Math.max(...row.map((index) => centers[index].y)) - Math.min(...row.map((index) => centers[index].y))).toBeLessThan(2.5);
+  }
+  for (const column of [[0, 3, 6], [1, 4, 7], [2, 5, 8]]) {
+    expect(Math.max(...column.map((index) => centers[index].x)) - Math.min(...column.map((index) => centers[index].x))).toBeLessThan(2.5);
+  }
+  expect(Math.abs((centers[1].x - centers[0].x) - (centers[2].x - centers[1].x))).toBeLessThan(2.5);
+  expect(Math.abs((centers[3].y - centers[0].y) - (centers[6].y - centers[3].y))).toBeLessThan(2.5);
+  await expect(page.getByRole("button", { name: "Undo last floor change" })).toBeEnabled();
+  await expect(page.locator(".floor-table.overlapping-table")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
+});
+
 test("booking restores time selection before optional table assignment", async ({ page }) => {
   await mockGrid(page);
   await mockAvailability(page);
