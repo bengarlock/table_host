@@ -1076,6 +1076,47 @@ textarea {
   place-items: center;
 }
 
+.booking-main-content {
+  height: 100vh;
+  overflow-y: auto;
+  padding: 28px;
+}
+
+.booking-page-shell {
+  display: grid;
+  width: 100%;
+  min-height: calc(100vh - 56px);
+  place-items: center;
+}
+
+.booking-page-state {
+  display: grid;
+  min-height: calc(100vh - 56px);
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.booking-page-state h1,
+.booking-page-state p {
+  margin: 0;
+}
+
+.booking-page-state svg {
+  width: 24px;
+}
+
+.booking-page-state button {
+  padding: 10px 16px;
+  cursor: pointer;
+  border: 1px solid var(--accent-line);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 .booking-wizard {
   display: grid;
   width: min(720px, 100%);
@@ -4363,6 +4404,14 @@ textarea {
   .wizard-backdrop {
     left: 0;
     padding: 10px;
+  }
+
+  .booking-main-content {
+    padding: 10px;
+  }
+
+  .booking-page-shell {
+    min-height: calc(100vh - 20px);
   }
 
   .booking-wizard {

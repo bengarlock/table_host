@@ -44,6 +44,7 @@ type BookingWizardProps = {
   shifts: ShiftChoice[];
   onClose: () => void;
   onBooked: (serviceDate: string, shiftSlug: string) => void;
+  presentation?: "modal" | "page";
 };
 
 type ShiftChoice = {
@@ -146,6 +147,7 @@ export function BookingWizard({
   shifts,
   onClose,
   onBooked,
+  presentation = "modal",
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
   const [step, setStep] = useState(1);
@@ -455,10 +457,15 @@ export function BookingWizard({
   }
 
   return (
-    <div className="wizard-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
+    <div className={presentation === "page" ? "booking-page-shell" : "wizard-backdrop"} role="presentation" onMouseDown={(event) => {
+      if (presentation === "modal" && event.target === event.currentTarget) onClose();
     }}>
-      <section className={`booking-wizard${step === 1 ? " date-step" : ""}`} role="dialog" aria-modal="true" aria-labelledby="booking-wizard-title">
+      <section
+        className={`booking-wizard${step === 1 ? " date-step" : ""}`}
+        role={presentation === "modal" ? "dialog" : "region"}
+        aria-modal={presentation === "modal" ? true : undefined}
+        aria-labelledby="booking-wizard-title"
+      >
         <header className="wizard-header">
           <div>
             <p>New reservation</p>

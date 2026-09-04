@@ -14,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookingWizard } from "@/components/booking-wizard";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
@@ -142,15 +141,11 @@ function readError(payload: unknown) {
 }
 
 type ReservationGridProps = {
-  bookingOpen: boolean;
-  onBookingOpenChange: (open: boolean) => void;
   initialServiceDate?: string;
   initialShiftSlug?: string;
 };
 
 export function ReservationGrid({
-  bookingOpen,
-  onBookingOpenChange,
   initialServiceDate,
   initialShiftSlug,
 }: ReservationGridProps) {
@@ -311,19 +306,6 @@ export function ReservationGrid({
     writeServiceUrl(currentDate, currentShift);
     setServiceDate(currentDate);
     setShiftSlug(currentShift);
-  }
-
-  function finishWizardBooking(bookedDate: string, bookedShift: string) {
-    onBookingOpenChange(false);
-    setDraft(null);
-    setSelected(null);
-    if (bookedDate === serviceDate && bookedShift === shiftSlug) {
-      void loadGrid();
-      return;
-    }
-    writeServiceUrl(bookedDate, bookedShift);
-    setServiceDate(bookedDate);
-    setShiftSlug(bookedShift);
   }
 
   async function createReservation(event: FormEvent<HTMLFormElement>) {
@@ -820,16 +802,6 @@ export function ReservationGrid({
           </aside>
         )}
       </div>
-      {bookingOpen && (
-        <BookingWizard
-          initialDate={serviceDate}
-          initialShiftSlug={data?.selected_shift.slug || shiftSlug}
-          initialDuration={data?.selected_shift.default_turn_minutes || 90}
-          shifts={data?.shifts || []}
-          onClose={() => onBookingOpenChange(false)}
-          onBooked={finishWizardBooking}
-        />
-      )}
     </div>
   );
 }
