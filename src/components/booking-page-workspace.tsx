@@ -21,6 +21,7 @@ type BookingSetup = {
   service_date: string;
   selected_shift: ShiftChoice;
   shifts: ShiftChoice[];
+  tables: Array<{ capacity: number }>;
 };
 
 type BookingPageWorkspaceProps = {
@@ -78,6 +79,7 @@ export function BookingPageWorkspace({
             initialDate={initialServiceDate || setup.service_date}
             initialShiftSlug={initialShiftSlug || setup.selected_shift.slug}
             initialDuration={setup.selected_shift.default_turn_minutes || 90}
+            floorCoverCapacity={setup.tables.reduce((total, table) => total + table.capacity, 0)}
             shifts={setup.shifts}
             onClose={() => returnToReservations(setup.service_date, setup.selected_shift.slug)}
             onBooked={returnToReservations}

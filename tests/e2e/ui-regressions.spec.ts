@@ -60,6 +60,8 @@ async function mockGrid(page: Page, delayMs = 0) {
 
 async function mockAvailability(page: Page) {
   await page.route("**/api/grid/availability?*", async (route) => {
+    const requestedPartySize = Number(new URL(route.request().url()).searchParams.get("party_size"));
+    const exceedsFloorCapacity = requestedPartySize > 4;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -73,8 +75,8 @@ async function mockAvailability(page: Page) {
             table_id: 1,
             table_name: "1",
             table_capacity: 2,
-            available: true,
-            unavailable_reason: "",
+            available: !exceedsFloorCapacity,
+            unavailable_reason: exceedsFloorCapacity ? "Party exceeds table capacity" : "",
           },
           {
             service_date: serviceDate,
@@ -84,8 +86,8 @@ async function mockAvailability(page: Page) {
             table_id: 2,
             table_name: "2",
             table_capacity: 2,
-            available: true,
-            unavailable_reason: "",
+            available: !exceedsFloorCapacity,
+            unavailable_reason: exceedsFloorCapacity ? "Party exceeds table capacity" : "",
           },
         ],
       }),
@@ -171,7 +173,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("9");
   await expect(page.getByRole("button", { name: "Assign Tables" })).toHaveCount(0);
-  await page.locator("footer").getByRole("button", { name: "Time & tables" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time" }).click();
 
   await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
   const assignTables = page.getByRole("button", { name: "Assign Tables" });
@@ -190,4 +192,32 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("1 table assigned");
+});
+
+test("oversized parties warn but can continue to time selection", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+
+  await page.getByRole("button", { name: "Party size" }).click();
+  await page.getByRole("spinbutton", { name: "Enter party size" }).fill("200");
+
+  await expect(page.getByText("This party exceeds the floor capacity")).toBeVisible();
+  await expect(page.getByText("200 guests requested · 4 covers available. You can continue and overbook.")).toBeVisible();
+  await expect(page.locator(".wizard-progress li").nth(2)).toHaveClass(/capacity-warning/);
+  await expect(page.locator(".wizard-progress li").nth(2)).toHaveCSS("color", "rgb(255, 131, 120)");
+
+  const timeButton = page.locator("footer").getByRole("button", { name: "Time" });
+  await expect(timeButton).toHaveClass(/capacity-warning/);
+  await page.mouse.move(0, 0);
+  await expect(timeButton).toHaveCSS("background-color", "rgb(159, 57, 47)");
+  await expect(timeButton).toBeEnabled();
+  await timeButton.click();
+
+  await expect(page.getByText("Overbooking warning")).toBeVisible();
+  await expect(page.getByText("Party exceeds table capacity").first()).toBeVisible();
+  const unavailableTime = page.getByRole("button", { name: /^5:00 PM,/ });
+  await expect(unavailableTime).toBeEnabled();
+  await unavailableTime.click();
+  await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
 });

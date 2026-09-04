@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRightLeft,
   ArrowRight,
@@ -56,6 +57,7 @@ type BookingWizardProps = {
   initialDate: string;
   initialShiftSlug: string;
   initialDuration: number;
+  floorCoverCapacity: number;
   shifts: ShiftChoice[];
   onClose: () => void;
   onBooked: (serviceDate: string, shiftSlug: string) => void;
@@ -104,6 +106,7 @@ type NewGuestFocus = "firstName" | "lastName" | "phone";
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
+const MAX_PARTY_SIZE = 32_767;
 
 function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
@@ -176,6 +179,7 @@ export function BookingWizard({
   initialDate,
   initialShiftSlug,
   initialDuration,
+  floorCoverCapacity,
   shifts,
   onClose,
   onBooked,
@@ -224,6 +228,7 @@ export function BookingWizard({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const partyExceedsFloorCapacity = floorCoverCapacity > 0 && partySize > floorCoverCapacity;
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -405,7 +410,7 @@ export function BookingWizard({
   }
 
   function updatePartySize(nextSize: number) {
-    const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
+    const normalizedSize = Math.min(MAX_PARTY_SIZE, Math.max(1, Math.round(nextSize)));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
     invalidateTimeSelection();
@@ -414,7 +419,7 @@ export function BookingWizard({
   function updateManualPartySize(value: string) {
     setPartySizeInput(value);
     const nextSize = Number(value);
-    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > 40) {
+    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > MAX_PARTY_SIZE) {
       if (partySize !== 0) invalidateTimeSelection();
       setPartySize(0);
       return;
@@ -427,7 +432,7 @@ export function BookingWizard({
   function adjustManualPartySize(amount: number) {
     const currentSize = Number(partySizeInput);
     const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
-    updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
+    updateManualPartySize(String(Math.min(MAX_PARTY_SIZE, Math.max(9, startingSize + amount))));
   }
 
   function updateTurnTime(value: string) {
@@ -602,14 +607,15 @@ export function BookingWizard({
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
-          {["Date", "Party", "Time & tables", "Guest", "Details"].map((label, index) => {
+          {["Date", "Party", "Time", "Guest", "Details"].map((label, index) => {
             const stage = index + 1;
             const filled = stageIsFilled(stage);
             const visited = stage <= furthestStep;
             const navigable = stage !== step && visited && filled;
             const selectedValue = stageValue(stage);
+            const capacityWarning = stage === 3 && partyExceedsFloorCapacity;
             return (
-              <li key={label} className={step === stage ? "active" : visited && filled ? "complete" : ""}>
+              <li key={label} className={`${step === stage ? "active" : visited && filled ? "complete" : ""}${capacityWarning ? " capacity-warning" : ""}`}>
                 <button
                   type="button"
                   className="wizard-progress-button"
@@ -687,11 +693,11 @@ export function BookingWizard({
                       {...IGNORE_AUTOFILL}
                       type="number"
                       min={9}
-                      max={40}
+                      max={MAX_PARTY_SIZE}
                       inputMode="numeric"
                       value={partySizeInput}
                       aria-labelledby="manual-party-size-label"
-                      aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > 40}
+                      aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > MAX_PARTY_SIZE}
                       onFocus={() => updateManualPartySize(partySizeInput)}
                       onChange={(event) => updateManualPartySize(event.currentTarget.value)}
                     />
@@ -699,14 +705,20 @@ export function BookingWizard({
                       type="button"
                       aria-label="Increase party size"
                       onClick={() => adjustManualPartySize(1)}
-                      disabled={Number(partySizeInput) >= 40}
+                      disabled={Number(partySizeInput) >= MAX_PARTY_SIZE}
                     >
                       <Plus aria-hidden="true" />
                     </button>
                   </div>
-                  <span className="party-size-manual-hint">9–40 guests</span>
+                  <span className="party-size-manual-hint">9 or more guests</span>
                 </div>
               </div>
+              {partyExceedsFloorCapacity && (
+                <div className="booking-capacity-warning" role="status">
+                  <AlertTriangle aria-hidden="true" />
+                  <div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div>
+                </div>
+              )}
               <div className="turn-time-field">
                 <span id="expected-turn-time-label">Expected turn</span>
                 <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
@@ -749,6 +761,12 @@ export function BookingWizard({
           {step === 3 && (
             <div className="wizard-step">
               <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Select a shift and time, then optionally assign tables before continuing.</p></div></div>
+              {partyExceedsFloorCapacity && (
+                <div className="booking-capacity-warning" role="status">
+                  <AlertTriangle aria-hidden="true" />
+                  <div><strong>Overbooking warning</strong><span>This party has {partySize} guests and the floor has {floorCoverCapacity} covers. Select any time to continue.</span></div>
+                </div>
+              )}
               <div className="wizard-shift-picker" aria-label="Reservation shift">
                 {shifts.map((shift) => (
                   <button
@@ -960,7 +978,7 @@ export function BookingWizard({
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Time &amp; tables <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Time <ArrowRight aria-hidden="true" /></button>}
           {step === 3 && <button type="button" className="wizard-next" onClick={() => advanceTo(4)} disabled={!selectedOption}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
