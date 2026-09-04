@@ -102,6 +102,28 @@ type Reservation = {
   tags: string[];
 };
 
+type ReservationEditDraft = {
+  guestName: string;
+  partySize: string;
+  startTime: string;
+  durationMinutes: string;
+  status: ServiceStatus;
+  tags: string;
+  notes: string;
+};
+
+type ReservationUpdate = {
+  table_id?: number;
+  table_ids?: number[];
+  guest_name?: string;
+  party_size?: number;
+  start_time?: string;
+  duration_minutes?: number;
+  status?: ServiceStatus;
+  tags?: string[];
+  notes?: string;
+};
+
 type GuestRecord = {
   id: number;
   first_name: string;
@@ -160,6 +182,10 @@ const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
   { value: "check_dropped", label: "Check dropped" },
   { value: "paid", label: "Paid" },
   { value: "complete", label: "Done" },
+];
+const RESERVATION_STATUS_OPTIONS = [
+  { value: "confirmed" as const, label: "Confirmed" },
+  ...SERVICE_STEPS,
 ];
 
 function displayTime(time: string) {
@@ -369,6 +395,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [error, setError] = useState("");
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
+  const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
@@ -605,6 +632,24 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setWalkInDraft(null);
   }
 
+  function openReservationDetails(reservation: Reservation) {
+    setFocusedReservationId(reservation.id);
+    setReservationEditDraft({
+      guestName: reservation.guest_name,
+      partySize: String(reservation.party_size),
+      startTime: reservation.start_time,
+      durationMinutes: String(reservation.duration_minutes),
+      status: reservation.status,
+      tags: reservation.tags.join(", "),
+      notes: reservation.notes,
+    });
+  }
+
+  function closeReservationDetails() {
+    setFocusedReservationId(null);
+    setReservationEditDraft(null);
+  }
+
   function captureFloorEditorSnapshot(
     tables = editedTables,
     deletedIds = deletedTableIds,
@@ -660,7 +705,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (!data) return;
     setError("");
     cancelSeating();
-    setFocusedReservationId(null);
+    closeReservationDetails();
     setSelectedPendingId(null);
     setEditedTables(data.tables.map((table) => ({ ...table })));
     setEditorSelectedTableIds([]);
@@ -1183,7 +1228,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
-    setFocusedReservationId(null);
+    closeReservationDetails();
     writeServiceUrl(value, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(value);
   }
@@ -1192,7 +1237,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
-    setFocusedReservationId(null);
+    closeReservationDetails();
     writeServiceUrl(serviceDate, value);
     setShiftSlug(value);
   }
@@ -1201,7 +1246,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (editingFloor) return;
     cancelSeating();
     setSelectedPendingId(null);
-    setFocusedReservationId(null);
+    closeReservationDetails();
     const now = new Date();
     const closest = closestServiceOccurrence(data?.shifts || [], now);
     const currentDate = data?.current_service_date || closest?.date || localDateValue(now);
@@ -1213,11 +1258,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   async function updateReservation(
     reservation: Reservation,
-    updates: { table_id?: number; table_ids?: number[]; status?: ServiceStatus },
+    updates: ReservationUpdate,
   ) {
-    const tableAssignmentOnly = updates.status === undefined
-      && (updates.table_id !== undefined || updates.table_ids !== undefined);
-    if (!liveService && !tableAssignmentOnly) return false;
+    if (!liveService && updates.status !== undefined) return false;
     setSaving(true);
     setError("");
     try {
@@ -1228,12 +1271,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      if (updates.status === "complete") setFocusedReservationId(null);
+      if (updates.status === "complete") closeReservationDetails();
       setSelectedPendingId(null);
       await loadFloor();
       return true;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to update the table.");
+      setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
       return false;
     } finally {
       setSaving(false);
@@ -1258,7 +1301,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function beginTableReassignment(reservation: Reservation) {
     setSelectedPendingId(reservation.id);
-    setFocusedReservationId(null);
+    closeReservationDetails();
     setWalkInDraft(null);
     setSelectedTableIds(
       reservation.table_ids.length
@@ -1266,6 +1309,33 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         : reservation.table_id === null ? [] : [reservation.table_id],
     );
     setSeatingMode("reassignment");
+  }
+
+  async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!focusedReservation || !reservationEditDraft) return;
+    const partySize = Number(reservationEditDraft.partySize);
+    const durationMinutes = Number(reservationEditDraft.durationMinutes);
+    if (!reservationEditDraft.guestName.trim() || !Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
+      setError("Enter a guest name and a party size from 1 to 40.");
+      return;
+    }
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
+      setError("Expected turn time must be between 15 minutes and 6 hours.");
+      return;
+    }
+    const updates: ReservationUpdate = {
+      guest_name: reservationEditDraft.guestName.trim(),
+      party_size: partySize,
+      start_time: reservationEditDraft.startTime,
+      duration_minutes: durationMinutes,
+      notes: reservationEditDraft.notes.trim(),
+      tags: [...new Set(reservationEditDraft.tags.split(",").map((tag) => tag.trim()).filter(Boolean))],
+    };
+    if (reservationEditDraft.status !== focusedReservation.status) {
+      updates.status = reservationEditDraft.status;
+    }
+    await updateReservation(focusedReservation, updates);
   }
 
   async function createWalkInGuest() {
@@ -1485,7 +1555,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       onClick={() => {
                         if (!seatingMode) {
                           setSelectedPendingId((current) => current === reservation.id ? null : reservation.id);
-                          setFocusedReservationId(reservation.id);
+                          openReservationDetails(reservation);
                         }
                       }}
                       aria-label={reservation.is_unassigned
@@ -1835,7 +1905,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             toggleSeatingTable(table.id);
                           }
                         } else if (reservation) {
-                          setFocusedReservationId(reservation.id);
+                          openReservationDetails(reservation);
                         }
                       }}
                       onPointerDown={(event) => beginTableMove(event, table.id)}
@@ -1892,55 +1962,103 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 )}
               </div>
 
-              {focusedReservation && (
+              {focusedReservation && reservationEditDraft && (
                 <aside className="floor-reservation-detail-card" aria-label={`Reservation details for ${focusedReservation.guest_name}`}>
-                  <header>
-                    <div>
-                      <span>Reservation details</span>
-                      <h2>{focusedReservation.guest_name}</h2>
-                    </div>
-                    <button type="button" className="floor-dock-close" onClick={() => setFocusedReservationId(null)} aria-label="Close reservation details"><X aria-hidden="true" /></button>
-                  </header>
-                  <div className="floor-reservation-detail-grid">
-                    <div><small>Time</small><strong>{displayTime(focusedReservation.start_time)}</strong></div>
-                    <div><small>Party size</small><strong>{focusedReservation.party_size} guests</strong></div>
-                    <div><small>Expected turn</small><strong>{formatTurnTime(focusedReservation.duration_minutes)}</strong></div>
-                    <div><small>Status</small><strong>{statusLabel(focusedReservation.status)}</strong></div>
-                    <div className="floor-reservation-detail-wide">
-                      <small>{focusedReservation.table_names.length > 1 ? "Tables" : "Table"}</small>
-                      <strong>{(focusedReservation.table_names.length ? focusedReservation.table_names : [focusedReservation.table_name]).join(" + ") || "Unassigned"}</strong>
-                    </div>
-                  </div>
-                  {focusedReservation.tags.length > 0 && (
-                    <div className="floor-reservation-detail-section">
-                      <small>Tags</small>
-                      <div className="floor-reservation-detail-tags">
-                        {focusedReservation.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                  <form onSubmit={saveReservationDetails}>
+                    <header>
+                      <div>
+                        <span>Reservation details</span>
+                        <h2>Edit reservation</h2>
                       </div>
-                    </div>
-                  )}
-                  {focusedReservation.notes && (
-                    <div className="floor-reservation-detail-section">
-                      <small>Reservation note</small>
-                      <p>{focusedReservation.notes}</p>
-                    </div>
-                  )}
-                  <div className="floor-reservation-detail-section">
-                    <small>Service status</small>
-                    <div className="floor-status-actions">
-                      {SERVICE_STEPS.map((step) => (
-                        <button
-                          type="button"
-                          key={step.value}
-                          className={focusedReservation.status === step.value ? "active" : ""}
+                      <button type="button" className="floor-dock-close" onClick={closeReservationDetails} aria-label="Close reservation details"><X aria-hidden="true" /></button>
+                    </header>
+                    <div className="floor-reservation-edit-grid">
+                      <label className="floor-reservation-detail-wide">
+                        Guest name
+                        <input
+                          type="text"
+                          value={reservationEditDraft.guestName}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, guestName: event.target.value }))}
+                          maxLength={180}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Time
+                        <input
+                          type="time"
+                          step={900}
+                          value={reservationEditDraft.startTime}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, startTime: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Party size
+                        <input
+                          type="number"
+                          min={1}
+                          max={40}
+                          value={reservationEditDraft.partySize}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, partySize: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label>
+                        Expected turn (minutes)
+                        <input
+                          type="number"
+                          min={15}
+                          max={360}
+                          step={15}
+                          value={reservationEditDraft.durationMinutes}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, durationMinutes: event.target.value }))}
+                          required
+                        />
+                      </label>
+                      <label className="floor-reservation-status-select">
+                        Status
+                        <select
+                          value={reservationEditDraft.status}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, status: event.target.value as ServiceStatus }))}
                           disabled={saving || !liveService}
-                          onClick={() => void updateReservation(focusedReservation, { status: step.value })}
                         >
-                          {step.label}
-                        </button>
-                      ))}
+                          {RESERVATION_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="floor-reservation-table-edit floor-reservation-detail-wide">
+                        <span>
+                          <small>{focusedReservation.table_names.length > 1 ? "Tables" : "Table"}</small>
+                          <strong>{(focusedReservation.table_names.length ? focusedReservation.table_names : [focusedReservation.table_name]).join(" + ") || "Unassigned"}</strong>
+                        </span>
+                        <button type="button" onClick={() => beginTableReassignment(focusedReservation)}>Reassign tables</button>
+                      </div>
+                      <label className="floor-reservation-detail-wide">
+                        Tags
+                        <input
+                          type="text"
+                          value={reservationEditDraft.tags}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, tags: event.target.value }))}
+                          placeholder="VIP, Birthday, Accessibility"
+                        />
+                      </label>
+                      <label className="floor-reservation-detail-wide">
+                        Reservation note
+                        <textarea
+                          rows={5}
+                          value={reservationEditDraft.notes}
+                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, notes: event.target.value }))}
+                          maxLength={5000}
+                        />
+                      </label>
                     </div>
-                  </div>
+                    <footer className="floor-reservation-detail-actions">
+                      <button type="button" onClick={closeReservationDetails}>Cancel</button>
+                      <button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+                    </footer>
+                  </form>
                 </aside>
               )}
             </section>

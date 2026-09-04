@@ -123,6 +123,11 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 12, seated: 0 } },
   }));
+  let savedUpdate: Record<string, unknown> | null = null;
+  await page.route("**/api/grid/reservations/102", async (route) => {
+    savedUpdate = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { ...reservation, ...savedUpdate } });
+  });
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
   const assignment = page.getByRole("button", {
@@ -135,13 +140,36 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   }).click();
   const details = page.getByRole("complementary", { name: "Reservation details for Large Assignment" });
   await expect(details).toBeVisible();
-  await expect(details).toContainText("12 guests");
-  await expect(details).toContainText("1:30");
+  const floorPanel = page.getByRole("region", { name: "Restaurant floor plan" });
+  const [detailsBox, floorBox] = await Promise.all([details.evaluate((element) => element.getBoundingClientRect().width), floorPanel.evaluate((element) => element.getBoundingClientRect().width)]);
+  expect(Math.abs(detailsBox - floorBox)).toBeLessThan(2);
+  await expect(details.getByLabel("Guest name")).toHaveValue("Large Assignment");
+  await expect(details.getByLabel("Party size")).toHaveValue("12");
+  await expect(details.getByLabel("Time")).toHaveValue("17:00");
+  await expect(details.getByLabel("Expected turn (minutes)")).toHaveValue("90");
+  await expect(details.getByLabel("Status")).toHaveValue("confirmed");
   await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
-  await expect(details).toContainText("VIP");
-  await expect(details).toContainText("Birthday");
-  await expect(details).toContainText("Window table if possible.");
+  await expect(details.getByLabel("Tags")).toHaveValue("VIP, Birthday");
+  await expect(details.getByLabel("Reservation note")).toHaveValue("Window table if possible.");
   expect(await details.evaluate((element) => getComputedStyle(element).animationName)).toBe("floor-reservation-detail-slide-in");
+
+  await details.getByLabel("Guest name").fill("Updated Assignment");
+  await details.getByLabel("Party size").fill("10");
+  await details.getByLabel("Time").fill("18:15");
+  await details.getByLabel("Expected turn (minutes)").fill("120");
+  await details.getByLabel("Status").selectOption("seated");
+  await details.getByLabel("Tags").fill("VIP, Anniversary");
+  await details.getByLabel("Reservation note").fill("Updated reservation note.");
+  await details.getByRole("button", { name: "Save changes" }).click();
+  expect(savedUpdate).toEqual({
+    guest_name: "Updated Assignment",
+    party_size: 10,
+    start_time: "18:15",
+    duration_minutes: 120,
+    notes: "Updated reservation note.",
+    tags: ["VIP", "Anniversary"],
+    status: "seated",
+  });
   await details.getByRole("button", { name: "Close reservation details" }).click();
   await expect(details).toHaveCount(0);
 });
