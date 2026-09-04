@@ -130,6 +130,17 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   });
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  const workspace = page.locator(".floor-service-layout");
+  const workspaceStyle = await workspace.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { borderWidth: style.borderTopWidth, borderRadius: style.borderRadius, boxShadow: style.boxShadow };
+  });
+  expect(workspaceStyle).toEqual({ borderWidth: "0px", borderRadius: "0px", boxShadow: "none" });
+  const [workspaceWidth, pageWidth] = await Promise.all([
+    workspace.evaluate((element) => element.getBoundingClientRect().width),
+    page.locator(".floor-page").evaluate((element) => element.getBoundingClientRect().width),
+  ]);
+  expect(Math.abs(workspaceWidth - pageWidth)).toBeLessThan(2);
   const assignment = page.getByRole("button", {
     name: "Reassign Large Assignment from Tables 16, 12, 14, 10, 15, 11",
   });
