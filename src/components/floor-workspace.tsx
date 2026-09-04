@@ -167,6 +167,11 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+function displayTableAssignment(tableNames: string[]) {
+  if (tableNames.length <= 3) return tableNames.join("+");
+  return `${tableNames[0]} +${tableNames.length - 1}`;
+}
+
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
@@ -1510,7 +1515,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           aria-label={`Reassign ${reservation.guest_name} from ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
                         >
                           <small>{reservation.table_names.length > 1 ? "Tables" : "Table"}</small>
-                          <strong>{(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join("+")}</strong>
+                          <strong>{displayTableAssignment(reservation.table_names.length ? reservation.table_names : [reservation.table_name])}</strong>
                         </button>
                       )}
                       {liveService && <GripVertical className="floor-reservation-move-indicator" aria-hidden="true" />}
