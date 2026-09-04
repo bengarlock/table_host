@@ -695,6 +695,7 @@ export function BookingWizard({
                       min={9}
                       max={MAX_PARTY_SIZE}
                       inputMode="numeric"
+                      placeholder="9"
                       value={partySizeInput}
                       aria-labelledby="manual-party-size-label"
                       aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > MAX_PARTY_SIZE}

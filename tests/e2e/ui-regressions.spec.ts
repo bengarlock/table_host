@@ -174,6 +174,7 @@ test("booking restores time selection before optional table assignment", async (
   await expect(manualPartySize).toHaveValue("9");
   await manualPartySize.click();
   await expect(manualPartySize).toHaveValue("");
+  await expect(manualPartySize).toHaveAttribute("placeholder", "9");
   await manualPartySize.fill("12");
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("12 guests");
   await page.getByRole("button", { name: "4", exact: true }).click();
