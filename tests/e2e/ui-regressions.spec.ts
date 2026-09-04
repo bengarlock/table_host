@@ -115,7 +115,7 @@ for (const futureDate of [true, false]) {
 test("large table assignments use a condensed reservation-card label", async ({ page }) => {
   const reservation = {
     id: 102, table_id: 1, table_name: "10", table_ids: [1],
-    table_names: ["10", "11", "12", "14", "15", "16"],
+    table_names: ["16", "12", "14", "10", "15", "11"],
     guest_name: "Large Assignment", party_size: 12, start_time: "17:00", duration_minutes: 90,
     status: "confirmed", assignment_type: "soft", guest_tags: [], tags: [], notes: "",
   };
@@ -125,10 +125,9 @@ test("large table assignments use a condensed reservation-card label", async ({ 
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
   const assignment = page.getByRole("button", {
-    name: "Reassign Large Assignment from Tables 10, 11, 12, 14, 15, 16",
+    name: "Reassign Large Assignment from Tables 16, 12, 14, 10, 15, 11",
   });
-  await expect(assignment).toContainText("10 + 5 more");
-  await expect(assignment).not.toContainText("10+11+12+14+15+16");
+  await expect(assignment.locator("strong")).toHaveText("10+");
 });
 
 async function mockAvailability(page: Page) {

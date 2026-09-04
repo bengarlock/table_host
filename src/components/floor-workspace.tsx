@@ -169,7 +169,10 @@ function displayTime(time: string) {
 
 function displayTableAssignment(tableNames: string[]) {
   if (tableNames.length <= 3) return tableNames.join("+");
-  return `${tableNames[0]} + ${tableNames.length - 1} more`;
+  const lowestTableNumber = [...tableNames].sort((left, right) => (
+    left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" })
+  ))[0];
+  return `${lowestTableNumber}+`;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
