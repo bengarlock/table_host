@@ -117,7 +117,8 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     id: 102, table_id: 1, table_name: "10", table_ids: [1],
     table_names: ["16", "12", "14", "10", "15", "11"],
     guest_name: "Large Assignment", party_size: 12, start_time: "17:00", duration_minutes: 90,
-    status: "confirmed", assignment_type: "soft", guest_tags: [], tags: [], notes: "",
+    status: "confirmed", assignment_type: "soft", guest_tags: [], tags: ["VIP", "Birthday"],
+    notes: "Window table if possible.",
   };
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 12, seated: 0 } },
@@ -128,6 +129,21 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     name: "Reassign Large Assignment from Tables 16, 12, 14, 10, 15, 11",
   });
   await expect(assignment.locator("strong")).toHaveText("10+");
+
+  await page.getByRole("button", {
+    name: "5:00 PM, Large Assignment, party of 12, assigned to Tables 16, 12, 14, 10, 15, 11",
+  }).click();
+  const details = page.getByRole("complementary", { name: "Reservation details for Large Assignment" });
+  await expect(details).toBeVisible();
+  await expect(details).toContainText("12 guests");
+  await expect(details).toContainText("1:30");
+  await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
+  await expect(details).toContainText("VIP");
+  await expect(details).toContainText("Birthday");
+  await expect(details).toContainText("Window table if possible.");
+  expect(await details.evaluate((element) => getComputedStyle(element).animationName)).toBe("floor-reservation-detail-slide-in");
+  await details.getByRole("button", { name: "Close reservation details" }).click();
+  await expect(details).toHaveCount(0);
 });
 
 async function mockAvailability(page: Page) {

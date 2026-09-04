@@ -554,7 +554,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   );
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
-  const focusedReservation = activeReservations.find((item) => item.id === focusedReservationId) || null;
+  const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const liveService = hydrated && serviceDate === data?.current_service_date;
   const displayedTables = editingFloor ? editedTables : data?.tables || [];
@@ -1485,6 +1485,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       onClick={() => {
                         if (!seatingMode) {
                           setSelectedPendingId((current) => current === reservation.id ? null : reservation.id);
+                          setFocusedReservationId(reservation.id);
                         }
                       }}
                       aria-label={reservation.is_unassigned
@@ -1892,27 +1893,55 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               </div>
 
               {focusedReservation && (
-                <div className="floor-status-dock" aria-label={`Update ${focusedReservation.guest_name}`}>
-                  <button type="button" className="floor-dock-close" onClick={() => setFocusedReservationId(null)} aria-label="Close table details"><X aria-hidden="true" /></button>
-                  <div>
-                    <span>{focusedReservation.table_names.length > 1 ? "Tables" : "Table"} {(focusedReservation.table_names.length ? focusedReservation.table_names : [focusedReservation.table_name]).join(" + ")}</span>
-                    <strong>{focusedReservation.guest_name}</strong>
-                    <small>{displayTime(focusedReservation.start_time)} · Party of {focusedReservation.party_size}</small>
+                <aside className="floor-reservation-detail-card" aria-label={`Reservation details for ${focusedReservation.guest_name}`}>
+                  <header>
+                    <div>
+                      <span>Reservation details</span>
+                      <h2>{focusedReservation.guest_name}</h2>
+                    </div>
+                    <button type="button" className="floor-dock-close" onClick={() => setFocusedReservationId(null)} aria-label="Close reservation details"><X aria-hidden="true" /></button>
+                  </header>
+                  <div className="floor-reservation-detail-grid">
+                    <div><small>Time</small><strong>{displayTime(focusedReservation.start_time)}</strong></div>
+                    <div><small>Party size</small><strong>{focusedReservation.party_size} guests</strong></div>
+                    <div><small>Expected turn</small><strong>{formatTurnTime(focusedReservation.duration_minutes)}</strong></div>
+                    <div><small>Status</small><strong>{statusLabel(focusedReservation.status)}</strong></div>
+                    <div className="floor-reservation-detail-wide">
+                      <small>{focusedReservation.table_names.length > 1 ? "Tables" : "Table"}</small>
+                      <strong>{(focusedReservation.table_names.length ? focusedReservation.table_names : [focusedReservation.table_name]).join(" + ") || "Unassigned"}</strong>
+                    </div>
                   </div>
-                  <div className="floor-status-actions">
-                    {SERVICE_STEPS.map((step) => (
-                      <button
-                        type="button"
-                        key={step.value}
-                        className={focusedReservation.status === step.value ? "active" : ""}
-                        disabled={saving || !liveService}
-                        onClick={() => void updateReservation(focusedReservation, { status: step.value })}
-                      >
-                        {step.label}
-                      </button>
-                    ))}
+                  {focusedReservation.tags.length > 0 && (
+                    <div className="floor-reservation-detail-section">
+                      <small>Tags</small>
+                      <div className="floor-reservation-detail-tags">
+                        {focusedReservation.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {focusedReservation.notes && (
+                    <div className="floor-reservation-detail-section">
+                      <small>Reservation note</small>
+                      <p>{focusedReservation.notes}</p>
+                    </div>
+                  )}
+                  <div className="floor-reservation-detail-section">
+                    <small>Service status</small>
+                    <div className="floor-status-actions">
+                      {SERVICE_STEPS.map((step) => (
+                        <button
+                          type="button"
+                          key={step.value}
+                          className={focusedReservation.status === step.value ? "active" : ""}
+                          disabled={saving || !liveService}
+                          onClick={() => void updateReservation(focusedReservation, { status: step.value })}
+                        >
+                          {step.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </aside>
               )}
             </section>
           </div>
