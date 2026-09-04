@@ -1,6 +1,6 @@
 "use client";
 
-import { Armchair, BookOpenText, CalendarPlus2, ContactRound } from "lucide-react";
+import { Armchair, BookOpenText, CalendarPlus2, ContactRound, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -15,6 +15,7 @@ export function AppSidebar({ onNavigateAttempt }: AppSidebarProps) {
   const pathname = usePathname();
   const bookingPageActive = pathname === "/reservations/book";
   const reservationsPageActive = pathname === "/reservations";
+  const settingsPageActive = pathname.startsWith("/settings");
 
   function navigationAllowed() {
     return onNavigateAttempt?.() ?? true;
@@ -84,6 +85,18 @@ export function AppSidebar({ onNavigateAttempt }: AppSidebarProps) {
               data-tooltip="Guests"
             >
               <ContactRound className="nav-icon" aria-hidden="true" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              className="nav-link"
+              href="/settings"
+              onClick={guardNavigation}
+              aria-label="Settings"
+              aria-current={settingsPageActive ? "page" : undefined}
+              data-tooltip="Settings"
+            >
+              <Settings className="nav-icon" aria-hidden="true" />
             </Link>
           </li>
         </ul>
