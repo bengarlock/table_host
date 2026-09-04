@@ -252,9 +252,9 @@ export function BookingWizard({
   function stageIsFilled(stage: number) {
     if (stage === 1) return Boolean(serviceDate);
     if (stage === 2) return partySize > 0 && durationMinutes > 0;
-    if (stage === 3) return Boolean(selectedOption && selectedTableIds.length);
-    if (stage === 4) return Boolean(selectedOption && selectedTableIds.length && selectedGuest);
-    return Boolean(selectedOption && selectedTableIds.length && selectedGuest);
+    if (stage === 3) return Boolean(selectedOption);
+    if (stage === 4) return Boolean(selectedOption && selectedGuest);
+    return Boolean(selectedOption && selectedGuest);
   }
 
   function stageValue(stage: number) {
@@ -344,10 +344,48 @@ export function BookingWizard({
     const selectedCapacity = assignmentGrid?.tables
       .filter((table) => assignmentDraftTableIds.includes(table.id))
       .reduce((total, table) => total + table.capacity, 0) || 0;
-    if (!assignmentDraftTableIds.length || selectedCapacity < partySize) return;
+    if (assignmentDraftTableIds.length && selectedCapacity < partySize) return;
     setSelectedTableIds(assignmentDraftTableIds);
     setTablePickerOpen(false);
     advanceTo(selectedGuest ? 5 : 4);
+  }
+
+  async function continueWithoutTableAssignment() {
+    if (!stageIsFilled(2) || assignmentLoading) return;
+    const shift = shifts.find((item) => item.slug === selectedShiftSlug);
+    if (!shift) return;
+
+    setAssignmentLoading(true);
+    setError("");
+    const availabilityQuery = new URLSearchParams({
+      service_date: serviceDate,
+      desired_time: shift.start_time,
+      party_size: String(partySize),
+      duration_minutes: String(durationMinutes),
+    });
+    try {
+      const response = await fetch(`${appPath("/api/grid/availability")}?${availabilityQuery}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      const shiftOptions = (payload as AvailabilityResponse).options.filter(
+        (option) => option.shift_slug === shift.slug,
+      );
+      const nextOption = shiftOptions.find((option) => option.available) || shiftOptions[0];
+      if (!nextOption) throw new Error("No reservation times are configured for this shift.");
+
+      setOptions(shiftOptions);
+      setSelectedOption(nextOption);
+      setSelectedTableIds([]);
+      setAssignmentDraftTableIds([]);
+      setTablePickerOpen(false);
+      advanceTo(4);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load reservation times.");
+    } finally {
+      setAssignmentLoading(false);
+    }
   }
 
   function updatePartySize(nextSize: number) {
@@ -496,7 +534,7 @@ export function BookingWizard({
 
   async function bookReservation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedOption || !selectedTableIds.length || !selectedGuest) return;
+    if (!selectedOption || !selectedGuest) return;
     setLoading(true);
     setError("");
     try {
@@ -506,9 +544,13 @@ export function BookingWizard({
         body: JSON.stringify({
           service_date: serviceDate,
           shift_slug: selectedOption.shift_slug,
-          table_id: selectedTableIds[0],
-          table_ids: selectedTableIds,
-          assignment_type: "hard",
+          ...(selectedTableIds.length ? {
+            table_id: selectedTableIds[0],
+            table_ids: selectedTableIds,
+            assignment_type: "hard",
+          } : {
+            assignment_type: "soft",
+          }),
           guest_id: selectedGuest.id,
           guest_notes: guestDetails.guestNotes,
           guest_tags: guestTags,
@@ -695,8 +737,9 @@ export function BookingWizard({
               <button
                 type="button"
                 className="party-assign-tables-action"
-                onClick={() => void loadAssignmentContext(selectedShiftSlug, true)}
-                disabled={assignmentLoading || !stageIsFilled(2)}
+                onClick={() => {
+                  if (!assignmentLoading) void loadAssignmentContext(selectedShiftSlug, true);
+                }}
               >
                 {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <LayoutGrid aria-hidden="true" />}
                 {assignmentLoading ? "Loading floor…" : "Assign Tables"}
@@ -785,7 +828,7 @@ export function BookingWizard({
 
           {step === 5 && selectedOption && selectedGuest && (
             <form {...IGNORE_AUTOFILL} id="booking-details-form" className="wizard-step" onSubmit={bookReservation}>
-              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · Table{selectedTableIds.length === 1 ? "" : "s"} {assignmentGrid?.tables.filter((table) => selectedTableIds.includes(table.id)).map((table) => table.name).join(" + ")}</p></div></div>
+              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · {selectedTableIds.length ? `Table${selectedTableIds.length === 1 ? "" : "s"} ${assignmentGrid?.tables.filter((table) => selectedTableIds.includes(table.id)).map((table) => table.name).join(" + ")}` : "No tables assigned"}</p></div></div>
               <div className="details-guest-summary">
                 <span className="guest-result-avatar" aria-hidden="true">{selectedGuest.first_name.slice(0, 1)}{selectedGuest.last_name.slice(0, 1)}</span>
                 <div><strong>{selectedGuest.full_name}</strong><small>{[selectedGuest.company, selectedGuest.phone_number, selectedGuest.email].filter(Boolean).join(" · ")}</small></div>
@@ -828,6 +871,7 @@ export function BookingWizard({
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value === 4 ? 2 : value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && <button type="button" className="wizard-next" onClick={() => void continueWithoutTableAssignment()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
