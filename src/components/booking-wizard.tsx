@@ -182,9 +182,7 @@ export function BookingWizard({
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(false);
   const [reservationTags, setReservationTags] = useState<string[]>([]);
-  const [customReservationTag, setCustomReservationTag] = useState("");
   const [guestTags, setGuestTags] = useState<string[]>([]);
-  const [customGuestTag, setCustomGuestTag] = useState("");
   const [selectedGuest, setSelectedGuest] = useState<GuestRecord | null>(null);
   const [guestQuery, setGuestQuery] = useState("");
   const [guestResults, setGuestResults] = useState<GuestRecord[]>([]);
@@ -443,18 +441,6 @@ export function BookingWizard({
     setGuestTags((current) =>
       current.includes(value) ? current.filter((tag) => tag !== value) : [...current, value],
     );
-  }
-
-  function addCustomReservationTag() {
-    const value = customReservationTag.trim();
-    if (value && !reservationTags.includes(value)) setReservationTags((current) => [...current, value]);
-    setCustomReservationTag("");
-  }
-
-  function addCustomGuestTag() {
-    const value = customGuestTag.trim();
-    if (value && !guestTags.includes(value)) setGuestTags((current) => [...current, value]);
-    setCustomGuestTag("");
   }
 
   function chooseGuest(guest: GuestRecord) {
@@ -852,29 +838,27 @@ export function BookingWizard({
               <div className="booking-detail-sections">
                 <section className="booking-detail-section reservation-detail-section" aria-labelledby="reservation-detail-heading">
                   <div className="booking-detail-section-heading"><Tag aria-hidden="true" /><div><h4 id="reservation-detail-heading">This reservation</h4><p>Saved only for this visit.</p></div></div>
-                  <div className="wizard-fields">
-                    <label>Reservation notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
-                  </div>
                   <fieldset className="tag-picker">
                     <legend>Reservation tags</legend>
                     <div className="tag-options">
                       {RESERVATION_TAGS.map((tag) => <button type="button" key={tag} className={reservationTags.includes(tag) ? "selected" : ""} onClick={() => toggleReservationTag(tag)}>{reservationTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
                     </div>
-                    <div className="custom-tag"><input {...IGNORE_AUTOFILL} value={customReservationTag} onChange={(event) => setCustomReservationTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomReservationTag(); } }} placeholder="Add a reservation tag" /><button type="button" onClick={addCustomReservationTag} disabled={!customReservationTag.trim()}>Add</button></div>
                   </fieldset>
+                  <div className="wizard-fields">
+                    <label>Reservation notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={2} placeholder="Occasion, seating request, accessibility…" value={guestDetails.reservationNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, reservationNotes: event.target.value }))} /></label>
+                  </div>
                 </section>
                 <section className="booking-detail-section guest-detail-section" aria-labelledby="guest-detail-heading">
                   <div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h4 id="guest-detail-heading">Guest profile</h4><p>Persists for this guest on future visits.</p></div></div>
-                  <div className="wizard-fields">
-                    <label>Guest notes<textarea {...IGNORE_AUTOFILL} name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
-                  </div>
                   <fieldset className="tag-picker">
                     <legend>Guest tags</legend>
                     <div className="tag-options">
                       {GUEST_TAGS.map((tag) => <button type="button" key={tag} className={guestTags.includes(tag) ? "selected" : ""} onClick={() => toggleGuestTag(tag)}>{guestTags.includes(tag) && <Check aria-hidden="true" />}{tag}</button>)}
                     </div>
-                    <div className="custom-tag"><input {...IGNORE_AUTOFILL} value={customGuestTag} onChange={(event) => setCustomGuestTag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomGuestTag(); } }} placeholder="Add a guest tag" /><button type="button" onClick={addCustomGuestTag} disabled={!customGuestTag.trim()}>Add</button></div>
                   </fieldset>
+                  <div className="wizard-fields">
+                    <label>Guest notes<textarea {...IGNORE_AUTOFILL} name="guest_notes" rows={2} placeholder="Preferences to remember for future visits…" value={guestDetails.guestNotes} onChange={(event) => setGuestDetails((current) => ({ ...current, guestNotes: event.target.value }))} /></label>
+                  </div>
                 </section>
               </div>
             </form>
