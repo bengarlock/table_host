@@ -204,6 +204,11 @@ test("oversized parties warn but can continue to time selection", async ({ page 
 
   await expect(page.getByText("This party exceeds the floor capacity")).toBeVisible();
   await expect(page.getByText("200 guests requested · 4 covers available. You can continue and overbook.")).toBeVisible();
+  const expectedTurnBounds = await page.locator(".turn-time-field").boundingBox();
+  const warningBounds = await page.locator(".booking-capacity-warning").boundingBox();
+  expect(expectedTurnBounds).not.toBeNull();
+  expect(warningBounds).not.toBeNull();
+  expect(warningBounds!.y).toBeGreaterThanOrEqual(expectedTurnBounds!.y + expectedTurnBounds!.height);
   await expect(page.locator(".wizard-progress li").nth(2)).toHaveClass(/capacity-warning/);
   await expect(page.locator(".wizard-progress li").nth(2)).toHaveCSS("color", "rgb(255, 131, 120)");
 

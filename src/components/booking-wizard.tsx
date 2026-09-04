@@ -713,12 +713,6 @@ export function BookingWizard({
                   <span className="party-size-manual-hint">9 or more guests</span>
                 </div>
               </div>
-              {partyExceedsFloorCapacity && (
-                <div className="booking-capacity-warning" role="status">
-                  <AlertTriangle aria-hidden="true" />
-                  <div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div>
-                </div>
-              )}
               <div className="turn-time-field">
                 <span id="expected-turn-time-label">Expected turn</span>
                 <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
@@ -755,6 +749,12 @@ export function BookingWizard({
                 </div>
                 <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
               </div>
+              {partyExceedsFloorCapacity && (
+                <div className="booking-capacity-warning" role="status">
+                  <AlertTriangle aria-hidden="true" />
+                  <div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div>
+                </div>
+              )}
             </div>
           )}
 
