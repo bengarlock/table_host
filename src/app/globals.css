@@ -1740,32 +1740,83 @@ textarea {
 
 .party-size-manual {
   display: grid;
-  grid-template-columns: 1fr 92px;
-  align-items: center;
-  gap: 7px 12px;
-  width: min(100%, 260px);
+  gap: 8px;
+  width: min(100%, 320px);
   margin: 0 auto;
 }
 
-.party-size-manual input {
-  width: 100%;
-  padding: 10px 12px;
+.party-size-manual-control {
+  display: grid;
+  grid-template-columns: 56px minmax(96px, 1fr) 56px;
+  gap: 8px;
+}
+
+.party-size-manual-control button,
+.party-size-manual-control input {
+  height: 56px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: 10px;
   background: #111411;
   color: var(--text);
-  font-size: 0.76rem;
+}
+
+.party-size-manual-control button {
+  display: grid;
+  min-width: 56px;
+  padding: 0;
+  cursor: pointer;
+  place-items: center;
+}
+
+.party-size-manual-control button:hover:not(:disabled),
+.party-size-manual-control button:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
   outline: none;
 }
 
-.party-size-manual input:focus {
+.party-size-manual-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.party-size-manual-control button svg {
+  width: 24px;
+  height: 24px;
+}
+
+.party-size-manual-control input {
+  width: 100%;
+  padding: 0 12px;
+  appearance: textfield;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  outline: none;
+  text-align: center;
+}
+
+.party-size-manual-control input::-webkit-inner-spin-button,
+.party-size-manual-control input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.party-size-manual-control input:focus {
   border-color: var(--accent);
 }
 
-.party-size-manual span {
-  grid-column: 2;
+.party-size-manual-control.selected input {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.party-size-manual-hint {
   color: var(--text-muted);
   font-size: 0.6rem;
+  text-align: center;
 }
 
 .turn-time-field {

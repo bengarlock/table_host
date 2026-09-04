@@ -7,7 +7,9 @@ import {
   Check,
   LoaderCircle,
   Mail,
+  Minus,
   Phone,
+  Plus,
   Search,
   Tag,
   Users,
@@ -159,7 +161,7 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [partySize, setPartySize] = useState(2);
-  const [partySizeInput, setPartySizeInput] = useState("2");
+  const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialDuration);
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
@@ -270,7 +272,6 @@ export function BookingWizard({
 
   function updatePartySize(nextSize: number) {
     const normalizedSize = Math.min(40, Math.max(1, Math.round(nextSize)));
-    setPartySizeInput(String(normalizedSize));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
     invalidateTimeSelection();
@@ -279,7 +280,7 @@ export function BookingWizard({
   function updateManualPartySize(value: string) {
     setPartySizeInput(value);
     const nextSize = Number(value);
-    if (!Number.isInteger(nextSize) || nextSize < 1 || nextSize > 40) {
+    if (!Number.isInteger(nextSize) || nextSize < 9 || nextSize > 40) {
       if (partySize !== 0) invalidateTimeSelection();
       setPartySize(0);
       return;
@@ -287,6 +288,12 @@ export function BookingWizard({
     if (nextSize === partySize) return;
     setPartySize(nextSize);
     invalidateTimeSelection();
+  }
+
+  function adjustManualPartySize(amount: number) {
+    const currentSize = Number(partySizeInput);
+    const startingSize = Number.isInteger(currentSize) ? currentSize : 9;
+    updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
   }
 
   async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
@@ -547,20 +554,40 @@ export function BookingWizard({
                   ))}
                 </div>
               </fieldset>
-              <label className="party-size-manual">
-                Enter party size
-                <input
-                  {...IGNORE_AUTOFILL}
-                  type="number"
-                  min={1}
-                  max={40}
-                  inputMode="numeric"
-                  value={partySizeInput}
-                  aria-invalid={!stageIsFilled(2)}
-                  onChange={(event) => updateManualPartySize(event.currentTarget.value)}
-                />
-                <span>1–40 guests</span>
-              </label>
+              <div className="party-size-manual">
+                <span id="manual-party-size-label">Enter party size</span>
+                <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
+                  <button
+                    type="button"
+                    aria-label="Decrease party size"
+                    onClick={() => adjustManualPartySize(-1)}
+                    disabled={Number(partySizeInput) <= 9}
+                  >
+                    <Minus aria-hidden="true" />
+                  </button>
+                  <input
+                    {...IGNORE_AUTOFILL}
+                    type="number"
+                    min={9}
+                    max={40}
+                    inputMode="numeric"
+                    value={partySizeInput}
+                    aria-labelledby="manual-party-size-label"
+                    aria-invalid={partySize >= 9 && !stageIsFilled(2)}
+                    onFocus={() => updateManualPartySize(partySizeInput)}
+                    onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase party size"
+                    onClick={() => adjustManualPartySize(1)}
+                    disabled={Number(partySizeInput) >= 40}
+                  >
+                    <Plus aria-hidden="true" />
+                  </button>
+                </div>
+                <span className="party-size-manual-hint">9–40 guests</span>
+              </div>
               <label className="turn-time-field">Expected turn<select {...IGNORE_AUTOFILL} value={durationMinutes} onChange={(event) => { setDurationMinutes(Number(event.target.value)); invalidateTimeSelection(); }}>
                 {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{value} minutes</option>)}
               </select></label>
