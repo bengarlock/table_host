@@ -58,6 +58,41 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+async function mockAvailability(page: Page) {
+  await page.route("**/api/grid/availability?*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        options: [
+          {
+            service_date: serviceDate,
+            shift_slug: shift.slug,
+            shift_name: shift.name,
+            start_time: "17:00",
+            table_id: 1,
+            table_name: "1",
+            table_capacity: 2,
+            available: true,
+            unavailable_reason: "",
+          },
+          {
+            service_date: serviceDate,
+            shift_slug: shift.slug,
+            shift_name: shift.name,
+            start_time: "17:30",
+            table_id: 2,
+            table_name: "2",
+            table_capacity: 2,
+            available: true,
+            unavailable_reason: "",
+          },
+        ],
+      }),
+    });
+  });
+}
+
 test("reservation navigation is not overwritten by a late grid response", async ({ page }) => {
   await mockGrid(page, 600);
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
@@ -118,4 +153,32 @@ test("floor changes can be undone and redone", async ({ page }) => {
   await expect(floorTables).toHaveCount(2);
   await redo.click();
   await expect(floorTables).toHaveCount(3);
+});
+
+test("booking restores time selection before optional table assignment", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+
+  await page.getByRole("button", { name: "Party size" }).click();
+  await expect(page.getByRole("button", { name: "Assign Tables" })).toHaveCount(0);
+  await page.locator("footer").getByRole("button", { name: "Time & tables" }).click();
+
+  await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
+  const assignTables = page.getByRole("button", { name: "Assign Tables" });
+  await expect(assignTables).toBeDisabled();
+
+  const selectedTime = page.getByRole("button", { name: /^5:30 PM,/ });
+  await selectedTime.click();
+  await expect(selectedTime).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".time-and-tables-selection strong")).toHaveText("5:30 PM");
+  await expect(assignTables).toBeEnabled();
+  await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
+
+  await assignTables.click();
+  await expect(page.getByRole("heading", { name: "Assign tables" })).toBeVisible();
+  await page.getByRole("button", { name: /^Table 1, 2 seats/ }).click();
+  await page.getByRole("button", { name: "Assign selected tables" }).click();
+  await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
+  await expect(page.locator(".time-and-tables-selection span")).toHaveText("1 table assigned");
 });

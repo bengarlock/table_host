@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Building2,
   Check,
+  Clock3,
   LayoutGrid,
   LoaderCircle,
   Mail,
@@ -124,6 +125,26 @@ function parseTurnTime(value: string) {
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function displayHour(time: string) {
+  const hour = Number(time.split(":")[0]);
+  return `${hour % 12 || 12} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function groupTimesByHour(options: AvailabilityOption[]) {
+  const groups = new Map<string, AvailabilityOption[]>();
+  [...options]
+    .sort((left, right) => left.start_time.localeCompare(right.start_time))
+    .forEach((option) => {
+      const hour = option.start_time.slice(0, 2);
+      groups.set(hour, [...(groups.get(hour) || []), option]);
+    });
+  return [...groups.entries()].map(([hour, hourOptions]) => ({
+    hour,
+    label: displayHour(`${hour}:00`),
+    options: hourOptions,
+  }));
 }
 
 function displayDateSummary(value: string) {
@@ -342,16 +363,23 @@ export function BookingWizard({
   function confirmTableAssignment() {
     setSelectedTableIds(assignmentDraftTableIds);
     setTablePickerOpen(false);
-    setStep(2);
+    setStep(3);
   }
 
-  async function continueWithoutTableAssignment() {
+  async function findTimes(shiftSlug = selectedShiftSlug) {
     if (!stageIsFilled(2) || assignmentLoading) return;
-    const shift = shifts.find((item) => item.slug === selectedShiftSlug);
+    const shift = shifts.find((item) => item.slug === shiftSlug);
     if (!shift) return;
 
     setAssignmentLoading(true);
     setError("");
+    setSelectedShiftSlug(shift.slug);
+    setSelectedOption(null);
+    setSelectedTableIds([]);
+    setAssignmentDraftTableIds([]);
+    setAssignmentGrid(null);
+    setTablePickerOpen(false);
+    setOptions([]);
     const availabilityQuery = new URLSearchParams({
       service_date: serviceDate,
       desired_time: shift.start_time,
@@ -367,15 +395,8 @@ export function BookingWizard({
       const shiftOptions = (payload as AvailabilityResponse).options.filter(
         (option) => option.shift_slug === shift.slug,
       );
-      const nextOption = shiftOptions.find((option) => option.available) || shiftOptions[0];
-      if (!nextOption) throw new Error("No reservation times are configured for this shift.");
-
       setOptions(shiftOptions);
-      setSelectedOption(nextOption);
-      setSelectedTableIds([]);
-      setAssignmentDraftTableIds([]);
-      setTablePickerOpen(false);
-      advanceTo(4);
+      advanceTo(3);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load reservation times.");
     } finally {
@@ -596,11 +617,6 @@ export function BookingWizard({
                   onClick={() => {
                     if (!navigable) return;
                     setError("");
-                    if (stage === 3) {
-                      setStep(2);
-                      void loadAssignmentContext(selectedShiftSlug, true);
-                      return;
-                    }
                     setStep(stage);
                   }}
                   disabled={!navigable}
@@ -728,16 +744,77 @@ export function BookingWizard({
                 </div>
                 <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
               </div>
-              <button
-                type="button"
-                className="party-assign-tables-action"
-                onClick={() => {
-                  if (!assignmentLoading) void loadAssignmentContext(selectedShiftSlug, true);
-                }}
-              >
-                {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <LayoutGrid aria-hidden="true" />}
-                {assignmentLoading ? "Loading floor…" : "Assign Tables"}
-              </button>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="wizard-step">
+              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Select a shift and time, then optionally assign tables before continuing.</p></div></div>
+              <div className="wizard-shift-picker" aria-label="Reservation shift">
+                {shifts.map((shift) => (
+                  <button
+                    type="button"
+                    key={shift.id}
+                    className={shift.slug === selectedShiftSlug ? "selected" : ""}
+                    aria-pressed={shift.slug === selectedShiftSlug}
+                    onClick={() => void findTimes(shift.slug)}
+                    disabled={assignmentLoading}
+                  >
+                    <strong>{shift.name}</strong>
+                    <span>{displayTime(shift.start_time)}–{displayTime(shift.end_time)}</span>
+                  </button>
+                ))}
+              </div>
+              {options.length ? (
+                <div className="available-time-columns" aria-label="Reservation times grouped by hour">
+                  {groupTimesByHour(options).map((group) => (
+                    <section className="available-hour-group" key={group.hour} aria-labelledby={`time-hour-${group.hour}`}>
+                      <h4 id={`time-hour-${group.hour}`}>{group.label}</h4>
+                      <div>
+                        {group.options.map((option) => {
+                          const optionKey = `${option.shift_slug}-${option.start_time}`;
+                          const selected = selectedOption?.shift_slug === option.shift_slug
+                            && selectedOption.start_time === option.start_time;
+                          return (
+                            <button
+                              type="button"
+                              key={optionKey}
+                              className={[option.available ? "" : "is-unavailable", selected ? "selected" : ""].filter(Boolean).join(" ")}
+                              aria-pressed={selected}
+                              aria-label={`${displayTime(option.start_time)}, ${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
+                              onClick={() => chooseTime(option)}
+                            >
+                              <strong>{displayTime(option.start_time)}</strong>
+                              <span>{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : assignmentLoading ? (
+                <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking this shift…</div>
+              ) : (
+                <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
+              )}
+              <div className="time-and-tables-selection">
+                <div>
+                  <strong>{selectedOption ? displayTime(selectedOption.start_time) : "Select a reservation time"}</strong>
+                  <span>{selectedTableIds.length ? `${selectedTableIds.length} table${selectedTableIds.length === 1 ? "" : "s"} assigned` : "Table assignment is optional"}</span>
+                </div>
+                <button
+                  type="button"
+                  className="time-assign-tables-action"
+                  onClick={() => {
+                    if (!assignmentLoading && selectedOption) void loadAssignmentContext(selectedShiftSlug, true);
+                  }}
+                  disabled={assignmentLoading || !selectedOption}
+                >
+                  {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <LayoutGrid aria-hidden="true" />}
+                  {assignmentLoading ? "Loading floor…" : "Assign Tables"}
+                </button>
+              </div>
             </div>
           )}
 
@@ -882,9 +959,10 @@ export function BookingWizard({
         </div>
 
         <footer className="wizard-footer">
-          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value === 4 ? 2 : value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
+          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className="wizard-next" onClick={() => void continueWithoutTableAssignment()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Guest <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && <button type="button" className="wizard-next" onClick={() => void findTimes()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Time &amp; tables <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && <button type="button" className="wizard-next" onClick={() => advanceTo(4)} disabled={!selectedOption}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>

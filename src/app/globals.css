@@ -2233,14 +2233,38 @@ textarea {
   border-color: #ff8059;
 }
 
-.party-assign-tables-action {
+.time-and-tables-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(14, 16, 14, 0.72);
+}
+
+.time-and-tables-selection > div {
+  display: grid;
+  gap: 4px;
+}
+
+.time-and-tables-selection strong {
+  font-size: 0.76rem;
+}
+
+.time-and-tables-selection span {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.time-assign-tables-action {
   display: inline-flex;
-  width: min(100%, 320px);
+  min-width: 168px;
   min-height: 52px;
   align-items: center;
   justify-content: center;
   gap: 9px;
-  margin: 4px auto 0;
   cursor: pointer;
   border: 1px solid #d3a45c;
   border-radius: 10px;
@@ -2251,18 +2275,18 @@ textarea {
   font-weight: 740;
 }
 
-.party-assign-tables-action:hover:not(:disabled),
-.party-assign-tables-action:focus-visible {
+.time-assign-tables-action:hover:not(:disabled),
+.time-assign-tables-action:focus-visible {
   background: #bc853b;
   outline: none;
 }
 
-.party-assign-tables-action:disabled {
+.time-assign-tables-action:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-.party-assign-tables-action svg {
+.time-assign-tables-action svg {
   width: 18px;
 }
 
@@ -5292,6 +5316,15 @@ textarea {
   .wizard-progress {
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .time-and-tables-selection {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .time-assign-tables-action {
+    width: 100%;
   }
 
   .wizard-progress li {
