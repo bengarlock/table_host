@@ -1712,11 +1712,22 @@ textarea {
   gap: 4px;
 }
 
+.party-size-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+}
+
 .party-size-picker {
   display: grid;
+  flex: 1 1 390px;
   gap: 9px;
-  width: min(100%, 520px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: 520px;
+  margin: 0;
   padding: 0;
   border: 0;
 }
@@ -1772,9 +1783,11 @@ textarea {
 
 .party-size-manual {
   display: grid;
+  flex: 1 1 250px;
   gap: 8px;
-  width: min(100%, 320px);
-  margin: 0 auto;
+  width: 100%;
+  max-width: 320px;
+  margin: 0;
 }
 
 .party-size-manual-control,

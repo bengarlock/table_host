@@ -644,55 +644,57 @@ export function BookingWizard({
           {step === 2 && (
             <div className="wizard-step">
               <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
-              <fieldset className="party-size-picker">
-                <legend>Quick select</legend>
-                <div className="party-size-options">
-                  {PARTY_SIZE_PRESETS.map((size) => (
+              <div className="party-size-fields">
+                <fieldset className="party-size-picker">
+                  <legend>Quick select</legend>
+                  <div className="party-size-options">
+                    {PARTY_SIZE_PRESETS.map((size) => (
+                      <button
+                        type="button"
+                        key={size}
+                        className={partySize === size ? "selected" : ""}
+                        aria-pressed={partySize === size}
+                        onClick={() => updatePartySize(size)}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="party-size-manual">
+                  <span id="manual-party-size-label">Enter party size</span>
+                  <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
                     <button
                       type="button"
-                      key={size}
-                      className={partySize === size ? "selected" : ""}
-                      aria-pressed={partySize === size}
-                      onClick={() => updatePartySize(size)}
+                      aria-label="Decrease party size"
+                      onClick={() => adjustManualPartySize(-1)}
+                      disabled={Number(partySizeInput) <= 1}
                     >
-                      {size}
+                      <Minus aria-hidden="true" />
                     </button>
-                  ))}
+                    <input
+                      {...IGNORE_AUTOFILL}
+                      type="number"
+                      min={1}
+                      max={40}
+                      inputMode="numeric"
+                      value={partySizeInput}
+                      aria-labelledby="manual-party-size-label"
+                      aria-invalid={partySize >= 9 && !stageIsFilled(2)}
+                      onFocus={() => updateManualPartySize(partySizeInput)}
+                      onChange={(event) => updateManualPartySize(event.currentTarget.value)}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Increase party size"
+                      onClick={() => adjustManualPartySize(1)}
+                      disabled={Number(partySizeInput) >= 40}
+                    >
+                      <Plus aria-hidden="true" />
+                    </button>
+                  </div>
+                  <span className="party-size-manual-hint">1–40 guests</span>
                 </div>
-              </fieldset>
-              <div className="party-size-manual">
-                <span id="manual-party-size-label">Enter party size</span>
-                <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
-                  <button
-                    type="button"
-                    aria-label="Decrease party size"
-                    onClick={() => adjustManualPartySize(-1)}
-                    disabled={Number(partySizeInput) <= 1}
-                  >
-                    <Minus aria-hidden="true" />
-                  </button>
-                  <input
-                    {...IGNORE_AUTOFILL}
-                    type="number"
-                    min={1}
-                    max={40}
-                    inputMode="numeric"
-                    value={partySizeInput}
-                    aria-labelledby="manual-party-size-label"
-                    aria-invalid={partySize >= 9 && !stageIsFilled(2)}
-                    onFocus={() => updateManualPartySize(partySizeInput)}
-                    onChange={(event) => updateManualPartySize(event.currentTarget.value)}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Increase party size"
-                    onClick={() => adjustManualPartySize(1)}
-                    disabled={Number(partySizeInput) >= 40}
-                  >
-                    <Plus aria-hidden="true" />
-                  </button>
-                </div>
-                <span className="party-size-manual-hint">1–40 guests</span>
               </div>
               <div className="turn-time-field">
                 <span id="expected-turn-time-label">Expected turn</span>
