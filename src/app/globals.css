@@ -4888,8 +4888,11 @@ textarea {
 }
 
 .floor-reservation-detail-card header {
+  position: relative;
   justify-content: space-between;
   gap: 18px;
+  min-height: 30px;
+  padding-left: 48px;
 }
 
 .floor-reservation-detail-card header span {
@@ -5044,6 +5047,9 @@ textarea {
 }
 
 .floor-dock-close {
+  position: absolute;
+  top: 0;
+  left: 0;
   flex: 0 0 auto;
 }
 
@@ -5663,10 +5669,6 @@ textarea {
   .floor-reservation-detail-card {
     width: 100%;
     padding: 18px;
-  }
-
-  .floor-dock-close {
-    position: static;
   }
 
   .floor-reservation-edit-grid {

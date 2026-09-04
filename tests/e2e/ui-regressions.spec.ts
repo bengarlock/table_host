@@ -180,6 +180,17 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   }).click();
   const details = page.getByRole("complementary", { name: "Reservation details for Large Assignment" });
   await expect(details).toBeVisible();
+  const [detailBounds, closeBounds, headingBounds] = await Promise.all([
+    details.boundingBox(),
+    details.getByRole("button", { name: "Close reservation details" }).boundingBox(),
+    details.getByRole("heading", { name: "Edit reservation" }).boundingBox(),
+  ]);
+  expect(detailBounds).not.toBeNull();
+  expect(closeBounds).not.toBeNull();
+  expect(headingBounds).not.toBeNull();
+  expect(closeBounds!.x - detailBounds!.x).toBeLessThan(60);
+  expect(closeBounds!.y - detailBounds!.y).toBeLessThan(60);
+  expect(closeBounds!.x + closeBounds!.width).toBeLessThanOrEqual(headingBounds!.x);
   const floorPanel = page.getByRole("region", { name: "Restaurant floor plan" });
   const [detailsBox, floorBox] = await Promise.all([details.evaluate((element) => element.getBoundingClientRect().width), floorPanel.evaluate((element) => element.getBoundingClientRect().width)]);
   expect(Math.abs(detailsBox - floorBox)).toBeLessThan(2);
