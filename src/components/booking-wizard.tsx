@@ -96,6 +96,19 @@ function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
 }
 
+function formatTurnTime(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${hours}:${String(minutes).padStart(2, "0")}`;
+}
+
+function parseTurnTime(value: string) {
+  const match = value.trim().match(/^(\d+):([0-5]\d)$/);
+  if (!match) return 0;
+  const duration = Number(match[1]) * 60 + Number(match[2]);
+  return duration >= 60 && duration % 15 === 0 ? duration : 0;
+}
+
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
@@ -168,7 +181,7 @@ export function BookingWizard({
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
-  const [turnTimeInput, setTurnTimeInput] = useState(String(initialTurnTime));
+  const [turnTimeInput, setTurnTimeInput] = useState(formatTurnTime(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
@@ -304,8 +317,8 @@ export function BookingWizard({
 
   function updateTurnTime(value: string) {
     setTurnTimeInput(value);
-    const nextDuration = Number(value);
-    if (!Number.isInteger(nextDuration) || nextDuration < 60 || nextDuration % 15 !== 0) {
+    const nextDuration = parseTurnTime(value);
+    if (!nextDuration) {
       setDurationMinutes(0);
       invalidateTimeSelection();
       return;
@@ -316,7 +329,7 @@ export function BookingWizard({
 
   function adjustTurnTime(amount: number) {
     const startingDuration = durationMinutes >= 60 ? durationMinutes : 60;
-    updateTurnTime(String(Math.max(60, startingDuration + amount)));
+    updateTurnTime(formatTurnTime(Math.max(60, startingDuration + amount)));
   }
 
   async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
@@ -624,14 +637,18 @@ export function BookingWizard({
                   </button>
                   <input
                     {...IGNORE_AUTOFILL}
-                    type="number"
-                    min={60}
-                    step={15}
-                    inputMode="numeric"
+                    type="text"
+                    inputMode="text"
+                    pattern="\d+:[0-5]\d"
+                    placeholder="1:00"
                     value={turnTimeInput}
                     aria-labelledby="expected-turn-time-label"
+                    aria-describedby="expected-turn-time-hint"
                     aria-invalid={durationMinutes === 0}
                     onChange={(event) => updateTurnTime(event.currentTarget.value)}
+                    onBlur={() => {
+                      if (durationMinutes >= 60) setTurnTimeInput(formatTurnTime(durationMinutes));
+                    }}
                   />
                   <button
                     type="button"
@@ -641,7 +658,7 @@ export function BookingWizard({
                     <Plus aria-hidden="true" />
                   </button>
                 </div>
-                <span className="turn-time-hint">60+ minutes, in 15-minute increments</span>
+                <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
               </div>
             </div>
           )}
