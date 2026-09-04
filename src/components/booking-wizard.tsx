@@ -91,7 +91,6 @@ type NewGuestFocus = "firstName" | "lastName" | "phone";
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
-const TURN_TIME_PRESETS = Array.from({ length: 11 }, (_, index) => 60 + index * 15);
 
 function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
@@ -169,7 +168,7 @@ export function BookingWizard({
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
-  const [customDurationInput, setCustomDurationInput] = useState(String(initialTurnTime));
+  const [turnTimeInput, setTurnTimeInput] = useState(String(initialTurnTime));
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [pendingOverbookKey, setPendingOverbookKey] = useState<string | null>(null);
@@ -303,14 +302,8 @@ export function BookingWizard({
     updateManualPartySize(String(Math.min(40, Math.max(9, startingSize + amount))));
   }
 
-  function updateTurnTime(value: number) {
-    setDurationMinutes(value);
-    setCustomDurationInput(String(value));
-    invalidateTimeSelection();
-  }
-
-  function updateCustomTurnTime(value: string) {
-    setCustomDurationInput(value);
+  function updateTurnTime(value: string) {
+    setTurnTimeInput(value);
     const nextDuration = Number(value);
     if (!Number.isInteger(nextDuration) || nextDuration < 60 || nextDuration % 15 !== 0) {
       setDurationMinutes(0);
@@ -319,6 +312,11 @@ export function BookingWizard({
     }
     setDurationMinutes(nextDuration);
     invalidateTimeSelection();
+  }
+
+  function adjustTurnTime(amount: number) {
+    const startingDuration = durationMinutes >= 60 ? durationMinutes : 60;
+    updateTurnTime(String(Math.max(60, startingDuration + amount)));
   }
 
   async function findTimes(shiftSlug = selectedShiftSlug, requestedPartySize = partySize) {
@@ -613,31 +611,38 @@ export function BookingWizard({
                 </div>
                 <span className="party-size-manual-hint">9–40 guests</span>
               </div>
-              <label className="turn-time-field">
-                Expected turn
-                <select
-                  {...IGNORE_AUTOFILL}
-                  value={TURN_TIME_PRESETS.includes(durationMinutes) ? String(durationMinutes) : "custom"}
-                  onChange={(event) => updateTurnTime(event.target.value === "custom" ? 225 : Number(event.target.value))}
-                >
-                  {TURN_TIME_PRESETS.map((value) => <option key={value} value={value}>{value} minutes</option>)}
-                  <option value="custom">More than 210 minutes…</option>
-                </select>
-              </label>
-              <label className="turn-time-custom">
-                Custom turn time
-                <input
-                  {...IGNORE_AUTOFILL}
-                  type="number"
-                  min={60}
-                  step={15}
-                  inputMode="numeric"
-                  value={customDurationInput}
-                  aria-invalid={durationMinutes === 0}
-                  onChange={(event) => updateCustomTurnTime(event.currentTarget.value)}
-                />
-                <span>60+ minutes, in 15-minute increments</span>
-              </label>
+              <div className="turn-time-field">
+                <span id="expected-turn-time-label">Expected turn</span>
+                <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
+                  <button
+                    type="button"
+                    aria-label="Decrease expected turn time by 15 minutes"
+                    onClick={() => adjustTurnTime(-15)}
+                    disabled={durationMinutes <= 60}
+                  >
+                    <Minus aria-hidden="true" />
+                  </button>
+                  <input
+                    {...IGNORE_AUTOFILL}
+                    type="number"
+                    min={60}
+                    step={15}
+                    inputMode="numeric"
+                    value={turnTimeInput}
+                    aria-labelledby="expected-turn-time-label"
+                    aria-invalid={durationMinutes === 0}
+                    onChange={(event) => updateTurnTime(event.currentTarget.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Increase expected turn time by 15 minutes"
+                    onClick={() => adjustTurnTime(15)}
+                  >
+                    <Plus aria-hidden="true" />
+                  </button>
+                </div>
+                <span className="turn-time-hint">60+ minutes, in 15-minute increments</span>
+              </div>
             </div>
           )}
 
