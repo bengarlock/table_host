@@ -6402,6 +6402,52 @@ textarea {
   align-self: end;
 }
 
+.floor-reservation-activity {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.floor-reservation-activity h3 {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.floor-reservation-activity p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.56rem;
+}
+
+.floor-reservation-activity ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.floor-reservation-activity li {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.floor-reservation-activity li span {
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.floor-reservation-activity time {
+  color: var(--text-muted);
+  font-size: 0.55rem;
+}
+
 .floor-reservation-detail-wide {
   grid-column: 1 / -1;
 }

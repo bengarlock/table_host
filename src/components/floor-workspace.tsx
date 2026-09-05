@@ -151,6 +151,12 @@ type ReservationEditDraft = {
   guestNotes: string;
 };
 
+type ReservationActivity = {
+  id: number;
+  summary: string;
+  created_at: string;
+};
+
 type ReservationUpdate = {
   table_id?: number;
   table_ids?: number[];
@@ -620,6 +626,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
   const [reservationDetailClosing, setReservationDetailClosing] = useState(false);
+  const [activityEvents, setActivityEvents] = useState<ReservationActivity[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const viewMenuRef = useRef<HTMLDetailsElement>(null);
   const reservationDetailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -948,6 +956,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
     setReservationDetailClosing(false);
     setFocusedReservationId(reservation.id);
+    setActivityEvents([]);
+    void loadReservationActivity(reservation.id);
     setReservationEditDraft({
       guestName: reservation.guest_name,
       partySize: String(reservation.party_size),
@@ -959,6 +969,23 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       reservationNotes: reservation.notes || "",
       guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
     });
+  }
+
+  async function loadReservationActivity(reservationId: number) {
+    setActivityLoading(true);
+    try {
+      const response = await fetch(appPath(`/api/grid/reservations/${reservationId}/history`), {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as ReservationActivity[] | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      setActivityEvents(payload as ReservationActivity[]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load reservation activity.");
+      setActivityEvents([]);
+    } finally {
+      setActivityLoading(false);
+    }
   }
 
   function setReservationPartySize(value: number | string) {
@@ -1655,6 +1682,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       if (updates.status === "complete") closeReservationDetails();
       setSelectedPendingId(null);
       await loadFloor();
+      if (focusedReservationId === reservation.id) void loadReservationActivity(reservation.id);
       return true;
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
@@ -2585,6 +2613,23 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           </div>
                         </fieldset>
                         <label>Guest notes<textarea rows={4} value={reservationEditDraft.guestNotes} onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, guestNotes: event.target.value }))} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label>
+                      </section>
+                      <section className="floor-reservation-activity floor-reservation-detail-wide" aria-label="Reservation activity history">
+                        <div className="booking-detail-section-heading"><Clock3 aria-hidden="true" /><div><h3>Activity history</h3><p>Every booking, change, move, and status update.</p></div></div>
+                        {activityLoading ? (
+                          <p>Loading history…</p>
+                        ) : activityEvents.length ? (
+                          <ol>
+                            {activityEvents.map((activity) => (
+                              <li key={activity.id}>
+                                <span>{activity.summary}</span>
+                                <time dateTime={activity.created_at}>{new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(activity.created_at))}</time>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p>No activity recorded yet.</p>
+                        )}
                       </section>
                     </div>
                     <footer className="floor-reservation-detail-actions">
