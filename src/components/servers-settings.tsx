@@ -6,7 +6,17 @@ import { appPath } from "@/lib/app-paths";
 
 type Server = { id: number; name: string; color: string };
 type Section = { id: number; name: string; table_ids: number[] };
-type Table = { id: number; name: string; capacity: number };
+type Table = {
+  id: number;
+  name: string;
+  capacity: number;
+  shape: "rectangle" | "round";
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  rotation: number;
+};
 
 const SERVER_COLORS = ["#D95763", "#DB8A35", "#D3AD35", "#5B9C69", "#3C8FA8", "#6475C4", "#9960BC", "#B65A94"];
 
@@ -123,14 +133,18 @@ export function ServersSettings() {
         </article>
 
         <article className="servers-card">
-          <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Group tables now; assign a server during each shift.</p></div></div>
+          <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
           <form className="server-form" onSubmit={(event) => void addSection(event)}>
-            <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Patio" required /></label>
-            <fieldset className="section-table-picker"><legend>Tables in this section</legend>{tables.length ? <div>{tables.map((table) => <label key={table.id}><input type="checkbox" checked={sectionTableIds.includes(table.id)} onChange={() => toggleTable(table.id)} /><span>{table.name}</span></label>)}</div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
-            <button className="servers-add-button" type="submit" disabled={saving}><Plus aria-hidden="true" /> Add section</button>
+            <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
+            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection">{tables.map((table) => {
+              const selected = sectionTableIds.includes(table.id);
+              return <button key={table.id} type="button" className={`section-floor-table ${table.shape}${selected ? " selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, transform: `translate(-50%, -50%) rotate(${table.rotation}deg)` }} aria-pressed={selected} aria-label={`Table ${table.name}${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}><span>{table.name}</span><small>{table.capacity}</small></button>;
+            })}</div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
+            <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
+            <button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}><Plus aria-hidden="true" /> Save section</button>
           </form>
           <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></li>)}</ul>
-          {!sections.length && <p className="servers-empty">No sections yet. Choose one or more floor tables to define one.</p>}
+          {!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
         </article>
       </div>}
     </section>

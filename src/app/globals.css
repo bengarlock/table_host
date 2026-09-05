@@ -657,27 +657,75 @@ textarea {
   opacity: 1;
 }
 
-.section-table-picker > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+.section-floor-picker {
+  display: grid;
+  gap: 8px;
 }
 
-.section-table-picker label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 30px;
-  padding: 0 9px;
+.section-floor-plan {
+  position: relative;
+  min-height: 310px;
+  overflow: hidden;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: 10px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    var(--canvas);
+  background-size: 24px 24px;
+}
+
+.section-floor-table {
+  position: absolute;
+  display: grid;
+  min-width: 36px;
+  min-height: 32px;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
+  padding: 3px;
+  border: 2px solid rgba(165, 172, 190, 0.48);
+  border-radius: 7px;
+  background: rgba(113, 123, 148, 0.17);
   color: var(--text-soft);
   cursor: pointer;
-  font-size: 0.68rem;
+  font: inherit;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
 }
 
-.section-table-picker input {
-  accent-color: var(--accent);
+.section-floor-table.round {
+  border-radius: 50%;
+}
+
+.section-floor-table:hover,
+.section-floor-table:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.section-floor-table.selected {
+  border-color: var(--accent);
+  background: rgba(223, 170, 86, 0.24);
+  box-shadow: 0 0 0 3px rgba(223, 170, 86, 0.13);
+  color: var(--text);
+}
+
+.section-floor-table span {
+  font-size: 0.66rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.section-floor-table small {
+  color: var(--text-muted);
+  font-size: 0.54rem;
+  line-height: 1;
+}
+
+.section-selection-status {
+  min-height: 17px;
+  color: var(--text-muted);
+  font-size: 0.66rem;
 }
 
 .servers-add-button {
