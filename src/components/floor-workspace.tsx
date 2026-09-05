@@ -979,18 +979,29 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       const dx = (table.position_x - original.table.position_x) * stageBounds.width / 100;
       const dy = (table.position_y - original.table.position_y) * stageBounds.height / 100;
       return [{
+        name: table.name,
         left: original.bounds.left + dx,
         right: original.bounds.right + dx,
         top: original.bounds.top + dy,
         bottom: original.bounds.bottom + dy,
       }];
     });
-    const invalidLayout = proposedBounds.some((bounds, index) =>
+    const outsideTables = proposedBounds.filter((bounds) =>
       bounds.left < stageBounds.left || bounds.right > stageBounds.right
-      || bounds.top < stageBounds.top || bounds.bottom > stageBounds.bottom
-      || proposedBounds.slice(index + 1).some((other) => floorTableBoundsOverlap(bounds, other)));
-    if (invalidLayout) {
-      setError("Auto polish could not find a layout without overlaps within the floor. Your layout has been kept; try aligning or spacing smaller groups.");
+      || bounds.top < stageBounds.top || bounds.bottom > stageBounds.bottom);
+    const overlapPairs = proposedBounds.flatMap((bounds, index) =>
+      proposedBounds.slice(index + 1)
+        .filter((other) => floorTableBoundsOverlap(bounds, other))
+        .map((other) => `${bounds.name} and ${other.name}`));
+    if (outsideTables.length || overlapPairs.length) {
+      const reasons = [];
+      if (overlapPairs.length) {
+        reasons.push(`overlap table pairs ${overlapPairs.slice(0, 3).join("; ")}${overlapPairs.length > 3 ? ` (and ${overlapPairs.length - 3} more pairs)` : ""}`);
+      }
+      if (outsideTables.length) {
+        reasons.push(`move tables ${outsideTables.map((table) => table.name).join(", ")} outside the floor`);
+      }
+      setError(`Auto polish was not applied: the proposed positions would ${reasons.join(" and ")}. Your current layout is unchanged. Try aligning or spacing smaller groups.`);
       return;
     }
     setError("");
