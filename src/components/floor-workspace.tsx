@@ -2036,12 +2036,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           </header>}
 
           {error && <div className="grid-alert floor-alert" role="alert">{error}</div>}
-          {!editingFloor && data && !liveService && (
-            <div className="floor-read-only" role="status">
-              Viewing another service date. Return to today to seat parties or change table statuses.
-            </div>
-          )}
-
           <div className={`floor-service-layout${editingFloor ? " editing-floor" : ""}`}>
             <aside className="floor-reservations-panel" aria-label="Pending reservations">
               <div className="floor-panel-heading">
