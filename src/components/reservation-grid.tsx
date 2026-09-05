@@ -1,18 +1,30 @@
 "use client";
 
 import {
+  Armchair,
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  CakeSlice,
   CalendarX2,
+  CalendarCheck,
   Ban,
   Check,
+  CircleCheckBig,
   CircleCheck,
+  CircleDollarSign,
+  CircleHelp,
   Clock3,
+  ClockAlert,
   LoaderCircle,
   Lock,
   Mail,
   Minus,
   Plus,
+  ReceiptText,
+  Utensils,
+  UserX,
   Users,
   X,
 } from "lucide-react";
@@ -95,20 +107,21 @@ type TableBlock = {
   notes: string;
 };
 
-const RESERVATION_STATUS_OPTIONS: Array<{ value: Reservation["status"]; label: string }> = [
-  { value: "booked", label: "Booked" },
-  { value: "confirmed", label: "Confirmed" },
-  { value: "late", label: "Late" },
-  { value: "not_confirmed", label: "Not confirmed" },
-  { value: "seated", label: "Seated" },
-  { value: "entree", label: "Entree" },
-  { value: "dessert", label: "Dessert" },
-  { value: "check_dropped", label: "Check dropped" },
-  { value: "paid", label: "Paid" },
-  { value: "complete", label: "Complete" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "no_show", label: "No-show" },
+const RESERVATION_STATUS_OPTIONS = [
+  { value: "booked" as const, label: "Booked", icon: CalendarCheck },
+  { value: "confirmed" as const, label: "Confirmed", icon: BadgeCheck },
+  { value: "late" as const, label: "Late", icon: ClockAlert },
+  { value: "not_confirmed" as const, label: "Not confirmed", icon: CircleHelp },
+  { value: "seated" as const, label: "Seated", icon: Armchair },
+  { value: "entree" as const, label: "Entree", icon: Utensils },
+  { value: "dessert" as const, label: "Dessert", icon: CakeSlice },
+  { value: "check_dropped" as const, label: "Check dropped", icon: ReceiptText },
+  { value: "paid" as const, label: "Paid", icon: CircleDollarSign },
+  { value: "complete" as const, label: "Complete", icon: CircleCheckBig },
+  { value: "cancelled" as const, label: "Cancelled", icon: Ban },
+  { value: "no_show" as const, label: "No-show", icon: UserX },
 ];
+const SERVICE_STATUS_VALUES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid", "complete"];
 
 type GridData = {
   restaurant: { id: number; name: string };
@@ -217,6 +230,7 @@ export function ReservationGrid({
   const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
   const gridRequestVersion = useRef(0);
 
@@ -363,6 +377,10 @@ export function ReservationGrid({
   const serviceStatusAllowed = Boolean(
     data && data.service_date === serviceDate && serviceDate <= data.current_service_date,
   );
+  const selectedStatusOption = RESERVATION_STATUS_OPTIONS.find(
+    (option) => option.value === reservationEditDraft?.status,
+  );
+  const SelectedStatusIcon = selectedStatusOption?.icon;
 
   function clearDraft() {
     setDraft(null);
@@ -501,7 +519,7 @@ export function ReservationGrid({
       setError("Expected turn time must be between 15 minutes and 6 hours.");
       return;
     }
-    if (!serviceStatusAllowed && ["seated", "entree", "dessert", "check_dropped", "paid", "complete"].includes(reservationEditDraft.status)) {
+    if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(reservationEditDraft.status)) {
       setError("Reservations cannot be seated or marked as served on future dates.");
       return;
     }
@@ -813,9 +831,33 @@ export function ReservationGrid({
               <div className="reservation-editor-body">
                 <div className="reservation-editor-fields">
                   <label>Party size<input type="number" min={1} max={40} inputMode="numeric" value={reservationEditDraft.partySize} onChange={(event) => { const partySize = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, partySize })); }} required /></label>
-                  <label>Status<select {...IGNORE_AUTOFILL} value={reservationEditDraft.status} onChange={(event) => { const status = event.currentTarget.value as Reservation["status"]; setReservationEditDraft((current) => current && ({ ...current, status })); }}>
-                    {RESERVATION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={!serviceStatusAllowed && ["seated", "entree", "dessert", "check_dropped", "paid", "complete"].includes(option.value) && option.value !== selected.status}>{option.label}</option>)}
-                  </select></label>
+                  <div className="reservation-editor-status-field">
+                    <span>Status</span>
+                    <details ref={reservationStatusMenuRef} className="reservation-editor-status-menu">
+                      <summary role="button" aria-label="Status" aria-disabled={saving} onClick={(event) => { if (saving) event.preventDefault(); }}>
+                        {SelectedStatusIcon && <SelectedStatusIcon aria-hidden="true" />}
+                        <strong>{selectedStatusOption?.label || reservationEditDraft.status}</strong>
+                        <ChevronDown aria-hidden="true" />
+                      </summary>
+                      <div role="listbox" aria-label="Reservation status options">
+                        {RESERVATION_STATUS_OPTIONS.map((option) => {
+                          const StatusIcon = option.icon;
+                          const active = option.value === reservationEditDraft.status;
+                          const disabled = !serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(option.value) && option.value !== selected.status;
+                          return (
+                            <button type="button" role="option" aria-selected={active} key={option.value} disabled={disabled} onClick={() => {
+                              setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
+                              reservationStatusMenuRef.current?.removeAttribute("open");
+                            }}>
+                              <StatusIcon aria-hidden="true" />
+                              <span>{option.label}</span>
+                              {active && <Check aria-hidden="true" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  </div>
                   <div className="reservation-editor-turn"><span>Turn time</span><div><button type="button" aria-label="Decrease turn time" onClick={() => changeTurnTime(-15)} disabled={saving || Number(reservationEditDraft.durationMinutes) <= 15}><Minus aria-hidden="true" /></button><output aria-label="Turn time">{formatTurnTime(Number(reservationEditDraft.durationMinutes))}</output><button type="button" aria-label="Increase turn time" onClick={() => changeTurnTime(15)} disabled={saving || Number(reservationEditDraft.durationMinutes) >= 360}><Plus aria-hidden="true" /></button></div></div>
                   <label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label>
                 </div>

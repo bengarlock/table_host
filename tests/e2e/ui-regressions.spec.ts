@@ -213,7 +213,8 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(guestSection!.x).toBeGreaterThan(reservationSection!.x + reservationSection!.width);
   await dialog.getByLabel("Party size").fill("6");
   await dialog.getByRole("button", { name: "Increase turn time" }).click();
-  await dialog.getByLabel("Status").selectOption("late");
+  await dialog.getByRole("button", { name: "Status", exact: true }).click();
+  await dialog.getByRole("option", { name: "Late" }).click();
   await dialog.getByLabel("Phone number").fill("555-0199");
   await dialog.getByLabel("Reservation notes").fill("Updated reservation note.");
   await dialog.getByLabel("Guest notes").fill("Updated guest note.");
@@ -372,8 +373,10 @@ for (const futureDate of [true, false]) {
     await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
     await page.getByRole("button", { name: /Future Guest, party of 2/ }).click();
     const dialog = page.getByRole("dialog", { name: "Future Guest" });
-    const seatedOption = dialog.getByRole("option", { name: "Seated" });
+    const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
     if (futureDate) {
+      await statusMenu.click();
+      const seatedOption = dialog.getByRole("option", { name: "Seated" });
       await expect(seatedOption).toHaveAttribute("disabled", "");
       expect(updates).toBe(0);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
@@ -389,8 +392,10 @@ for (const futureDate of [true, false]) {
       expect(updates).toBe(1);
       expect(lastUpdate).toEqual({ table_ids: [2] });
     } else {
+      await statusMenu.click();
+      const seatedOption = dialog.getByRole("option", { name: "Seated" });
       await expect(seatedOption).toBeEnabled();
-      await dialog.getByLabel("Status").selectOption("seated");
+      await seatedOption.click();
       await dialog.getByRole("button", { name: "Save changes" }).click();
       await expect(dialog).toHaveCount(0);
       expect(updates).toBe(1);
