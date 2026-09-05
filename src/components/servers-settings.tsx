@@ -93,17 +93,17 @@ function sectionOverlay(section: Section, tables: Table[]) {
   const first = bounds[0];
   const connectors = bounds.slice(1).flatMap((bound, index) => {
     const previous = bounds[index];
-    const left = Math.max(previous.left + 18, bound.left + 18);
-    const right = Math.min(previous.right - 18, bound.right - 18);
+    const left = Math.max(previous.left, bound.left);
+    const right = Math.min(previous.right, bound.right);
     if (right <= left || bound.top <= previous.bottom) return [];
     return [`M ${left} ${previous.bottom - 1} H ${right} V ${bound.top + 1} H ${left} Z`];
   });
   const joinedPaths = bounds.length === 2 && connectors.length ? [roundedOutlinePath([
     { x: bounds[0].left, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].bottom },
-    { x: Math.min(bounds[0].right - 18, bounds[1].right - 18), y: bounds[0].bottom }, { x: Math.min(bounds[0].right - 18, bounds[1].right - 18), y: bounds[1].top },
+    { x: Math.min(bounds[0].right, bounds[1].right), y: bounds[0].bottom }, { x: Math.min(bounds[0].right, bounds[1].right), y: bounds[1].top },
     { x: bounds[1].right, y: bounds[1].top }, { x: bounds[1].right, y: bounds[1].bottom }, { x: bounds[1].left, y: bounds[1].bottom },
-    { x: bounds[1].left, y: bounds[1].top }, { x: Math.max(bounds[0].left + 18, bounds[1].left + 18), y: bounds[1].top },
-    { x: Math.max(bounds[0].left + 18, bounds[1].left + 18), y: bounds[0].bottom }, { x: bounds[0].left, y: bounds[0].bottom },
+    { x: bounds[1].left, y: bounds[1].top }, { x: Math.max(bounds[0].left, bounds[1].left), y: bounds[1].top },
+    { x: Math.max(bounds[0].left, bounds[1].left), y: bounds[0].bottom }, { x: bounds[0].left, y: bounds[0].bottom },
   ])] : bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom));
   return { paths: joinedPaths, connectors: bounds.length === 2 && connectors.length ? [] : connectors, labelX: Math.max(14, first.left + 16), labelY: Math.max(26, first.top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
 }
