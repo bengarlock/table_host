@@ -348,6 +348,20 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
     const bottom = Math.max(...row.map((table) => stage.height * table.position_y / 100 + table.height / 2 + padding));
     return { left, right, top, bottom };
   });
+  // Small differences in table widths should not create a step at a join.
+  // Expand outward so smoothing never removes coverage from either row.
+  if (bounds.length === 2) {
+    const [upper, lower] = bounds;
+    const overlap = Math.min(upper.right, lower.right) - Math.max(upper.left, lower.left);
+    if (overlap > 0 && lower.top > upper.bottom) {
+      if (Math.abs(upper.left - lower.left) <= 24) {
+        upper.left = lower.left = Math.min(upper.left, lower.left);
+      }
+      if (Math.abs(upper.right - lower.right) <= 24) {
+        upper.right = lower.right = Math.max(upper.right, lower.right);
+      }
+    }
+  }
   const first = bounds[0];
   const connectors = bounds.slice(1).flatMap((bound, index) => {
     const previous = bounds[index];
