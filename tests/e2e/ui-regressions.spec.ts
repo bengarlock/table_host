@@ -73,10 +73,20 @@ async function mockGrid(page: Page, delayMs = 0) {
 
 test("grid holds selected tables before opening a prefilled reservation", async ({ page }) => {
   await mockGrid(page);
-  let submittedReservation: Record<string, unknown> | null = null;
-  await page.route("**/api/grid", async (route) => {
-    submittedReservation = route.request().postDataJSON() as Record<string, unknown>;
-    await route.fulfill({ json: { id: 301 } });
+  await page.route("**/api/grid/availability?*", async (route) => {
+    await route.fulfill({ json: {
+      options: [{
+        service_date: serviceDate,
+        shift_slug: "dinner",
+        shift_name: "Dinner",
+        start_time: "17:00",
+        table_id: null,
+        table_name: null,
+        table_capacity: null,
+        available: false,
+        unavailable_reason: "No single table fits this party.",
+      }],
+    } });
   });
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
@@ -98,21 +108,10 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   await expect(page.locator(".grid-hold-block")).toHaveCount(2);
 
   await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
-  const panel = page.getByLabel("New reservation", { exact: true });
-  await expect(panel.getByRole("heading", { name: "Tables 1 + 2" })).toBeVisible();
-  await expect(panel.getByLabel("Party size")).toHaveValue("4");
-  await expect(panel.getByLabel("Turn time")).toHaveValue("90");
-
-  await panel.getByLabel("Guest name").fill("Jordan Lee");
-  await panel.getByRole("button", { name: "Book Reservation", exact: true }).click();
-  await expect.poll(() => submittedReservation).not.toBeNull();
-  expect(submittedReservation).toMatchObject({
-    table_ids: [1, 2],
-    assignment_type: "hard",
-    party_size: 4,
-    start_time: "17:00",
-    duration_minutes: 90,
-  });
+  await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=4&duration=90&tables=1%2C2$`));
+  await expect(page.getByRole("heading", { name: "Find the right table" })).toBeVisible();
+  await expect(page.locator(".time-and-tables-selection")).toContainText("Tables 1, 2");
+  await expect(page.locator(".time-and-tables-selection")).toContainText("5:00 PM");
 });
 
 test("new reservation confirmation is readable from the grid", async ({ page }) => {

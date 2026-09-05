@@ -27,6 +27,10 @@ type BookingSetup = {
 type BookingPageWorkspaceProps = {
   initialServiceDate?: string;
   initialShiftSlug?: string;
+  initialTime?: string;
+  initialPartySize?: number;
+  initialDuration?: number;
+  initialTableIds?: number[];
 };
 
 function reservationsUrl(serviceDate?: string, shiftSlug?: string, confirmationId?: number) {
@@ -40,6 +44,10 @@ function reservationsUrl(serviceDate?: string, shiftSlug?: string, confirmationI
 export function BookingPageWorkspace({
   initialServiceDate,
   initialShiftSlug,
+  initialTime,
+  initialPartySize,
+  initialDuration,
+  initialTableIds,
 }: BookingPageWorkspaceProps) {
   const router = useRouter();
   const [setup, setSetup] = useState<BookingSetup | null>(null);
@@ -79,7 +87,10 @@ export function BookingPageWorkspace({
           <BookingWizard
             initialDate={initialServiceDate || setup.service_date}
             initialShiftSlug={initialShiftSlug || setup.selected_shift.slug}
-            initialDuration={setup.selected_shift.default_turn_minutes || 90}
+            initialDuration={initialDuration || setup.selected_shift.default_turn_minutes || 90}
+            initialTime={initialTime}
+            initialPartySize={initialPartySize}
+            initialTableIds={initialTableIds}
             floorCoverCapacity={setup.tables.reduce((total, table) => total + table.capacity, 0)}
             shifts={setup.shifts}
             onClose={() => returnToReservations(setup.service_date, setup.selected_shift.slug)}
