@@ -690,8 +690,10 @@ test("booking restores time selection before optional table assignment", async (
     },
   }));
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  const wizardHeight = await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height));
 
   await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
   await expect(manualPartySize).toHaveValue("9");
@@ -731,9 +733,12 @@ test("booking restores time selection before optional table assignment", async (
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 4 guests · Tables 1, 2");
 
   await page.locator("footer").getByRole("button", { name: "Guest" }).click();
+  expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
   await page.getByRole("button", { name: /Alyssa Garcia/ }).click();
+  await page.locator("footer").getByRole("button", { name: "Details" }).click();
   await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
+  expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   const [reservationNotes, guestNotes] = await Promise.all([
     page.getByLabel("Reservation notes").boundingBox(),
     page.getByLabel("Guest notes").boundingBox(),

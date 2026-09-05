@@ -294,7 +294,7 @@ export function BookingWizard({
   }, [onClose]);
 
   useEffect(() => {
-    if (step !== 4) return;
+    if (step !== 3) return;
     const query = guestQuery.trim();
     if (!query) return;
 

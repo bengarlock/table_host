@@ -1486,6 +1486,7 @@ textarea {
 .booking-wizard {
   display: grid;
   width: min(960px, 100%);
+  height: min(820px, calc(100vh - 56px));
   max-height: calc(100vh - 56px);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: visible;
