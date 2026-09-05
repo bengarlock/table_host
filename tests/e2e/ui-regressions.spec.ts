@@ -334,12 +334,16 @@ test("booking availability is centered around the guest's desired time", async (
   expect(compactTimePartyLayout.scrollHeight).toBeLessThanOrEqual(compactTimePartyLayout.clientHeight);
 
   const desiredTimes = page.getByLabel("Desired reservation times");
-  const [timePartyBounds, desiredBounds] = await Promise.all([
+  const [timePartyBounds, partyBounds, desiredBounds] = await Promise.all([
     page.locator(".booking-time-party-step").boundingBox(),
+    page.locator(".booking-party-panel").boundingBox(),
     page.locator(".time-choice-section").first().boundingBox(),
   ]);
   expect(timePartyBounds).not.toBeNull();
+  expect(partyBounds).not.toBeNull();
   expect(desiredBounds).not.toBeNull();
+  expect(partyBounds!.width).toBeGreaterThanOrEqual(timePartyBounds!.width - 1);
+  expect(partyBounds!.y + partyBounds!.height).toBeLessThanOrEqual(desiredBounds!.y);
   expect(desiredBounds!.width).toBeGreaterThanOrEqual(timePartyBounds!.width - 1);
   await expect(desiredTimes.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
@@ -750,11 +754,11 @@ test("oversized parties warn but can continue to time selection", async ({ page 
 
   await expect(page.getByText("This party exceeds the floor capacity")).toBeVisible();
   await expect(page.getByText("200 guests requested · 4 covers available. You can continue and overbook.")).toBeVisible();
-  const expectedTurnBounds = await page.locator(".turn-time-field").boundingBox();
+  const partyBounds = await page.locator(".booking-party-panel").boundingBox();
   const warningBounds = await page.locator(".booking-capacity-warning").boundingBox();
-  expect(expectedTurnBounds).not.toBeNull();
+  expect(partyBounds).not.toBeNull();
   expect(warningBounds).not.toBeNull();
-  expect(warningBounds!.y).toBeGreaterThanOrEqual(expectedTurnBounds!.y + expectedTurnBounds!.height);
+  expect(warningBounds!.y + warningBounds!.height).toBeLessThanOrEqual(partyBounds!.y + partyBounds!.height);
   await expect(page.locator(".wizard-progress li").nth(1)).toHaveClass(/capacity-warning/);
   await expect(page.locator(".wizard-progress li").nth(1)).toHaveCSS("color", "rgb(255, 131, 120)");
 

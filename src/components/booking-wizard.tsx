@@ -31,7 +31,6 @@ import {
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
-import { formatTurnTime } from "@/lib/turn-time";
 import { capitalizeNameInitial } from "@/lib/guest-names";
 import { ReservationFloorBooking } from "@/lib/reservation-table-availability";
 
@@ -121,13 +120,6 @@ const VISIBLE_TIME_COUNT = 5;
 
 function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
-}
-
-function parseTurnTime(value: string) {
-  const match = value.trim().match(/^(\d+):([0-5]\d)$/);
-  if (!match) return 0;
-  const duration = Number(match[1]) * 60 + Number(match[2]);
-  return duration >= 60 && duration % 15 === 0 ? duration : 0;
 }
 
 function displayTime(time: string) {
@@ -247,8 +239,7 @@ export function BookingWizard({
   const pendingCarouselSelection = useRef<PendingCarouselSelection | null>(null);
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
-  const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
-  const [turnTimeInput, setTurnTimeInput] = useState(formatTurnTime(initialTurnTime));
+  const durationMinutes = initialTurnTime;
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
@@ -598,23 +589,6 @@ export function BookingWizard({
     updateManualPartySize(String(Math.min(MAX_PARTY_SIZE, Math.max(9, startingSize + amount))));
   }
 
-  function updateTurnTime(value: string) {
-    setTurnTimeInput(value);
-    const nextDuration = parseTurnTime(value);
-    if (!nextDuration) {
-      setDurationMinutes(0);
-      invalidateTimeSelection();
-      return;
-    }
-    setDurationMinutes(nextDuration);
-    invalidateTimeSelection();
-  }
-
-  function adjustTurnTime(amount: number) {
-    const startingDuration = durationMinutes >= 60 ? durationMinutes : 60;
-    updateTurnTime(formatTurnTime(Math.max(60, startingDuration + amount)));
-  }
-
   function toggleReservationTag(value: string) {
     setReservationTags((current) =>
       current.includes(value) ? current.filter((tag) => tag !== value) : [...current, value],
@@ -865,15 +839,6 @@ export function BookingWizard({
                     </div>
                     <span className="party-size-manual-hint">9 or more guests</span>
                   </div>
-                </div>
-                <div className="turn-time-field">
-                  <span id="expected-turn-time-label">Expected turn</span>
-                  <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
-                    <button type="button" aria-label="Decrease expected turn time by 15 minutes" onClick={() => adjustTurnTime(-15)} disabled={durationMinutes <= 60}><Minus aria-hidden="true" /></button>
-                    <input {...IGNORE_AUTOFILL} type="text" inputMode="text" pattern="\d+:[0-5]\d" placeholder="1:00" value={turnTimeInput} aria-labelledby="expected-turn-time-label" aria-describedby="expected-turn-time-hint" aria-invalid={durationMinutes === 0} onChange={(event) => updateTurnTime(event.currentTarget.value)} onBlur={() => { if (durationMinutes >= 60) setTurnTimeInput(formatTurnTime(durationMinutes)); }} />
-                    <button type="button" aria-label="Increase expected turn time by 15 minutes" onClick={() => adjustTurnTime(15)}><Plus aria-hidden="true" /></button>
-                  </div>
-                  <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
                 </div>
                 {partyExceedsFloorCapacity && <div className="booking-capacity-warning" role="status"><AlertTriangle aria-hidden="true" /><div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div></div>}
               </section>

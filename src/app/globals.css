@@ -1704,9 +1704,10 @@ textarea {
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
   grid-template-areas:
     "shift shift"
+    "party party"
     "desired desired"
-    "party available"
-    "party assignment";
+    "available available"
+    "assignment assignment";
   align-items: start;
   gap: 14px 18px;
 }
@@ -1718,12 +1719,28 @@ textarea {
 .booking-party-panel {
   display: grid;
   grid-area: party;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.55fr);
   align-content: start;
   gap: 13px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: rgba(14, 16, 14, 0.72);
+}
+
+.booking-party-panel .wizard-step-heading,
+.booking-party-panel .party-size-fields {
+  grid-column: 1 / -1;
+}
+
+.booking-time-party-step .booking-party-panel .party-size-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.55fr);
+  align-items: end;
+}
+
+.booking-time-party-step .booking-party-panel .party-size-picker,
+.booking-time-party-step .booking-party-panel .party-size-manual {
+  max-width: none;
 }
 
 .booking-time-party-step > .time-choice-section:not(.available-time-choice) {
@@ -1819,6 +1836,10 @@ textarea {
       "party desired"
       "party available"
       "party assignment";
+  }
+
+  .booking-time-party-step .booking-party-panel .party-size-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -5779,6 +5800,11 @@ textarea {
       "desired"
       "available"
       "assignment";
+  }
+
+  .booking-party-panel,
+  .booking-time-party-step .booking-party-panel .party-size-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .wizard-header,
