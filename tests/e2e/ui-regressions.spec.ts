@@ -111,8 +111,9 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=4&duration=90&tables=1%2C2$`));
   await expect(page.getByRole("heading", { name: "Find the right table" })).toBeVisible();
-  await expect(page.locator(".time-and-tables-selection")).toContainText("Tables 1, 2");
-  await expect(page.locator(".time-and-tables-selection")).toContainText("5:00 PM");
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
+  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("5:00 PM · 4 guests · Tables 1, 2");
+  await expect(page.locator(".time-and-tables-selection")).toHaveCount(0);
 });
 
 test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {

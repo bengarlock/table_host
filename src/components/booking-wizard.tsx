@@ -368,6 +368,8 @@ export function BookingWizard({
         setAssignmentGrid(assignment);
         setSelectedTableIds(validTableIds);
         setAssignmentDraftTableIds(validTableIds);
+        setStep(3);
+        setFurthestStep(3);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Unable to prepare the selected tables.");
       } finally {
