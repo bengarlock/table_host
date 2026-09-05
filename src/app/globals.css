@@ -5869,7 +5869,7 @@ textarea {
 }
 
 .floor-table-turn-timer circle {
-  transform: rotate(-90deg);
+  transform: rotate(-90deg) scaleX(-1);
   transform-origin: center;
 }
 
