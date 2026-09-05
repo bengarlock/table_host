@@ -366,6 +366,46 @@ test("floor changes can be undone and redone", async ({ page }) => {
   await expect(floorTables).toHaveCount(3);
 });
 
+test("selected floor tables can be aligned and spaced vertically", async ({ page }) => {
+  const tables = [
+    { ...gridPayload.tables[0], id: 1, name: "1", position_x: 28, position_y: 24 },
+    { ...gridPayload.tables[0], id: 2, name: "2", position_x: 32, position_y: 46 },
+    { ...gridPayload.tables[0], id: 3, name: "3", position_x: 25, position_y: 76 },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, tables },
+  }));
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+
+  for (const [index, table] of tables.entries()) {
+    await page.locator(`[data-floor-table-id="${table.id}"]`).click({
+      modifiers: index ? ["Shift"] : [],
+    });
+  }
+  await expect(page.getByText("3 tables selected")).toBeVisible();
+
+  await page.getByRole("button", { name: "Align column" }).click();
+  const alignedCenters = await Promise.all(tables.map(async (table) => {
+    const bounds = await page.locator(`[data-floor-table-id="${table.id}"]`).boundingBox();
+    expect(bounds).not.toBeNull();
+    return bounds!.x + bounds!.width / 2;
+  }));
+  expect(Math.max(...alignedCenters) - Math.min(...alignedCenters)).toBeLessThan(2.5);
+
+  await page.getByRole("button", { name: "Equal vertical" }).click();
+  const spacedCenters = await Promise.all(tables.map(async (table) => {
+    const bounds = await page.locator(`[data-floor-table-id="${table.id}"]`).boundingBox();
+    expect(bounds).not.toBeNull();
+    return bounds!.y + bounds!.height / 2;
+  }));
+  expect(Math.abs(
+    (spacedCenters[1] - spacedCenters[0]) - (spacedCenters[2] - spacedCenters[1]),
+  )).toBeLessThan(2.5);
+  await expect(page.getByRole("button", { name: "Undo last floor change" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
+});
+
 test("floor tables can cross each other but overlapping drops block saving", async ({ page }) => {
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: {

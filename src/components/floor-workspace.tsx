@@ -2,11 +2,13 @@
 
 import {
   AlignHorizontalSpaceAround,
+  AlignVerticalSpaceAround,
   Check,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
   Clock3,
+  Columns3,
   CopyPlus,
   GripVertical,
   LoaderCircle,
@@ -838,6 +840,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     updateEditorSelection({ position_y: row });
   }
 
+  function alignSelectedTablesVertically() {
+    if (editorSelectedTables.length < 2) return;
+    const column = Math.round(
+      editorSelectedTables.reduce((total, table) => total + table.position_x, 0)
+      / editorSelectedTables.length,
+    );
+    updateEditorSelection({ position_x: column });
+  }
+
   function spaceSelectedTables() {
     if (editorSelectedTables.length < 2) return;
     const stage = floorStageRef.current;
@@ -871,6 +882,43 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     });
     const nextTables = editedTables.map((table) =>
       positions.has(table.id) ? { ...table, position_x: positions.get(table.id) as number } : table,
+    );
+    commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
+  }
+
+  function spaceSelectedTablesVertically() {
+    if (editorSelectedTables.length < 2) return;
+    const stage = floorStageRef.current;
+    if (!stage) return;
+    const elementsById = new Map(
+      Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
+        .map((element) => [Number(element.dataset.floorTableId), element]),
+    );
+    const ordered = editorSelectedTables
+      .map((table) => {
+        const element = elementsById.get(table.id);
+        return element ? { table, bounds: floorTableVisualBounds(element) } : null;
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((top, bottom) => top.bounds.top - bottom.bounds.top);
+    if (ordered.length < 2) return;
+    const groupTop = Math.min(...ordered.map((item) => item.bounds.top));
+    const groupBottom = Math.max(...ordered.map((item) => item.bounds.bottom));
+    const occupiedHeight = ordered.reduce(
+      (total, item) => total + item.bounds.bottom - item.bounds.top,
+      0,
+    );
+    const gap = (groupBottom - groupTop - occupiedHeight) / (ordered.length - 1);
+    const stageHeight = stage.getBoundingClientRect().height;
+    let nextTop = groupTop;
+    const positions = new Map<number, number>();
+    ordered.forEach(({ table, bounds }) => {
+      const deltaPercent = ((nextTop - bounds.top) / stageHeight) * 100;
+      positions.set(table.id, Math.round((table.position_y + deltaPercent) * 100) / 100);
+      nextTop += bounds.bottom - bounds.top + gap;
+    });
+    const nextTables = editedTables.map((table) =>
+      positions.has(table.id) ? { ...table, position_y: positions.get(table.id) as number } : table,
     );
     commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }
@@ -1769,8 +1817,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       <button type="button" onClick={alignSelectedTables} disabled={editorSelectedTables.length < 2}>
                         <Rows3 aria-hidden="true" /> Align row
                       </button>
+                      <button type="button" onClick={alignSelectedTablesVertically} disabled={editorSelectedTables.length < 2}>
+                        <Columns3 aria-hidden="true" /> Align column
+                      </button>
                       <button type="button" onClick={spaceSelectedTables} disabled={editorSelectedTables.length < 2}>
-                        <AlignHorizontalSpaceAround aria-hidden="true" /> Equal spacing
+                        <AlignHorizontalSpaceAround aria-hidden="true" /> Equal horizontal
+                      </button>
+                      <button type="button" onClick={spaceSelectedTablesVertically} disabled={editorSelectedTables.length < 2}>
+                        <AlignVerticalSpaceAround aria-hidden="true" /> Equal vertical
                       </button>
                       <button type="button" onClick={autoPolishFloor} disabled={editedTables.length < 2 || saving} title="Align and evenly space the entire floor plan">
                         <Sparkles aria-hidden="true" /> Auto polish
