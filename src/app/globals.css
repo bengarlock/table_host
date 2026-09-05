@@ -4171,16 +4171,16 @@ textarea {
 }
 
 #booking-details-form {
-  height: 100%;
+  height: auto;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
 }
 
 .booking-detail-section {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  align-content: stretch;
+  grid-template-rows: auto auto auto;
+  align-content: start;
   gap: 14px;
   padding: 14px;
   border: 1px solid var(--line-strong);
@@ -4191,16 +4191,16 @@ textarea {
 .booking-detail-section .wizard-fields,
 .booking-detail-section .wizard-fields label {
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 
 .booking-detail-section .wizard-fields label {
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
 }
 
 .booking-detail-section .wizard-fields textarea {
-  height: 100%;
-  min-height: 96px;
+  height: 128px;
+  min-height: 128px;
   resize: none;
 }
 

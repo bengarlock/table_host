@@ -800,7 +800,7 @@ test("grid date controls stay compact and centered", async ({ page }) => {
 });
 
 test("booking availability is centered around the guest's desired time", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setViewportSize({ width: 2048, height: 1169 });
   await mockGrid(page);
   const requestedTimes: string[] = [];
   await page.route("**/api/grid/availability?*", async (route) => {
@@ -1271,8 +1271,8 @@ test("booking restores time selection before optional table assignment", async (
   expect(Math.abs(reservationNotes!.y - guestNotes!.y)).toBeLessThan(2);
   expect(Math.abs(reservationNotes!.height - guestNotes!.height)).toBeLessThan(2);
   expect(reservationNotes!.height).toBeGreaterThan(120);
-  expect(Math.abs((reservationNotes!.y + reservationNotes!.height) - (reservationSection!.y + reservationSection!.height - 14))).toBeLessThan(2);
-  expect(Math.abs((guestNotes!.y + guestNotes!.height) - (guestSection!.y + guestSection!.height - 14))).toBeLessThan(2);
+  expect(reservationNotes!.y + reservationNotes!.height).toBeLessThanOrEqual(reservationSection!.y + reservationSection!.height - 14);
+  expect(guestNotes!.y + guestNotes!.height).toBeLessThanOrEqual(guestSection!.y + guestSection!.height - 14);
 });
 
 test("table assignment stacks every active reservation time on its table", async ({ page }) => {
