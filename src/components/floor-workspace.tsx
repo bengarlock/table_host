@@ -2227,7 +2227,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       <button type="button" className="floor-dock-close" onClick={closeReservationDetails} aria-label="Close reservation details"><X aria-hidden="true" /></button>
                     </header>
                     <div className="floor-reservation-edit-grid">
-                      <label className="floor-reservation-detail-wide">
+                      <label>
                         Guest name
                         <input
                           type="text"
@@ -2237,6 +2237,34 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           required
                         />
                       </label>
+                      <div className="floor-reservation-status-field">
+                        <span>Status</span>
+                        <details ref={reservationStatusMenuRef} className="floor-reservation-status-menu">
+                          <summary role="button" aria-label="Status" aria-disabled={saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))} onClick={(event) => {
+                            if (saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))) event.preventDefault();
+                          }}>
+                            {FocusedStatusIcon && <FocusedStatusIcon aria-hidden="true" />}
+                            <strong>{focusedStatusOption?.label || statusLabel(reservationEditDraft.status)}</strong>
+                            <ChevronRight aria-hidden="true" />
+                          </summary>
+                          <div role="listbox" aria-label="Reservation status options">
+                            {statusOptionsFor(focusedReservation.status).map((option) => {
+                              const StatusIcon = option.icon;
+                              const selected = option.value === reservationEditDraft.status;
+                              return (
+                                <button type="button" role="option" aria-selected={selected} key={option.value} onClick={() => {
+                                  setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
+                                  reservationStatusMenuRef.current?.removeAttribute("open");
+                                }}>
+                                  <StatusIcon aria-hidden="true" />
+                                  <span>{option.label}</span>
+                                  {selected && <Check aria-hidden="true" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      </div>
                       <label>
                         Time
                         <input
@@ -2273,34 +2301,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           </div>
                           <span className="party-size-manual-hint">9 or more guests</span>
                         </div>
-                      </div>
-                      <div className="floor-reservation-status-field">
-                        <span>Status</span>
-                        <details ref={reservationStatusMenuRef} className="floor-reservation-status-menu">
-                          <summary role="button" aria-label="Status" aria-disabled={saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))} onClick={(event) => {
-                            if (saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))) event.preventDefault();
-                          }}>
-                            {FocusedStatusIcon && <FocusedStatusIcon aria-hidden="true" />}
-                            <strong>{focusedStatusOption?.label || statusLabel(reservationEditDraft.status)}</strong>
-                            <ChevronRight aria-hidden="true" />
-                          </summary>
-                          <div role="listbox" aria-label="Reservation status options">
-                            {statusOptionsFor(focusedReservation.status).map((option) => {
-                              const StatusIcon = option.icon;
-                              const selected = option.value === reservationEditDraft.status;
-                              return (
-                                <button type="button" role="option" aria-selected={selected} key={option.value} onClick={() => {
-                                  setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
-                                  reservationStatusMenuRef.current?.removeAttribute("open");
-                                }}>
-                                  <StatusIcon aria-hidden="true" />
-                                  <span>{option.label}</span>
-                                  {selected && <Check aria-hidden="true" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </details>
                       </div>
                       <div className="floor-reservation-table-edit floor-reservation-detail-wide">
                         <span>

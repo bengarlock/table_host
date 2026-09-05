@@ -240,6 +240,9 @@ test("large table assignments use a condensed reservation-card label", async ({ 
 
   await reservationButton.click();
   await expect(details).toBeVisible();
+  await details.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const [detailBounds, closeBounds, headingBounds] = await Promise.all([
     details.boundingBox(),
     details.getByRole("button", { name: "Close reservation details" }).boundingBox(),
@@ -260,12 +263,20 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await expect(details.getByRole("textbox", { name: "Turn time", exact: true })).toHaveValue("1:30");
   const statusButton = details.getByRole("button", { name: "Status" });
   await expect(statusButton).toContainText("Confirmed");
-  expect((await statusButton.boundingBox())!.height).toBe(44);
+  const [guestNameBounds, statusBounds] = await Promise.all([
+    details.getByLabel("Guest name").boundingBox(),
+    statusButton.boundingBox(),
+  ]);
+  expect(guestNameBounds).not.toBeNull();
+  expect(statusBounds).not.toBeNull();
+  expect(Math.abs(guestNameBounds!.y - statusBounds!.y)).toBeLessThan(2);
+  expect(statusBounds!.height).toBe(guestNameBounds!.height);
   await statusButton.click();
   await expect(details.getByRole("option")).toHaveText([
     "Booked", "Confirmed", "Late", "Not Confirmed", "Cancelled", "No-show",
   ]);
   await expect(details.getByRole("option", { name: "Seated" })).toHaveCount(0);
+  await details.getByRole("option", { name: "Late" }).click();
   await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
   await expect(details.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Birthday" })).toHaveAttribute("aria-pressed", "true");
   await expect(details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "Regular" })).toHaveAttribute("aria-pressed", "true");
@@ -278,7 +289,6 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await details.getByRole("textbox", { name: "Time", exact: true }).fill("18:15");
   await details.getByRole("button", { name: "Increase turn time" }).click();
   await details.getByRole("button", { name: "Increase turn time" }).click();
-  await details.getByRole("option", { name: "Late" }).click();
   const reservationTags = details.getByRole("group", { name: "Reservation tags" });
   await reservationTags.getByRole("button", { name: "Birthday" }).click();
   await reservationTags.getByRole("button", { name: "Anniversary" }).click();
