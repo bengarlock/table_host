@@ -205,6 +205,7 @@ const WALK_IN_RESERVATION_TAGS = RESERVATION_TAGS;
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_PARTY_SIZE = 40;
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
+const RESERVATION_DETAIL_ANIMATION_MS = 180;
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS = [
@@ -499,7 +500,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
+  const [reservationDetailClosing, setReservationDetailClosing] = useState(false);
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
+  const reservationDetailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
@@ -641,6 +644,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }, [editedTables, editingFloor, floorStageMetrics]);
 
   useEffect(() => {
+    return () => {
+      if (reservationDetailCloseTimerRef.current) clearTimeout(reservationDetailCloseTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!walkInOpen) return;
     const query = walkInGuestQuery.trim();
     if (!query) return;
@@ -763,6 +772,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function openReservationDetails(reservation: Reservation) {
+    if (focusedReservationId === reservation.id && !reservationDetailClosing) {
+      closeReservationDetails();
+      return;
+    }
+    if (reservationDetailCloseTimerRef.current) {
+      clearTimeout(reservationDetailCloseTimerRef.current);
+      reservationDetailCloseTimerRef.current = null;
+    }
+    setReservationDetailClosing(false);
     setFocusedReservationId(reservation.id);
     setReservationEditDraft({
       guestName: reservation.guest_name,
@@ -806,8 +824,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   function closeReservationDetails() {
-    setFocusedReservationId(null);
-    setReservationEditDraft(null);
+    if (focusedReservationId === null) return;
+    if (reservationDetailCloseTimerRef.current) clearTimeout(reservationDetailCloseTimerRef.current);
+    setReservationDetailClosing(true);
+    reservationDetailCloseTimerRef.current = setTimeout(() => {
+      setFocusedReservationId(null);
+      setReservationEditDraft(null);
+      setReservationDetailClosing(false);
+      reservationDetailCloseTimerRef.current = null;
+    }, RESERVATION_DETAIL_ANIMATION_MS);
   }
 
   function captureFloorEditorSnapshot(
@@ -1594,6 +1619,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   async function seatOrFinish() {
     if (!seatingMode) {
       if (!selectedPending) return;
+      closeReservationDetails();
       setSeatingMode("reservation");
       setSelectedTableIds(
         selectedPending.table_ids.length
@@ -1733,6 +1759,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     className={`floor-reservation-card${selectedPendingId === reservation.id ? " selected" : ""}${reservation.is_unassigned ? " unassigned" : ""}`}
                     onDragStart={() => {
                       if (seatingMode) return;
+                      closeReservationDetails();
                       setDraggedReservationId(reservation.id);
                       setSelectedPendingId(reservation.id);
                     }}
@@ -2190,7 +2217,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               </div>
 
               {focusedReservation && reservationEditDraft && (
-                <aside className="floor-reservation-detail-card" aria-label={`Reservation details for ${focusedReservation.guest_name}`}>
+                <aside className={`floor-reservation-detail-card${reservationDetailClosing ? " is-closing" : ""}`} aria-label={`Reservation details for ${focusedReservation.guest_name}`} aria-hidden={reservationDetailClosing}>
                   <form onSubmit={saveReservationDetails}>
                     <header>
                       <div>

@@ -220,10 +220,25 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   });
   await expect(assignment.locator("strong")).toHaveText("10+");
 
-  await page.getByRole("button", {
+  const reservationButton = page.getByRole("button", {
     name: "5:00 PM, Large Assignment, party of 12, assigned to Tables 16, 12, 14, 10, 15, 11",
-  }).click();
+  });
+  await reservationButton.click();
   const details = page.getByRole("complementary", { name: "Reservation details for Large Assignment" });
+  await expect(details).toBeVisible();
+  await reservationButton.click();
+  await expect(page.locator(".floor-reservation-detail-card.is-closing")).toHaveCSS("animation-name", "floor-reservation-detail-slide-out");
+  await expect(page.locator(".floor-reservation-detail-card")).toHaveCount(0);
+
+  await reservationButton.click();
+  await expect(details).toBeVisible();
+  await page.getByRole("button", { name: "Seat", exact: true }).click();
+  await expect(page.locator(".floor-reservation-detail-card.is-closing")).toBeVisible();
+  await expect(page.locator(".floor-reservation-detail-card")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Finish Seating", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await reservationButton.click();
   await expect(details).toBeVisible();
   const [detailBounds, closeBounds, headingBounds] = await Promise.all([
     details.boundingBox(),

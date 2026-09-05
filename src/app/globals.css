@@ -5365,9 +5365,19 @@ textarea {
   animation: floor-reservation-detail-slide-in 180ms ease-out;
 }
 
+.floor-reservation-detail-card.is-closing {
+  pointer-events: none;
+  animation: floor-reservation-detail-slide-out 180ms ease-in forwards;
+}
+
 @keyframes floor-reservation-detail-slide-in {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+@keyframes floor-reservation-detail-slide-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
 }
 
 .floor-reservation-detail-card header {
