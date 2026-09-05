@@ -704,6 +704,37 @@ textarea {
   margin-top: 22px;
 }
 
+.section-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.section-panel-heading .section-form-actions {
+  margin-left: auto;
+}
+
+.saved-sections-sidebar .section-list li {
+  cursor: pointer;
+}
+
+.saved-sections-sidebar .section-list li.is-selected {
+  border-color: var(--accent);
+  background: rgba(217, 170, 98, 0.12);
+  box-shadow: inset 3px 0 var(--accent);
+}
+
+.saved-sections-sidebar .section-row-select {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  margin: 0;
+  padding: 4px 0;
+  text-align: left;
+}
+
 .section-editor-layout > .server-form {
   margin-top: 0;
 }
