@@ -2472,9 +2472,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             }}>
               <form className="floor-dialog floor-walk-in-dialog" onSubmit={continueWalkIn} aria-labelledby="walk-in-title">
                 <button type="button" className="floor-dialog-close" onClick={() => setWalkInOpen(false)} aria-label="Close walk-in"><X aria-hidden="true" /></button>
-                <span>Seat without a reservation</span>
-                <h2 id="walk-in-title">Add a walk-in</h2>
-                <p>Choose the party size, then optionally find or add the guest.</p>
+                <h2 id="walk-in-title">Walk In</h2>
                 <fieldset className="floor-party-size-picker">
                   <legend>Party size</legend>
                   <div className="floor-party-size-options">

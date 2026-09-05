@@ -6445,6 +6445,17 @@ textarea {
   width: min(470px, 100%);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+  gap: 12px;
+  padding: 20px;
+}
+
+.floor-walk-in-dialog h2 {
+  margin: 0;
+  padding-right: 38px;
+  min-height: 28px;
+  font-size: 0.9rem;
+  line-height: 28px;
+  color: var(--accent);
 }
 
 .floor-party-size-picker {
