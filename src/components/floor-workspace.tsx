@@ -95,6 +95,12 @@ type DiningTable = {
   is_new?: boolean;
 };
 
+type FloorSection = {
+  id: number;
+  name: string;
+  table_ids: number[];
+};
+
 type ServiceStatus =
   | "booked"
   | "confirmed"
@@ -189,6 +195,7 @@ type GridData = {
   shifts: Shift[];
   selected_shift: Shift;
   tables: DiningTable[];
+  sections: FloorSection[];
   reservations: Reservation[];
   summary: { reservations: number; covers: number; seated: number };
 };
@@ -290,6 +297,62 @@ function chairPositions(table: DiningTable): CSSProperties[] {
     if (side === 2) return { left: offset, top: "100%", transform: "translate(-50%, -50%) rotate(180deg)" };
     return { left: 0, top: offset, transform: "translate(-50%, -50%) rotate(270deg)" };
   });
+}
+
+type Point = { x: number; y: number };
+
+function cross(origin: Point, first: Point, second: Point) {
+  return (first.x - origin.x) * (second.y - origin.y) - (first.y - origin.y) * (second.x - origin.x);
+}
+
+function convexHull(points: Point[]) {
+  const ordered = [...points].sort((left, right) => left.x - right.x || left.y - right.y);
+  if (ordered.length <= 2) return ordered;
+  const lower: Point[] = [];
+  for (const point of ordered) {
+    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper: Point[] = [];
+  for (const point of [...ordered].reverse()) {
+    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: FloorStageMetrics) {
+  const selected = tables.filter((table) => section.table_ids.includes(table.id));
+  if (!selected.length) return null;
+  const points = selected.flatMap((table) => {
+    const centerX = stage.width * table.position_x / 100;
+    const centerY = stage.height * table.position_y / 100;
+    const padding = 25;
+    const halfWidth = table.width / 2 + padding;
+    const halfHeight = table.height / 2 + padding;
+    return [
+      { x: centerX - halfWidth, y: centerY - halfHeight },
+      { x: centerX + halfWidth, y: centerY - halfHeight },
+      { x: centerX + halfWidth, y: centerY + halfHeight },
+      { x: centerX - halfWidth, y: centerY + halfHeight },
+    ];
+  });
+  const hull = convexHull(points);
+  if (hull.length < 3) return null;
+  const midpoint = (first: Point, second: Point) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
+  const start = midpoint(hull.at(-1)!, hull[0]);
+  const path = hull.reduce((result, point, index) => {
+    const next = midpoint(point, hull[(index + 1) % hull.length]);
+    return `${result} Q ${point.x} ${point.y} ${next.x} ${next.y}`;
+  }, `M ${start.x} ${start.y}`) + " Z";
+  const left = Math.min(...hull.map((point) => point.x));
+  const top = Math.min(...hull.map((point) => point.y));
+  return {
+    path,
+    labelX: Math.max(14, left + 16),
+    labelY: Math.max(26, top + 24),
+    labelWidth: Math.max(74, section.name.length * 9 + 20),
+  };
 }
 
 function statusLabel(status: ServiceStatus) {
@@ -722,7 +785,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     : null;
   const FocusedStatusIcon = focusedStatusOption?.icon;
   const liveService = hydrated && serviceDate === data?.current_service_date;
-  const displayedTables = editingFloor ? editedTables : data?.tables || [];
+  const displayedTables = useMemo(
+    () => editingFloor ? editedTables : data?.tables || [],
+    [data?.tables, editedTables, editingFloor],
+  );
+  const sectionOverlays = useMemo(
+    () => (data?.sections || []).map((section, index) => ({
+      section,
+      color: ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5],
+      shape: sectionOverlay(section, displayedTables, floorStageMetrics),
+    })).filter((overlay) => overlay.shape),
+    [data?.sections, displayedTables, floorStageMetrics],
+  );
   const editorSelectedTables = useMemo(
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
     [editedTables, editorSelectedTableIds],
@@ -2123,6 +2197,21 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     transform: `scale(${floorStageMetrics.scale})`,
                   }}
                 >
+                  {sectionOverlays.length > 0 && (
+                    <svg
+                      className="floor-section-overlays"
+                      viewBox={`0 0 ${floorStageMetrics.width} ${floorStageMetrics.height}`}
+                      aria-label="Floor sections"
+                    >
+                      {sectionOverlays.map(({ section, color, shape }) => shape && (
+                        <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>
+                          <path d={shape.path} />
+                          <rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" />
+                          <text x={shape.labelX} y={shape.labelY}>{section.name}</text>
+                        </g>
+                      ))}
+                    </svg>
+                  )}
                   {loading && !data ? (
                     <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
                   ) : displayedTables.map((table) => {
