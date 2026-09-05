@@ -151,6 +151,8 @@ export function ServersSettings() {
   const [sectionColor, setSectionColor] = useState(SECTION_COLORS[0]);
   const [sectionTableIds, setSectionTableIds] = useState<number[]>([]);
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
+  const [creatingSection, setCreatingSection] = useState(false);
+  const sectionActive = creatingSection || editingSectionId !== null;
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const floorRef = useRef<HTMLDivElement>(null);
@@ -220,6 +222,7 @@ export function ServersSettings() {
   }
 
   function clearSectionForm() {
+    setCreatingSection(false);
     setSectionName("");
     setSectionColor(SECTION_COLORS[0]);
     setSectionTableIds([]);
@@ -227,6 +230,7 @@ export function ServersSettings() {
   }
 
   function editSection(section: Section) {
+    setCreatingSection(false);
     setSectionName(section.name);
     setSectionColor(section.color || SECTION_COLORS[0]);
     setSectionTableIds(section.table_ids);
@@ -236,7 +240,7 @@ export function ServersSettings() {
 
   async function saveSection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!sectionName.trim() || saving) return;
+    if (!sectionActive || !sectionName.trim() || !sectionTableIds.length || saving) return;
     setSaving(true); setError("");
     try {
       const path = editingSectionId ? `/api/settings/sections/${editingSectionId}` : "/api/settings/sections";
@@ -260,6 +264,7 @@ export function ServersSettings() {
   }
 
   function toggleTable(id: number) {
+    if (!sectionActive || saving) return;
     setSectionTableIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
@@ -296,17 +301,17 @@ export function ServersSettings() {
         <article className="servers-card" role="tabpanel" id="servers-panel-sections" aria-labelledby="servers-tab-sections" hidden={activeTab !== "sections"}>
           <div className="section-panel-heading">
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
-            <div className="section-form-actions"><button className="servers-add-button" type="submit" form="section-editor-form" disabled={saving || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
+            {sectionActive && <div className="section-form-actions"><button className="servers-add-button" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button><button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></div>}
           </div>
           <div className="section-editor-layout">
             <aside className="saved-sections-sidebar" aria-label="Saved sections">
               <h4>Saved sections</h4>
-<ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id} className={editingSectionId === section.id ? "is-selected" : ""} onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) editSection(section); }}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><button className="section-row-select" type="button" aria-label={`Edit section ${section.name}`} aria-pressed={editingSectionId === section.id} onClick={() => editSection(section)}><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></button><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
-{!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
+              <button className="servers-add-button section-new-button" type="button" disabled={saving || creatingSection} onClick={() => { clearSectionForm(); setCreatingSection(true); setError(""); }}><Plus aria-hidden="true" /> New section</button>
+<ul className="section-list" aria-label="Floor sections">{creatingSection && <li className="is-selected"><label className="section-row-name"><span>New section name</span><input autoFocus form="section-editor-form" value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required disabled={saving} /></label><span>{sectionTableIds.length} tables selected</span></li>}{sections.map((section) => <li key={section.id} className={editingSectionId === section.id ? "is-selected" : ""} onClick={(event) => { if (!(event.target as HTMLElement).closest("button, input, label")) editSection(section); }}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" />{editingSectionId === section.id ? <label className="section-row-name"><span>Section name</span><input autoFocus form="section-editor-form" value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} required disabled={saving} /></label> : <button className="section-row-select" type="button" aria-label={`Edit section ${section.name}`} aria-pressed={editingSectionId === section.id} onClick={() => editSection(section)}><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></button>}<div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
+{!sections.length && !creatingSection && <p className="servers-empty">No sections yet. Click New section to get started.</p>}
             </aside>
           <form id="section-editor-form" className="server-form" onSubmit={(event) => void saveSection(event)}>
-            <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
-            <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
+            {sectionActive && <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>}
             <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${(floorWidth - (floorBounds.right - floorBounds.left) * floorScale) / 2 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables, sections);
@@ -321,7 +326,7 @@ export function ServersSettings() {
                 <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
-            <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
+            <p className="section-selection-status" role="status">{!sectionActive ? "Choose a saved section or click New section to select tables." : sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables for this section."}</p>
           </form>
           </div>
         </article>

@@ -759,6 +759,16 @@ textarea {
   font-size: 0.75rem;
 }
 
+.section-new-button { margin-top: 10px; }
+.section-row-name { display: grid; gap: 6px; min-width: 0; flex: 1 0 100%; }
+.section-row-name > span { font-size: 0.7rem; color: var(--text-soft); }
+.section-row-name input {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 8px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--canvas); color: var(--text); font: inherit; font-size: 0.76rem;
+}
+.section-editor-layout .section-color-field { grid-column: 1 / -1; justify-self: end; }
+
 .saved-sections-sidebar .section-list {
   margin-top: 12px;
 }
