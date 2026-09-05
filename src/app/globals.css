@@ -5505,6 +5505,11 @@ textarea {
   filter: drop-shadow(0 7px 12px rgba(0, 0, 0, 0.18));
 }
 
+.floor-section-overlay path.floor-section-connector {
+  stroke: none;
+  filter: none;
+}
+
 .floor-section-overlay rect {
   fill: color-mix(in srgb, var(--section-color) 25%, #121512);
   stroke: color-mix(in srgb, var(--section-color) 78%, white);

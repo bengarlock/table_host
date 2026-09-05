@@ -76,7 +76,14 @@ function sectionOverlay(section: Section, tables: Table[]) {
     return { left, right, top, bottom };
   });
   const first = bounds[0];
-  return { paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)), labelX: Math.max(14, first.left + 16), labelY: Math.max(26, first.top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
+  const connectors = bounds.slice(1).flatMap((bound, index) => {
+    const previous = bounds[index];
+    const left = Math.max(previous.left + 18, bound.left + 18);
+    const right = Math.min(previous.right - 18, bound.right - 18);
+    if (right <= left || bound.top <= previous.bottom) return [];
+    return [`M ${left} ${previous.bottom - 1} H ${right} V ${bound.top + 1} H ${left} Z`];
+  });
+  return { paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)), connectors, labelX: Math.max(14, first.left + 16), labelY: Math.max(26, first.top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -212,7 +219,7 @@ export function ServersSettings() {
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables);
                 const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
-                return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>{shape.paths.map((path, pathIndex) => <path key={pathIndex} d={path} />)}<rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
+                return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>{shape.connectors.map((path, pathIndex) => <path key={pathIndex} className="floor-section-connector" d={path} />)}{shape.paths.map((path, pathIndex) => <path key={pathIndex} d={path} />)}<rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
               })}</svg>}
               {tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);

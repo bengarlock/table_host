@@ -322,8 +322,16 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
     return { left, right, top, bottom };
   });
   const first = bounds[0];
+  const connectors = bounds.slice(1).flatMap((bound, index) => {
+    const previous = bounds[index];
+    const left = Math.max(previous.left + 18, bound.left + 18);
+    const right = Math.min(previous.right - 18, bound.right - 18);
+    if (right <= left || bound.top <= previous.bottom) return [];
+    return [`M ${left} ${previous.bottom - 1} H ${right} V ${bound.top + 1} H ${left} Z`];
+  });
   return {
     paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)),
+    connectors,
     labelX: Math.max(14, first.left + 16),
     labelY: Math.max(26, first.top + 24),
     labelWidth: Math.max(74, section.name.length * 9 + 20),
@@ -2180,6 +2188,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     >
                       {sectionOverlays.map(({ section, color, shape }) => shape && (
                         <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>
+                          {shape.connectors.map((path, index) => <path key={index} className="floor-section-connector" d={path} />)}
                           {shape.paths.map((path, index) => <path key={index} d={path} />)}
                           <rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" />
                           <text x={shape.labelX} y={shape.labelY}>{section.name}</text>
