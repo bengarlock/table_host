@@ -47,6 +47,7 @@ import {
   CSSProperties,
   DragEvent,
   FormEvent,
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -63,6 +64,7 @@ import { connectedSectionOutlines } from "@/lib/section-outline";
 import { tableLabelPresentation } from "@/lib/table-label";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import { formatTurnTime } from "@/lib/turn-time";
+import styles from "./floor-status-popover.module.css";
 import {
   closestServiceOccurrence,
   localDateValue,
@@ -194,6 +196,13 @@ type FloorStageMetrics = {
   width: number;
   height: number;
   scale: number;
+};
+
+type StatusPopover = {
+  reservationId: number;
+  tableName: string;
+  left: number;
+  top: number;
 };
 
 type GridData = {
@@ -423,6 +432,20 @@ function statusOptionsFor(status: ServiceStatus) {
   return SERVICE_LIFECYCLE_STATUSES.includes(status) ? SERVICE_STEPS : RESERVATION_STATUS_OPTIONS;
 }
 
+function statusPopoverPosition(target: HTMLElement) {
+  const bounds = target.getBoundingClientRect();
+  const margin = 12;
+  const width = Math.min(308, window.innerWidth - margin * 2);
+  const estimatedHeight = 352;
+  const left = bounds.right + 14 + width <= window.innerWidth - margin
+    ? bounds.right + 14
+    : Math.max(margin, bounds.left - width - 14);
+  return {
+    left: Math.round(Math.min(left, window.innerWidth - width - margin)),
+    top: Math.round(clamp(bounds.top, margin, Math.max(margin, window.innerHeight - estimatedHeight - margin))),
+  };
+}
+
 function readError(payload: unknown) {
   if (!payload || typeof payload !== "object") return "Something went wrong.";
   const first = Object.values(payload as Record<string, unknown>)[0];
@@ -628,6 +651,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [showFloorTimes, setShowFloorTimes] = useState(false);
   const [viewPreferencesRestored, setViewPreferencesRestored] = useState(false);
   const [floorClock, setFloorClock] = useState(() => Date.now());
+  const [statusPopover, setStatusPopover] = useState<StatusPopover | null>(null);
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
@@ -672,6 +696,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const resolveCurrentService = useRef(!initialServiceDate);
   const floorCanvasRef = useRef<HTMLDivElement>(null);
   const floorStageRef = useRef<HTMLDivElement>(null);
+  const statusPopoverRef = useRef<HTMLDivElement>(null);
   const floorTableDragRef = useRef<FloorTableDrag | null>(null);
   const floorMarqueeDragRef = useRef<FloorMarqueeDrag | null>(null);
   const floorLoadRequestRef = useRef(0);
@@ -829,6 +854,35 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }, []);
 
   useEffect(() => {
+    function dismissStatusPopover(event: PointerEvent) {
+      const target = event.target;
+      if (
+        target instanceof Node
+        && !statusPopoverRef.current?.contains(target)
+        && !(target instanceof Element && target.closest("[data-floor-table-id]"))
+      ) {
+        setStatusPopover(null);
+      }
+    }
+    function dismissForViewportChange() {
+      setStatusPopover(null);
+    }
+    function dismissForEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setStatusPopover(null);
+    }
+    window.addEventListener("pointerdown", dismissStatusPopover);
+    window.addEventListener("resize", dismissForViewportChange);
+    window.addEventListener("scroll", dismissForViewportChange, true);
+    window.addEventListener("keydown", dismissForEscape);
+    return () => {
+      window.removeEventListener("pointerdown", dismissStatusPopover);
+      window.removeEventListener("resize", dismissForViewportChange);
+      window.removeEventListener("scroll", dismissForViewportChange, true);
+      window.removeEventListener("keydown", dismissForEscape);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!walkInOpen) return;
     const query = walkInGuestQuery.trim();
     if (!query) return;
@@ -910,6 +964,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
+  const popoverReservation = data?.reservations.find((item) => item.id === statusPopover?.reservationId) || null;
   const selectedSeatingCapacity = useMemo(
     () => (data?.tables || [])
       .filter((table) => selectedTableIds.includes(table.id))
@@ -931,10 +986,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const FocusedStatusIcon = focusedStatusOption?.icon;
   const liveService = hydrated && serviceDate === data?.current_service_date;
   useEffect(() => {
-    if (!showFloorTimes || !liveService) return;
+    if (!liveService) return;
     const timer = window.setInterval(() => setFloorClock(Date.now()), 30_000);
     return () => window.clearInterval(timer);
-  }, [liveService, showFloorTimes]);
+  }, [liveService]);
   const displayedTables = useMemo(
     () => editingFloor ? editedTables : data?.tables || [],
     [data?.tables, editedTables, editingFloor],
@@ -1745,6 +1800,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     }
   }
 
+  function openTableStatus(event: ReactMouseEvent<HTMLButtonElement>, reservation: Reservation, table: DiningTable) {
+    const position = statusPopoverPosition(event.currentTarget);
+    setStatusPopover((current) => current?.reservationId === reservation.id && current.tableName === table.name
+      ? null
+      : { reservationId: reservation.id, tableName: table.name, ...position });
+  }
+
+  async function updateTableStatus(reservation: Reservation, status: ServiceStatus) {
+    if (!SERVICE_LIFECYCLE_STATUSES.includes(status)) return;
+    const updated = await updateReservation(reservation, { status });
+    if (updated && status === "complete") setStatusPopover(null);
+  }
+
   function seatAtTable(reservation: Reservation, table: DiningTable) {
     if (activeByTable.has(table.id) || !liveService) return;
     void updateReservation(reservation, {
@@ -2469,7 +2537,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             toggleSeatingTable(table.id);
                           }
                         } else if (reservation) {
-                          openReservationDetails(reservation);
+                          openTableStatus(event, reservation, table);
                         }
                       }}
                       onPointerDown={(event) => beginTableMove(event, table.id)}
@@ -2552,6 +2620,66 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
                 )}
               </div>
+
+              {statusPopover && popoverReservation && (() => {
+                const turn = turnProgress(popoverReservation, floorClock);
+                const seatedAt = popoverReservation.seated_at
+                  ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(popoverReservation.seated_at))
+                  : "Not recorded";
+                const remaining = turn?.expired
+                  ? "Time is up"
+                  : turn ? `${formatTurnTime(turn.remainingMinutes)} left` : "—";
+                return (
+                  <div
+                    ref={statusPopoverRef}
+                    className={styles.popover}
+                    role="dialog"
+                    aria-label={`Service status for ${popoverReservation.guest_name}`}
+                    style={{ left: statusPopover.left, top: statusPopover.top }}
+                  >
+                    <div className={styles.header}>
+                      <div>
+                        <span className={styles.eyebrow}>Table {statusPopover.tableName} · {popoverReservation.party_size} {popoverReservation.party_size === 1 ? "guest" : "guests"}</span>
+                        <h2 className={styles.guest}>{popoverReservation.guest_name || "Walk-in"}</h2>
+                      </div>
+                      <button type="button" className={styles.close} onClick={() => setStatusPopover(null)} aria-label="Close table status"><X aria-hidden="true" /></button>
+                    </div>
+                    <div className={styles.summary}>
+                      <div><span>Seated</span><strong>{seatedAt}</strong></div>
+                      <div><span>Expected turn</span><strong>{formatTurnTime(popoverReservation.duration_minutes)}</strong></div>
+                      <div><span>Time remaining</span><strong className={turn?.expired ? styles.warning : undefined}>{remaining}</strong></div>
+                      <div><span>Current status</span><strong>{statusLabel(popoverReservation.status)}</strong></div>
+                    </div>
+                    <div className={styles.steps} aria-label="Service status actions">
+                      {SERVICE_STEPS.map((step) => {
+                        const StepIcon = step.icon;
+                        const current = step.value === popoverReservation.status;
+                        return (
+                          <button
+                            type="button"
+                            key={step.value}
+                            className={`${styles.step}${current ? ` ${styles.current}` : ""}`}
+                            aria-pressed={current}
+                            disabled={saving || !liveService || current}
+                            // This handler runs after the click; it does not read a ref during render.
+                            // eslint-disable-next-line react-hooks/refs
+                            onClick={() => void updateTableStatus(popoverReservation, step.value)}
+                          >
+                            <StepIcon aria-hidden="true" />
+                            <span>{step.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button type="button" className={styles.details} onClick={() => {
+                      setStatusPopover(null);
+                      // This handler runs after the click; it does not read a ref during render.
+                      // eslint-disable-next-line react-hooks/refs
+                      openReservationDetails(popoverReservation);
+                    }}>Open reservation details</button>
+                  </div>
+                );
+              })()}
 
               {focusedReservation && reservationEditDraft && (
                 <aside className={`floor-reservation-detail-card${reservationDetailClosing ? " is-closing" : ""}`} aria-label={`Reservation details for ${focusedReservation.guest_name}`} aria-hidden={reservationDetailClosing}>
