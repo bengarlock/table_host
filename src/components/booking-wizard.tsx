@@ -771,6 +771,7 @@ export function BookingWizard({
       const payload = (await response.json()) as GuestRecord | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       chooseGuest(payload as GuestRecord);
+      advanceTo(4);
     } catch (reason) {
       setGuestSearchError(reason instanceof Error ? reason.message : "Unable to create the guest.");
     } finally {

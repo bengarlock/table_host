@@ -116,6 +116,39 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   await expect(page.locator(".time-and-tables-selection")).toHaveCount(0);
 });
 
+test("creating a guest continues directly to reservation details", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  await page.route("**/api/guests?q=*", (route) => route.fulfill({ json: { results: [] } }));
+  await page.route("**/api/guests", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({
+      status: 201,
+      json: {
+        id: 42,
+        first_name: "Jamie",
+        last_name: "Lee",
+        full_name: "Jamie Lee",
+        phone_number: "+1 555-0199",
+        email: "",
+        company: "",
+        guest_notes: "",
+        tags: [],
+      },
+    });
+  });
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=2&duration=90&tables=1`);
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Guest search" }).fill("Jamie Lee");
+  await expect(page.getByText("No matching guest found")).toBeVisible();
+  await page.getByRole("button", { name: "Create guest" }).click();
+  await page.getByLabel("Phone number").fill("555-0199");
+  await page.getByRole("button", { name: "Create and continue" }).click();
+  await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toHaveCount(0);
+});
+
 test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
   await mockGrid(page);
   await page.route("**/api/grid/blocks", async (route) => {
