@@ -1393,12 +1393,18 @@ textarea {
 .grid-draft-bar {
   display: flex;
   min-height: 72px;
+  flex: 0 0 72px;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
   padding: 12px 18px;
-  border-bottom: 1px solid rgba(211, 164, 92, 0.42);
+  border-top: 1px solid rgba(211, 164, 92, 0.42);
   background: linear-gradient(90deg, rgba(110, 78, 35, 0.34), rgba(29, 32, 28, 0.96));
+}
+
+.grid-draft-bar.is-empty {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .grid-draft-bar p {

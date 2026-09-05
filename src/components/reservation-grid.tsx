@@ -611,20 +611,6 @@ export function ReservationGrid({
         </div>
       )}
 
-      {draft && !bookingFormOpen && (
-        <section className="grid-draft-bar" aria-label="New reservation selection">
-          <div>
-            <p>New reservation selection</p>
-            <strong>{draft.tableNames.length > 1 ? "Tables" : "Table"} {draft.tableNames.join(" + ")}</strong>
-            <span>{displayTime(draft.time)} · {formatTurnTime(draft.durationMinutes)} hold · seats {draft.capacity}</span>
-          </div>
-          <div className="grid-draft-actions">
-            <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
-            <button className="primary-action" type="button" onClick={() => setBookingFormOpen(true)}>Book Reservation</button>
-          </div>
-        </section>
-      )}
-
       <div className={`grid-and-panel ${bookingFormOpen || selected ? "has-panel" : ""}`}>
         <section className="grid-card" aria-label="Table reservation timeline">
           {loading && !data ? (
@@ -921,6 +907,25 @@ export function ReservationGrid({
           </aside>
         )}
       </div>
+
+      <section
+        className={`grid-draft-bar ${draft && !bookingFormOpen ? "" : "is-empty"}`}
+        aria-label="New reservation selection"
+      >
+        {draft && !bookingFormOpen && (
+          <>
+            <div>
+              <p>New reservation selection</p>
+              <strong>{draft.tableNames.length > 1 ? "Tables" : "Table"} {draft.tableNames.join(" + ")}</strong>
+              <span>{displayTime(draft.time)} · {formatTurnTime(draft.durationMinutes)} hold · seats {draft.capacity}</span>
+            </div>
+            <div className="grid-draft-actions">
+              <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
+              <button className="primary-action" type="button" onClick={() => setBookingFormOpen(true)}>Book Reservation</button>
+            </div>
+          </>
+        )}
+      </section>
 
       {confirmedReservation && data && (
         <div
