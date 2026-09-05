@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, LoaderCircle, Pencil, Plus, Trash2, UsersRound, X } from "lucide-react";
-import { CSSProperties, FormEvent, useEffect, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
 import { appPath } from "@/lib/app-paths";
 
 type Server = { id: number; name: string; color: string };
@@ -111,7 +111,36 @@ function sectionOverlay(section: Section, tables: Table[]) {
   ) + " Z";
   const left = Math.min(...hull.map((point) => point.x));
   const top = Math.min(...hull.map((point) => point.y));
-  return { path, labelX: Math.max(14, left + 16), labelY: Math.max(26, top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
+  return { path, polygon: hull, labelX: Math.max(14, left + 16), labelY: Math.max(26, top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
+}
+
+function pointInPolygon(point: Point, polygon: Point[]) {
+  return polygon.reduce((inside, current, index) => {
+    const previous = polygon[(index + polygon.length - 1) % polygon.length];
+    const crosses = (current.y > point.y) !== (previous.y > point.y)
+      && point.x < (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x;
+    return crosses ? !inside : inside;
+  }, false);
+}
+
+function orientation(first: Point, second: Point, third: Point) {
+  return cross(first, second, third);
+}
+
+function segmentsCross(first: Point, second: Point, third: Point, fourth: Point) {
+  const one = orientation(first, second, third);
+  const two = orientation(first, second, fourth);
+  const three = orientation(third, fourth, first);
+  const four = orientation(third, fourth, second);
+  return ((one > 0 && two < 0) || (one < 0 && two > 0)) && ((three > 0 && four < 0) || (three < 0 && four > 0));
+}
+
+function polygonsOverlap(first: Point[], second: Point[]) {
+  const edgesCross = first.some((point, index) => {
+    const next = first[(index + 1) % first.length];
+    return second.some((other, otherIndex) => segmentsCross(point, next, other, second[(otherIndex + 1) % second.length]));
+  });
+  return edgesCross || pointInPolygon(first[0], second) || pointInPolygon(second[0], first);
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -217,6 +246,23 @@ export function ServersSettings() {
     setSectionTableIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
+  const claimedTableIds = useMemo(
+    () => new Set(sections.filter((section) => section.id !== editingSectionId).flatMap((section) => section.table_ids)),
+    [editingSectionId, sections],
+  );
+  const sectionConflict = useMemo(() => {
+    if (!sectionTableIds.length) return "";
+    const draft: Section = { id: editingSectionId || -1, name: sectionName || "New section", color: sectionColor, table_ids: sectionTableIds };
+    const draftShape = sectionOverlay(draft, tables);
+    if (!draftShape) return "";
+    const collision = sections.find((section) => {
+      if (section.id === editingSectionId) return false;
+      const shape = sectionOverlay(section, tables);
+      return shape && polygonsOverlap(draftShape.polygon, shape.polygon);
+    });
+    return collision ? `This boundary overlaps ${collision.name}. Choose a different group of tables.` : "";
+  }, [editingSectionId, sectionColor, sectionName, sectionTableIds, sections, tables]);
+
   return (
     <section className="settings-section servers-settings" aria-labelledby="servers-settings-title">
       <header className="settings-section-header">
@@ -251,14 +297,15 @@ export function ServersSettings() {
               })}</svg>}
               {tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);
-              return <button key={table.id} type="button" className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
+              const claimed = claimedTableIds.has(table.id);
+              return <button key={table.id} type="button" disabled={claimed} className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}${claimed ? " section-table-claimed" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${claimed ? ", assigned to another section" : selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
                 {chairPositions(table).map((style, index) => <i key={index} className="chair" style={style} aria-hidden="true" />)}
                 <span className="floor-table-surface" aria-hidden="true" />
                 <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
-            <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
-            <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
+            <p className={`section-selection-status${sectionConflict ? " section-selection-conflict" : ""}`} role="status">{sectionConflict || (sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section.")}</p>
+            <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length || Boolean(sectionConflict)}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
           </form>
           <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
           {!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
