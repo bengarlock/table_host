@@ -530,8 +530,8 @@ textarea {
   width: 100%;
   max-width: none;
   box-sizing: border-box;
-  padding: 16px;
-  margin-top: 16px;
+  padding: 0 16px 16px;
+  margin-top: 8px;
 }
 
 .servers-settings-grid {
