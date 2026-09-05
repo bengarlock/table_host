@@ -150,6 +150,7 @@ type ReservationEditDraft = {
   durationMinutes: string;
   status: Reservation["status"];
   phone: string;
+  email: string;
   reservationNotes: string;
   reservationTags: string[];
   guestNotes: string;
@@ -563,6 +564,7 @@ export function ReservationGrid({
           duration_minutes: durationMinutes,
           status: reservationEditDraft.status,
           guest_phone: reservationEditDraft.phone.trim(),
+          guest_email: reservationEditDraft.email.trim(),
           notes: reservationEditDraft.reservationNotes.trim(),
           tags: reservationEditDraft.reservationTags,
           guest_notes: reservationEditDraft.guestNotes.trim(),
@@ -650,6 +652,7 @@ export function ReservationGrid({
       durationMinutes: String(reservation.duration_minutes),
       status: reservation.status,
       phone: reservation.guest_phone || "",
+      email: reservation.guest_email || "",
       reservationNotes: reservation.notes || "",
       reservationTags: reservation.tags || [],
       guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
@@ -920,7 +923,7 @@ export function ReservationGrid({
                   <label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label>
                 </div>
                 <section className="reservation-editor-section reservation-detail-section"><div className="booking-detail-section-heading"><TagIcon tag="Birthday" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div><fieldset className="tag-picker"><legend>Reservation tags</legend><div className="tag-options">{[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.reservationTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Reservation notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.reservationNotes} onChange={(event) => { const reservationNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, reservationNotes })); }} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label></section>
-                <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
+                <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><label>Guest email<input type="email" value={reservationEditDraft.email} onChange={(event) => { const email = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, email })); }} placeholder="guest@example.com" /></label><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
               </div>
               <footer><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></footer>
             </form>

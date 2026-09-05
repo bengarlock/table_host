@@ -1608,6 +1608,7 @@ textarea {
 }
 
 .reservation-editor-fields input,
+.reservation-editor-section input,
 .reservation-editor-section textarea {
   width: 100%;
   padding: 10px 11px;
@@ -1620,6 +1621,7 @@ textarea {
 }
 
 .reservation-editor-fields input:focus,
+.reservation-editor-section input:focus,
 .reservation-editor-section textarea:focus {
   border-color: var(--accent);
 }

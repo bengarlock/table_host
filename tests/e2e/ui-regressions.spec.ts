@@ -229,7 +229,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     id: 111, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
     guest_name: "Taylor Brooks", party_size: 4, start_time: "17:00", duration_minutes: 90,
     status: "confirmed", assignment_type: "soft", is_unassigned: false,
-    guest_phone: "555-0101", guest_email: "", guest_notes: "Likes a quiet table.", guest_profile_notes: "Likes a quiet table.",
+    guest_phone: "555-0101", guest_email: "taylor@example.com", guest_notes: "Likes a quiet table.", guest_profile_notes: "Likes a quiet table.",
     guest_tags: ["Regular"], tags: ["Birthday"], notes: "Window if available.",
   };
   let savedUpdate: Record<string, unknown> | null = null;
@@ -267,6 +267,8 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await statusMenu.click();
   await dialog.getByRole("option", { name: "Late" }).click();
   await dialog.getByLabel("Phone number").fill("555-0199");
+  await expect(dialog.getByLabel("Guest email")).toHaveValue("taylor@example.com");
+  await dialog.getByLabel("Guest email").fill("taylor.new@example.com");
   await dialog.getByLabel("Reservation notes").fill("Updated reservation note.");
   await dialog.getByLabel("Guest notes").fill("Updated guest note.");
   await dialog.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Anniversary" }).click();
@@ -277,6 +279,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     duration_minutes: 105,
     status: "late",
     guest_phone: "+1 5550199",
+    guest_email: "taylor.new@example.com",
     notes: "Updated reservation note.",
     tags: ["Birthday", "Anniversary"],
     guest_notes: "Updated guest note.",
