@@ -240,7 +240,7 @@ export function ServersSettings() {
 
   async function saveSection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!sectionActive || !sectionName.trim() || !sectionTableIds.length || saving) return;
+    if (!sectionActive || !sectionName.trim() || saving) return;
     setSaving(true); setError("");
     try {
       const path = editingSectionId ? `/api/settings/sections/${editingSectionId}` : "/api/settings/sections";
@@ -326,7 +326,7 @@ export function ServersSettings() {
                         onChange={(event) => setSectionColor(event.target.value.toUpperCase())} /></label>
                     </div>
                     <div className="section-list-actions">
-                      {active ? <><button className="section-row-save" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}><Check aria-hidden="true" /> Save</button><button type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></> : <><button type="button" disabled={saving} onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button>
+                      {active ? <><button className="section-row-save" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim()}><Check aria-hidden="true" /> Save</button><button type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></> : <><button type="button" disabled={saving} onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button>
                       <button type="button" disabled={saving} className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""}
                         onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>
                         {deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></>}
@@ -351,7 +351,7 @@ export function ServersSettings() {
                 <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
-            <p className="section-selection-status" role="status">{!sectionActive ? "Choose a saved section or click New section to select tables." : sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables for this section."}</p>
+            <p className="section-selection-status" role="status">{!sectionActive ? "Choose a saved section or click New section to select tables." : sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Tables are optional. Save now and assign tables later."}</p>
           </form>
           </div>
         </article>
