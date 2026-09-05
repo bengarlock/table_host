@@ -350,6 +350,74 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
   await expect(page.getByRole("option", { name: "Confirmed" })).toHaveCount(0);
 });
 
+test("floor plan can toggle stacked reservation times for each table", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-04T17:45:00") });
+  const reservations = [
+    {
+      id: 104, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Early party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 105, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Late party", party_size: 2, start_time: "19:30", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 106, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
+      guest_name: "Seated party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "seated", seated_at: "2026-09-04T17:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      sections: [{ id: 1, name: "Patio", color: "#d9aa62", table_ids: [1] }],
+      reservations,
+      summary: { reservations: 3, covers: 6, seated: 2 },
+    },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  const view = page.getByRole("button", { name: "View", exact: true });
+  await expect(page.locator(".floor-section-overlays")).toBeVisible();
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
+
+  await view.click();
+  const reservationTimes = page.getByRole("checkbox", { name: "Reservation times" });
+  const floorTimes = page.getByRole("checkbox", { name: "Floor times" });
+  const sectionOutlines = page.getByRole("checkbox", { name: "Section outlines" });
+  await expect(reservationTimes).not.toBeChecked();
+  await expect(floorTimes).not.toBeChecked();
+  await expect(sectionOutlines).toBeChecked();
+
+  await reservationTimes.check();
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times time')).toHaveText(["5:00 PM", "7:30 PM"]);
+
+  await floorTimes.check();
+  const floorTimer = page.locator('[data-floor-table-id="2"] .floor-table-turn-timer');
+  await expect(floorTimer).toHaveClass(/on-track/);
+  await expect(floorTimer).toBeVisible();
+  const timerDuration = await floorTimer.evaluate((element) => Number.parseFloat(
+    getComputedStyle(element).getPropertyValue("--turn-countdown-duration"),
+  ));
+  expect(timerDuration).toBeGreaterThan(2_650_000);
+  expect(timerDuration).toBeLessThanOrEqual(2_700_000);
+
+  await sectionOutlines.uncheck();
+  await expect(page.locator(".floor-section-overlays")).toHaveCount(0);
+
+  await reservationTimes.uncheck();
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
+
+  await floorTimes.uncheck();
+  await expect(floorTimer).toHaveCount(0);
+
+  await page.locator(".floor-canvas").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".floor-view-menu")).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("checkbox", { name: "Reservation times" })).toHaveCount(0);
+});
+
 async function mockAvailability(page: Page) {
   await page.route("**/api/grid/availability?*", async (route) => {
     const requestedPartySize = Number(new URL(route.request().url()).searchParams.get("party_size"));
@@ -908,6 +976,38 @@ test("booking restores time selection before optional table assignment", async (
   expect(reservationNotes!.height).toBeGreaterThan(120);
   expect(Math.abs((reservationNotes!.y + reservationNotes!.height) - (reservationSection!.y + reservationSection!.height - 14))).toBeLessThan(2);
   expect(Math.abs((guestNotes!.y + guestNotes!.height) - (guestSection!.y + guestSection!.height - 14))).toBeLessThan(2);
+});
+
+test("table assignment stacks every active reservation time on its table", async ({ page }) => {
+  await mockAvailability(page);
+  const reservations = [
+    {
+      id: 201, table_id: 1, table_ids: [1], guest_name: "First seating", party_size: 2,
+      start_time: "17:00", duration_minutes: 90, status: "confirmed", assignment_type: "hard",
+    },
+    {
+      id: 202, table_id: 1, table_ids: [1], guest_name: "Second seating", party_size: 2,
+      start_time: "19:30", duration_minutes: 90, status: "confirmed", assignment_type: "hard",
+    },
+    {
+      id: 203, table_id: 1, table_ids: [1], guest_name: "Cancelled seating", party_size: 2,
+      start_time: "20:30", duration_minutes: 90, status: "cancelled", assignment_type: "hard",
+    },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations, summary: { reservations: 3, covers: 6, seated: 0 } },
+  }));
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ }).click();
+  await page.getByRole("button", { name: "Assign Tables" }).click();
+
+  const table = page.getByRole("button", { name: /Table 1, 2 seats, reservations at 5PM, 7:30PM/ });
+  await expect(table.locator(".reservation-turn-times em")).toHaveText(["5PM", "7:30PM"]);
+  await expect(table.locator(".reservation-turn-times")).toHaveCSS("display", "grid");
+  await expect(table).not.toContainText("8:30PM");
 });
 
 test("oversized parties warn but can continue to time selection", async ({ page }) => {

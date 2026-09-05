@@ -83,14 +83,11 @@ type Reservation = {
   notes: string;
 };
 
-type TableMove = {
+type ReservationActivity = {
   id: number;
-  from_table_name: string;
-  to_table_name: string;
-  move_type: "manual" | "reflow";
-  reason: string;
-  triggered_by_id: number | null;
-  triggered_by_guest_name: string | null;
+  action: string;
+  summary: string;
+  changes: Record<string, unknown>;
   created_at: string;
 };
 
@@ -183,9 +180,9 @@ export function ReservationGrid({
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
-  const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
+  const [activityEvents, setActivityEvents] = useState<ReservationActivity[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [moveHistoryOpen, setMoveHistoryOpen] = useState(false);
+  const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
   const [unlocking, setUnlocking] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -436,7 +433,7 @@ export function ReservationGrid({
       if (!response.ok) throw new Error(readError(payload));
       if (selected?.id === reservation.id) {
         setSelected(payload as Reservation);
-        await loadMoveHistory(reservation.id);
+        await loadActivityHistory(reservation.id);
       }
       await loadGrid();
     } catch (reason) {
@@ -460,7 +457,7 @@ export function ReservationGrid({
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
       setSelected(payload as Reservation);
-      await Promise.all([loadGrid(), loadMoveHistory(selected.id)]);
+      await Promise.all([loadGrid(), loadActivityHistory(selected.id)]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to unlock the reservation.");
     } finally {
@@ -477,18 +474,18 @@ export function ReservationGrid({
     setDraggedReservationId(reservation.id);
   }
 
-  async function loadMoveHistory(reservationId: number) {
+  async function loadActivityHistory(reservationId: number) {
     setHistoryLoading(true);
     try {
-      const response = await fetch(appPath(`/api/grid/reservations/${reservationId}/moves`), {
+      const response = await fetch(appPath(`/api/grid/reservations/${reservationId}/history`), {
         cache: "no-store",
       });
-      const payload = (await response.json()) as TableMove[] | Record<string, unknown>;
+      const payload = (await response.json()) as ReservationActivity[] | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      setTableMoves(payload as TableMove[]);
+      setActivityEvents(payload as ReservationActivity[]);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load table movement history.");
-      setTableMoves([]);
+      setError(reason instanceof Error ? reason.message : "Unable to load reservation activity.");
+      setActivityEvents([]);
     } finally {
       setHistoryLoading(false);
     }
@@ -497,10 +494,10 @@ export function ReservationGrid({
   async function openReservation(reservation: Reservation) {
     setDraft(null);
     setUnlocking(false);
-    setMoveHistoryOpen(false);
+    setActivityHistoryOpen(false);
     setSelected(reservation);
-    setTableMoves([]);
-    await loadMoveHistory(reservation.id);
+    setActivityEvents([]);
+    await loadActivityHistory(reservation.id);
   }
 
   async function cancelReservation() {
@@ -805,48 +802,42 @@ export function ReservationGrid({
                     ))}
                   </select>
                 </label>
-                <section className="move-history" aria-label="Table movement history">
+                <section className="move-history" aria-label="Reservation activity">
                   <button
                     type="button"
                     className="move-history-toggle"
-                    onClick={() => setMoveHistoryOpen((open) => !open)}
-                    aria-expanded={moveHistoryOpen}
-                    aria-controls="table-move-history-content"
+                    onClick={() => setActivityHistoryOpen((open) => !open)}
+                    aria-expanded={activityHistoryOpen}
+                    aria-controls="reservation-activity-history-content"
                   >
-                    <span>Table moves</span>
+                    <span>Activity history</span>
                     <span className="move-history-summary">
-                      {!historyLoading && tableMoves.length > 0 && tableMoves.length}
+                      {!historyLoading && activityEvents.length > 0 && activityEvents.length}
                       <ChevronDown aria-hidden="true" />
                     </span>
                   </button>
-                  {moveHistoryOpen && (
-                    <div id="table-move-history-content" className="move-history-content">
+                  {activityHistoryOpen && (
+                    <div id="reservation-activity-history-content" className="move-history-content">
                       {historyLoading ? (
                         <p>Loading history…</p>
-                      ) : tableMoves.length ? (
+                      ) : activityEvents.length ? (
                         <ol>
-                          {tableMoves.map((move) => (
-                            <li key={move.id}>
-                              <span>Table {move.from_table_name} → Table {move.to_table_name}</span>
-                              <small>
-                                {move.move_type === "manual" ? "Manual · hard assigned" : "Automatic reflow"}
-                                {move.triggered_by_guest_name && move.move_type === "reflow"
-                                  ? ` · triggered by ${move.triggered_by_guest_name}`
-                                  : ""}
-                              </small>
-                              <time dateTime={move.created_at}>
+                          {activityEvents.map((activity) => (
+                            <li key={activity.id}>
+                              <span>{activity.summary}</span>
+                              <time dateTime={activity.created_at}>
                                 {new Intl.DateTimeFormat("en-US", {
                                   month: "short",
                                   day: "numeric",
                                   hour: "numeric",
                                   minute: "2-digit",
-                                }).format(new Date(move.created_at))}
+                                }).format(new Date(activity.created_at))}
                               </time>
                             </li>
                           ))}
                         </ol>
                       ) : (
-                        <p>No table moves yet.</p>
+                        <p>No activity recorded yet.</p>
                       )}
                     </div>
                   )}

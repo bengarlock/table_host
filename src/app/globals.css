@@ -3617,9 +3617,8 @@ textarea {
 
 .reservation-turn-times {
   display: grid;
-  max-height: 34px;
   gap: 1px;
-  overflow: hidden;
+  text-align: center;
 }
 
 .reservation-turn-times em {
@@ -5408,6 +5407,85 @@ textarea {
   color: #fff8eb;
 }
 
+.floor-view-menu {
+  position: relative;
+}
+
+.floor-view-menu > summary {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  cursor: pointer;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: #e5c18a;
+  font-size: 0.63rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.floor-view-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.floor-view-menu > summary > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.floor-view-menu[open] > summary {
+  border-color: #d2a35c;
+  background: #5a4629;
+  color: #fff8eb;
+}
+
+.floor-view-menu[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+
+.floor-view-menu-options {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 184px;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #1b1f1b;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+
+.floor-view-menu-options > span {
+  color: var(--text-muted);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.floor-view-menu-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.floor-view-menu-options input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
 .floor-service-layout.editing-floor {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -5763,6 +5841,49 @@ textarea {
   transform: rotate(var(--table-label-rotation, 0deg));
 }
 
+.floor-table-turn-timer {
+  position: absolute;
+  inset: 9px;
+  z-index: 4;
+  width: calc(100% - 18px);
+  height: calc(100% - 18px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.floor-table-turn-timer circle,
+.floor-table-turn-timer rect {
+  fill: none;
+  stroke: #72c995;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: var(--turn-dash);
+  transition: stroke 220ms ease;
+  animation: floor-table-turn-countdown var(--turn-countdown-duration) linear forwards;
+}
+
+@keyframes floor-table-turn-countdown {
+  to {
+    stroke-dasharray: 0 100;
+  }
+}
+
+.floor-table-turn-timer circle {
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.floor-table-turn-timer.warning circle,
+.floor-table-turn-timer.warning rect {
+  stroke: #e5bb6f;
+}
+
+.floor-table-turn-timer.expired circle,
+.floor-table-turn-timer.expired rect {
+  stroke: #ef754c;
+  filter: drop-shadow(0 0 4px rgba(239, 117, 76, 0.56));
+}
+
 .floor-table.available .floor-table-surface {
   border-color: #d8dcda;
   background: #b8bdb9;
@@ -5859,6 +5980,28 @@ textarea {
   font-weight: 760;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.floor-table-reservation-times {
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.floor-table-reservation-times time {
+  color: inherit;
+  font-size: 0.46rem;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.floor-table.available .floor-table-reservation-times time {
+  color: #404641;
+}
+
+.floor-table:not(.available) .floor-table-reservation-times time {
+  color: #d4d7cf;
 }
 
 .floor-table-label.floor-table-label-compact {
@@ -6280,6 +6423,52 @@ textarea {
 
 .floor-reservation-metadata-panel label {
   align-self: end;
+}
+
+.floor-reservation-activity {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.floor-reservation-activity h3 {
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.floor-reservation-activity p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.56rem;
+}
+
+.floor-reservation-activity ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.floor-reservation-activity li {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.floor-reservation-activity li span {
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.floor-reservation-activity time {
+  color: var(--text-muted);
+  font-size: 0.55rem;
 }
 
 .floor-reservation-detail-wide {
