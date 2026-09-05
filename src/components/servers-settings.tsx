@@ -155,10 +155,14 @@ export function ServersSettings() {
   const [loading, setLoading] = useState(true);
   const floorRef = useRef<HTMLDivElement>(null);
   const [floorWidth, setFloorWidth] = useState(0);
+  const [floorHeight, setFloorHeight] = useState(0);
   useEffect(() => {
     const element = floorRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setFloorWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) => {
+      setFloorWidth(entry.contentRect.width);
+      setFloorHeight(entry.contentRect.height);
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, [loading, tables.length]);
@@ -171,7 +175,10 @@ export function ServersSettings() {
     return { left: Math.min(bounds.left, x - halfWidth), right: Math.max(bounds.right, x + halfWidth),
       top: Math.min(bounds.top, y - halfHeight), bottom: Math.max(bounds.bottom, y + halfHeight) };
   }, { left: 0, right: 1200, top: 0, bottom: 660 });
-  const floorScale = floorWidth > 24 ? (floorWidth - 24) / (floorBounds.right - floorBounds.left) : 0;
+  const floorScale = floorWidth > 24 && floorHeight > 24 ? Math.min(
+    (floorWidth - 24) / (floorBounds.right - floorBounds.left),
+    (floorHeight - 24) / (floorBounds.bottom - floorBounds.top),
+  ) : 0;
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "server" | "section"; id: number } | null>(null);
 
@@ -300,7 +307,7 @@ export function ServersSettings() {
           <form id="section-editor-form" className="server-form" onSubmit={(event) => void saveSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
             <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
-            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" style={{ height: Math.max(320, (floorBounds.bottom - floorBounds.top) * floorScale + 24) }} aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${12 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
+            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${(floorWidth - (floorBounds.right - floorBounds.left) * floorScale) / 2 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables, sections);
                 const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
