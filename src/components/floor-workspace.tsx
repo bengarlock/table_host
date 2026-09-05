@@ -619,6 +619,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
   const [reservationDetailClosing, setReservationDetailClosing] = useState(false);
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
+  const viewMenuRef = useRef<HTMLDetailsElement>(null);
   const reservationDetailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
@@ -765,6 +766,18 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     return () => {
       if (reservationDetailCloseTimerRef.current) clearTimeout(reservationDetailCloseTimerRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    function dismissViewMenu(event: PointerEvent) {
+      const menu = viewMenuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        menu.removeAttribute("open");
+      }
+    }
+
+    window.addEventListener("pointerdown", dismissViewMenu);
+    return () => window.removeEventListener("pointerdown", dismissViewMenu);
   }, []);
 
   useEffect(() => {
@@ -2036,7 +2049,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 </div>
                 <div className="floor-plan-actions">
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
-                  <details className="floor-view-menu">
+                  <details ref={viewMenuRef} className="floor-view-menu">
                     <summary role="button" aria-label="View">
                       <Eye aria-hidden="true" /> View <ChevronRight aria-hidden="true" />
                     </summary>

@@ -410,6 +410,10 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
 
   await floorTimes.uncheck();
   await expect(floorTimer).toHaveCount(0);
+
+  await page.locator(".floor-canvas").click({ position: { x: 8, y: 8 } });
+  await expect(page.locator(".floor-view-menu")).not.toHaveAttribute("open", "");
+  await expect(page.getByRole("checkbox", { name: "Reservation times" })).toHaveCount(0);
 });
 
 async function mockAvailability(page: Page) {
