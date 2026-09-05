@@ -620,19 +620,10 @@ export function ReservationGrid({
                   const tableReservations = data.reservations.filter((item) =>
                     (item.table_ids.length ? item.table_ids : [item.table_id]).includes(table.id),
                   );
-                  const hasConflict = Boolean(
-                    draggedReservation &&
-                    tableReservations.some(
-                      (item) =>
-                        item.id !== draggedReservation.id &&
-                        reservationsOverlap(item, draggedReservation),
-                    ),
-                  );
                   const isOriginalTable = draggedReservation?.table_id === table.id;
                   const isSuggested = Boolean(
                     draggedReservation &&
                     !isOriginalTable &&
-                    !hasConflict &&
                     table.capacity >= draggedReservation.party_size,
                   );
                   const isTooSmall = Boolean(
@@ -644,7 +635,6 @@ export function ReservationGrid({
                     "timeline-row",
                     isSuggested ? "drag-suggested" : "",
                     isTooSmall ? "drag-too-small" : "",
-                    draggedReservation && hasConflict ? "drag-conflict" : "",
                     dropTargetTableId === table.id ? "drop-active" : "",
                   ].filter(Boolean).join(" ");
                   return (
