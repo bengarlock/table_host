@@ -20,7 +20,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { PhoneInput } from "@/components/phone-input";
 import {
   ReservationFloorTable,
@@ -127,26 +127,6 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function displayHour(time: string) {
-  const hour = Number(time.split(":")[0]);
-  return `${hour % 12 || 12} ${hour >= 12 ? "PM" : "AM"}`;
-}
-
-function groupTimesByHour(options: AvailabilityOption[]) {
-  const groups = new Map<string, AvailabilityOption[]>();
-  [...options]
-    .sort((left, right) => left.start_time.localeCompare(right.start_time))
-    .forEach((option) => {
-      const hour = option.start_time.slice(0, 2);
-      groups.set(hour, [...(groups.get(hour) || []), option]);
-    });
-  return [...groups.entries()].map(([hour, hourOptions]) => ({
-    hour,
-    label: displayHour(`${hour}:00`),
-    options: hourOptions,
-  }));
-}
-
 function minutesFromTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
@@ -237,6 +217,7 @@ export function BookingWizard({
     initialShiftSlug || shifts[0]?.slug || "",
   );
   const [desiredTime, setDesiredTime] = useState(initialShift?.start_time || "18:00");
+  const availabilityRequestId = useRef(0);
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
@@ -423,9 +404,11 @@ export function BookingWizard({
     shiftSlug = selectedShiftSlug,
     requestedTime = desiredTime,
   ) {
-    if (!stageIsFilled(2) || assignmentLoading) return;
+    if (!stageIsFilled(2)) return;
     const shift = shifts.find((item) => item.slug === shiftSlug);
     if (!shift) return;
+    const requestId = availabilityRequestId.current + 1;
+    availabilityRequestId.current = requestId;
 
     setAssignmentLoading(true);
     setError("");
@@ -455,24 +438,23 @@ export function BookingWizard({
         ),
         requestedTime,
       );
+      if (requestId !== availabilityRequestId.current) return;
       setOptions(shiftOptions);
       advanceTo(3);
     } catch (reason) {
+      if (requestId !== availabilityRequestId.current) return;
       setError(reason instanceof Error ? reason.message : "Unable to load reservation times.");
     } finally {
-      setAssignmentLoading(false);
+      if (requestId === availabilityRequestId.current) setAssignmentLoading(false);
     }
   }
 
   function updateDesiredTime(value: string) {
     setDesiredTime(value);
     invalidateTimeSelection();
-  }
-
-  function showAvailabilityForDesiredTime() {
-    if (!desiredTime) return;
-    const matchingShift = shifts.find((shift) => timeFallsWithinShift(desiredTime, shift));
-    void findTimes(matchingShift?.slug || selectedShiftSlug, desiredTime);
+    if (!value) return;
+    const matchingShift = shifts.find((shift) => timeFallsWithinShift(value, shift));
+    void findTimes(matchingShift?.slug || selectedShiftSlug, value);
   }
 
   function updatePartySize(nextSize: number) {
@@ -834,9 +816,26 @@ export function BookingWizard({
                   <div><strong>Overbooking warning</strong><span>This party has {partySize} guests and the floor has {floorCoverCapacity} covers. Select any time to continue.</span></div>
                 </div>
               )}
-              <div className="desired-time-search">
+              <div className="simple-time-toolbar">
+                <div className="simple-shift-picker" aria-label="Reservation shift">
+                  {shifts.map((shift) => (
+                    <button
+                      type="button"
+                      key={shift.id}
+                      className={shift.slug === selectedShiftSlug ? "selected" : ""}
+                      aria-pressed={shift.slug === selectedShiftSlug}
+                      onClick={() => void findTimes(
+                        shift.slug,
+                        timeFallsWithinShift(desiredTime, shift) ? desiredTime : shift.start_time,
+                      )}
+                      disabled={assignmentLoading}
+                    >
+                      {shift.name}
+                    </button>
+                  ))}
+                </div>
                 <label htmlFor="desired-reservation-time">
-                  Guest&apos;s desired time
+                  Desired time
                   <input
                     id="desired-reservation-time"
                     type="time"
@@ -845,66 +844,35 @@ export function BookingWizard({
                     onChange={(event) => updateDesiredTime(event.currentTarget.value)}
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={showAvailabilityForDesiredTime}
-                  disabled={!desiredTime || assignmentLoading}
-                >
-                  {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
-                  {assignmentLoading ? "Checking…" : "Show availability"}
-                </button>
-                <span>Times are shown closest to the guest&apos;s request.</span>
-              </div>
-              <div className="wizard-shift-picker" aria-label="Reservation shift">
-                {shifts.map((shift) => (
-                  <button
-                    type="button"
-                    key={shift.id}
-                    className={shift.slug === selectedShiftSlug ? "selected" : ""}
-                    aria-pressed={shift.slug === selectedShiftSlug}
-                    onClick={() => void findTimes(
-                      shift.slug,
-                      timeFallsWithinShift(desiredTime, shift) ? desiredTime : shift.start_time,
-                    )}
-                    disabled={assignmentLoading}
-                  >
-                    <strong>{shift.name}</strong>
-                    <span>{displayTime(shift.start_time)}–{displayTime(shift.end_time)}</span>
-                  </button>
-                ))}
               </div>
               {options.length ? (
-                <div className="available-time-columns" aria-label="Reservation times grouped by hour">
-                  {groupTimesByHour(options).map((group) => (
-                    <section className="available-hour-group" key={group.hour} aria-labelledby={`time-hour-${group.hour}`}>
-                      <h4 id={`time-hour-${group.hour}`}>{group.label}</h4>
-                      <div>
-                        {group.options.map((option) => {
-                          const optionKey = `${option.shift_slug}-${option.start_time}`;
-                          const selected = selectedOption?.shift_slug === option.shift_slug
-                            && selectedOption.start_time === option.start_time;
-                          const requested = option.start_time === desiredTime;
-                          return (
-                            <button
-                              type="button"
-                              key={optionKey}
-                              className={[
-                                option.available ? "" : "is-unavailable",
-                                selected ? "selected" : "",
-                                selected && !option.available ? "confirm-overbook" : "",
-                              ].filter(Boolean).join(" ")}
-                              aria-pressed={selected}
-                              aria-label={`${displayTime(option.start_time)}, ${requested ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
-                              onClick={() => chooseTime(option)}
-                            >
-                              <strong>{displayTime(option.start_time)}</strong>
-                              <span>{requested ? "Requested · " : ""}{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
-                  ))}
+                <div className="simple-time-grid" aria-label="Nearby reservation times">
+                  {options.map((option) => {
+                    const optionKey = `${option.shift_slug}-${option.start_time}`;
+                    const selected = selectedOption?.shift_slug === option.shift_slug
+                      && selectedOption.start_time === option.start_time;
+                    const requested = option.start_time === desiredTime;
+                    return (
+                      <button
+                        type="button"
+                        key={optionKey}
+                        className={[
+                          option.available ? "" : "is-unavailable",
+                          requested ? "requested-time" : "",
+                          selected ? "selected" : "",
+                          selected && !option.available ? "confirm-overbook" : "",
+                        ].filter(Boolean).join(" ")}
+                        aria-pressed={selected}
+                        aria-label={`${displayTime(option.start_time)}, ${requested ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
+                        onClick={() => chooseTime(option)}
+                      >
+                        <strong>{displayTime(option.start_time)}</strong>
+                        {(requested || !option.available) && (
+                          <span>{requested ? "Requested" : "Unavailable"}</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : assignmentLoading ? (
                 <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking this shift…</div>

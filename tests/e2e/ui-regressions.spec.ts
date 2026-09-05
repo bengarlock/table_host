@@ -317,14 +317,14 @@ test("booking availability is centered around the guest's desired time", async (
   await page.getByRole("button", { name: "4", exact: true }).click();
   await page.locator("footer").getByRole("button", { name: "Time" }).click();
 
-  const desiredTime = page.getByLabel("Guest's desired time");
+  const desiredTime = page.getByLabel("Desired time");
   await expect(desiredTime).toHaveValue("17:00");
   await desiredTime.fill("18:00");
-  await page.getByRole("button", { name: "Show availability" }).click();
 
-  expect(requestedTimes.at(-1)).toBe("18:00");
-  await expect(page.locator(".available-hour-group button")).toHaveCount(7);
-  await expect(page.locator(".available-hour-group button strong")).toHaveText([
+  await expect.poll(() => requestedTimes.at(-1)).toBe("18:00");
+  await expect(page.getByRole("button", { name: "Show availability" })).toHaveCount(0);
+  await expect(page.locator(".simple-time-grid button")).toHaveCount(7);
+  await expect(page.locator(".simple-time-grid button strong")).toHaveText([
     "5:15 PM", "5:30 PM", "5:45 PM", "6:00 PM", "6:15 PM", "6:30 PM", "6:45 PM",
   ]);
   await expect(page.getByRole("button", { name: "6:00 PM, requested time, seats up to 4" })).toBeVisible();
