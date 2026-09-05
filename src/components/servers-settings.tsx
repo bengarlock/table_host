@@ -53,6 +53,57 @@ function chairPositions(table: Table): CSSProperties[] {
   });
 }
 
+type Point = { x: number; y: number };
+
+function cross(origin: Point, first: Point, second: Point) {
+  return (first.x - origin.x) * (second.y - origin.y) - (first.y - origin.y) * (second.x - origin.x);
+}
+
+function convexHull(points: Point[]) {
+  const ordered = [...points].sort((left, right) => left.x - right.x || left.y - right.y);
+  if (ordered.length <= 2) return ordered;
+  const lower: Point[] = [];
+  for (const point of ordered) {
+    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0) lower.pop();
+    lower.push(point);
+  }
+  const upper: Point[] = [];
+  for (const point of [...ordered].reverse()) {
+    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0) upper.pop();
+    upper.push(point);
+  }
+  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+}
+
+function sectionOverlay(section: Section, tables: Table[]) {
+  const selected = tables.filter((table) => section.table_ids.includes(table.id));
+  if (!selected.length) return null;
+  const points = selected.flatMap((table) => {
+    const centerX = 1200 * table.position_x / 100;
+    const centerY = 660 * table.position_y / 100;
+    const padding = 25;
+    const halfWidth = table.width / 2 + padding;
+    const halfHeight = table.height / 2 + padding;
+    return [
+      { x: centerX - halfWidth, y: centerY - halfHeight },
+      { x: centerX + halfWidth, y: centerY - halfHeight },
+      { x: centerX + halfWidth, y: centerY + halfHeight },
+      { x: centerX - halfWidth, y: centerY + halfHeight },
+    ];
+  });
+  const hull = convexHull(points);
+  if (hull.length < 3) return null;
+  const midpoint = (first: Point, second: Point) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
+  const start = midpoint(hull.at(-1)!, hull[0]);
+  const path = hull.reduce((result, point, index) => {
+    const next = midpoint(point, hull[(index + 1) % hull.length]);
+    return `${result} Q ${point.x} ${point.y} ${next.x} ${next.y}`;
+  }, `M ${start.x} ${start.y}`) + " Z";
+  const left = Math.min(...hull.map((point) => point.x));
+  const top = Math.min(...hull.map((point) => point.y));
+  return { path, labelX: Math.max(14, left + 16), labelY: Math.max(26, top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
+}
+
 async function request(path: string, options?: RequestInit) {
   const response = await fetch(appPath(path), options);
   const payload = response.status === 204 ? null : await response.json();
@@ -163,14 +214,20 @@ export function ServersSettings() {
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
           <form className="server-form" onSubmit={(event) => void addSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
-            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">{tables.map((table) => {
+            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">
+              {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
+                const shape = sectionOverlay(section, tables);
+                const color = ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5];
+                return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}><path d={shape.path} /><rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
+              })}</svg>}
+              {tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);
               return <button key={table.id} type="button" className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
                 {chairPositions(table).map((style, index) => <i key={index} className="chair" style={style} aria-hidden="true" />)}
                 <span className="floor-table-surface" aria-hidden="true" />
                 <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
-            })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
+              })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
             <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
             <button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}><Plus aria-hidden="true" /> Save section</button>
           </form>
