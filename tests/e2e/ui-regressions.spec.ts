@@ -364,20 +364,32 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
     },
   ];
   await page.route("**/api/grid?*", (route) => route.fulfill({
-    json: { ...gridPayload, reservations, summary: { reservations: 2, covers: 4, seated: 0 } },
+    json: {
+      ...gridPayload,
+      sections: [{ id: 1, name: "Patio", color: "#d9aa62", table_ids: [1] }],
+      reservations,
+      summary: { reservations: 2, covers: 4, seated: 0 },
+    },
   }));
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
-  const toggle = page.getByRole("button", { name: "Show reservation times" });
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  const view = page.getByRole("button", { name: "View", exact: true });
+  await expect(page.locator(".floor-section-overlays")).toBeVisible();
   await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
 
-  await toggle.click();
-  await expect(page.getByRole("button", { name: "Hide reservation times" })).toHaveAttribute("aria-pressed", "true");
+  await view.click();
+  const reservationTimes = page.getByRole("checkbox", { name: "Reservation times" });
+  const sectionOutlines = page.getByRole("checkbox", { name: "Section outlines" });
+  await expect(reservationTimes).not.toBeChecked();
+  await expect(sectionOutlines).toBeChecked();
+
+  await reservationTimes.check();
   await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times time')).toHaveText(["5:00 PM", "7:30 PM"]);
 
-  await page.getByRole("button", { name: "Hide reservation times" }).click();
-  await expect(page.getByRole("button", { name: "Show reservation times" })).toHaveAttribute("aria-pressed", "false");
+  await sectionOutlines.uncheck();
+  await expect(page.locator(".floor-section-overlays")).toHaveCount(0);
+
+  await reservationTimes.uncheck();
   await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
 });
 

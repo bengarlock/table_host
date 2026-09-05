@@ -5407,10 +5407,83 @@ textarea {
   color: #fff8eb;
 }
 
-.floor-plan-actions > .floor-reservation-times-toggle[aria-pressed="true"] {
+.floor-view-menu {
+  position: relative;
+}
+
+.floor-view-menu > summary {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  cursor: pointer;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: #e5c18a;
+  font-size: 0.63rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.floor-view-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.floor-view-menu > summary > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.floor-view-menu[open] > summary {
   border-color: #d2a35c;
   background: #5a4629;
   color: #fff8eb;
+}
+
+.floor-view-menu[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+
+.floor-view-menu-options {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 184px;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #1b1f1b;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+
+.floor-view-menu-options > span {
+  color: var(--text-muted);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.floor-view-menu-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 0.62rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.floor-view-menu-options input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .floor-service-layout.editing-floor {

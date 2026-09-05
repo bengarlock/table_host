@@ -20,6 +20,7 @@ import {
   Columns3,
   CopyPlus,
   GripVertical,
+  Eye,
   LoaderCircle,
   Minus,
   PencilRuler,
@@ -594,6 +595,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showReservationTimes, setShowReservationTimes] = useState(false);
+  const [showSectionOutlines, setShowSectionOutlines] = useState(true);
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
@@ -2011,19 +2013,36 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 </div>
                 <div className="floor-plan-actions">
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
-                  <button
-                    type="button"
-                    className="floor-reservation-times-toggle"
-                    aria-pressed={showReservationTimes}
-                    onClick={() => setShowReservationTimes((visible) => !visible)}
-                  >
-                    <Clock3 aria-hidden="true" /> {showReservationTimes ? "Hide reservation times" : "Show reservation times"}
-                  </button>
+                  <details className="floor-view-menu">
+                    <summary role="button" aria-label="View">
+                      <Eye aria-hidden="true" /> View <ChevronRight aria-hidden="true" />
+                    </summary>
+                    <div className="floor-view-menu-options" aria-label="Floor view options">
+                      <span>Show on floor</span>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showReservationTimes}
+                          onChange={(event) => setShowReservationTimes(event.currentTarget.checked)}
+                        />
+                        Reservation times
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={showSectionOutlines}
+                          onChange={(event) => setShowSectionOutlines(event.currentTarget.checked)}
+                        />
+                        Section outlines
+                      </label>
+                    </div>
+                  </details>
                   <button
                     type="button"
                     className="floor-edit-trigger"
                     onClick={() => {
                       setShowReservationTimes(false);
+                      setShowSectionOutlines(true);
                       beginFloorEditing();
                     }}
                     disabled={saving || editingFloor}
@@ -2257,7 +2276,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     transform: `scale(${floorStageMetrics.scale})`,
                   }}
                 >
-                  {sectionOverlays.length > 0 && (
+                  {showSectionOutlines && sectionOverlays.length > 0 && (
                     <svg
                       className="floor-section-overlays"
                       viewBox={`0 0 ${floorStageMetrics.width} ${floorStageMetrics.height}`}
