@@ -141,6 +141,7 @@ async function request(path: string, options?: RequestInit) {
 }
 
 export function ServersSettings() {
+  const [activeTab, setActiveTab] = useState<"roster" | "sections">("roster");
   const [servers, setServers] = useState<Server[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
@@ -263,9 +264,24 @@ export function ServersSettings() {
         <span>Create the server roster and reusable sections of the floor. Assign servers to sections for a shift on the floor plan.</span>
       </header>
 
+      <div className="servers-tabs" role="tablist" aria-label="Server settings">
+        {([{ id: "roster", label: "Server roster" }, { id: "sections", label: "Floor sections" }] as const).map((tab) => (
+          <button key={tab.id} id={`servers-tab-${tab.id}`} type="button" role="tab"
+            aria-selected={activeTab === tab.id} aria-controls={`servers-panel-${tab.id}`}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            onClick={() => setActiveTab(tab.id)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === "Home" ? "roster" : event.key === "End" ? "sections" : activeTab === "roster" ? "sections" : "roster";
+              setActiveTab(next);
+              document.getElementById(`servers-tab-${next}`)?.focus();
+            }}>{tab.label}</button>
+        ))}
+      </div>
       {error && <div className="settings-option-error" role="alert">{error}</div>}
       {loading ? <div className="servers-loading" role="status"><LoaderCircle className="spin" aria-hidden="true" /> Loading servers and sections…</div> : <div className="servers-settings-grid">
-        <article className="servers-card">
+        <article className="servers-card" role="tabpanel" id="servers-panel-roster" aria-labelledby="servers-tab-roster" hidden={activeTab !== "roster"}>
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Server roster</h3><p>Each server has a distinct service color.</p></div></div>
           <form className="server-form" onSubmit={(event) => void addServer(event)}>
             <label><span>Name</span><input value={serverName} onChange={(event) => setServerName(event.target.value)} maxLength={80} placeholder="e.g. Jordan" required /></label>
@@ -276,7 +292,7 @@ export function ServersSettings() {
           {!servers.length && <p className="servers-empty">No servers yet. Add the first person on your team.</p>}
         </article>
 
-        <article className="servers-card">
+        <article className="servers-card" role="tabpanel" id="servers-panel-sections" aria-labelledby="servers-tab-sections" hidden={activeTab !== "sections"}>
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
           <form className="server-form" onSubmit={(event) => void saveSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
