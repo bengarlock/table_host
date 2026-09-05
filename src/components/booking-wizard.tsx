@@ -719,6 +719,7 @@ export function BookingWizard({
           party_size: partySize,
           start_time: selectedOption.start_time,
           duration_minutes: durationMinutes,
+          allow_overbook: !selectedOption.available,
         }),
       });
       const payload = (await response.json()) as Record<string, unknown>;
@@ -1143,7 +1144,7 @@ export function BookingWizard({
           {step === 2 && !selectedOption && options.length > 0 && <button type="button" className="wizard-next" disabled>Select a reservation time <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && selectedOption && <button type="button" className="wizard-next" onClick={() => advanceTo(3)}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 3 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(4)}>Details <ArrowRight aria-hidden="true" /></button>}
-          {step === 4 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
+          {step === 4 && <button type="submit" form="booking-details-form" className={`wizard-next${selectedOption && !selectedOption.available ? " overbook-warning" : ""}`} disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
       </section>
       {tablePickerOpen && assignmentGrid && selectedOption && (

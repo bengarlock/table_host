@@ -3457,8 +3457,16 @@ textarea {
   color: #fff3f1;
 }
 
+.wizard-next.overbook-warning {
+  border-color: #f06458;
+  background: #a4322a;
+  color: #fff3f1;
+}
+
 .wizard-next.capacity-warning:hover:not(:disabled),
-.wizard-next.capacity-warning:focus-visible {
+.wizard-next.capacity-warning:focus-visible,
+.wizard-next.overbook-warning:hover:not(:disabled),
+.wizard-next.overbook-warning:focus-visible {
   background: #b9463a;
 }
 
