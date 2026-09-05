@@ -324,8 +324,6 @@ test("booking availability is centered around the guest's desired time", async (
   });
 
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.getByRole("button", { name: "Party size" }).click();
-  await page.getByRole("button", { name: "4", exact: true }).click();
   await page.locator("footer").getByRole("button", { name: "Time" }).click();
 
   const desiredTimes = page.getByLabel("Desired reservation times");
@@ -341,15 +339,19 @@ test("booking availability is centered around the guest's desired time", async (
     "6:45 PM", "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM",
   ]);
   await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
+  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
+  await page.getByRole("button", { name: "4", exact: true }).click();
+  await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
 
   await expect.poll(() => requestedTimes.at(-1)).toBe("19:30");
-  await expect(availableTimes.locator("button strong")).toHaveText([
+  const availableResults = page.getByLabel("Available reservation times");
+  await expect(availableResults.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
   await expect(page.getByRole("button", { name: "7:30 PM, requested time, seats up to 4" })).toBeVisible();
   await page.getByRole("button", { name: "Show later available times" }).click();
   await expect(page.locator(".time-carousel-track.time-carousel-slide-later")).toBeVisible();
-  await expect(availableTimes.locator("button strong")).toHaveText([
+  await expect(availableResults.locator("button strong")).toHaveText([
     "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM", "8:15 PM",
   ]);
 });
@@ -665,7 +667,9 @@ test("booking restores time selection before optional table assignment", async (
   }));
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
-  await page.getByRole("button", { name: "Party size" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
   await expect(manualPartySize).toHaveValue("9");
   const quickSelectBounds = await page.locator(".party-size-picker").boundingBox();
@@ -679,17 +683,14 @@ test("booking restores time selection before optional table assignment", async (
   await expect(manualPartySize).toHaveValue("");
   await expect(manualPartySize).toHaveAttribute("placeholder", "9");
   await manualPartySize.fill("12");
-  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("12 guests");
+  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("12 guests");
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("12");
-  await expect(page.getByRole("button", { name: "Assign Tables" })).toHaveCount(0);
-  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
 
-  await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
   const assignTables = page.getByRole("button", { name: "Assign Tables" });
   await expect(assignTables).toBeDisabled();
 
-  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   const selectedTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await selectedTime.click();
   await expect(selectedTime).toHaveAttribute("aria-pressed", "true");
@@ -702,9 +703,9 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: /^Table 1, 2 seats/ }).click();
   await page.getByRole("button", { name: /^Table 2, 2 seats/ }).click();
   await page.getByRole("button", { name: "Assign selected tables" }).click();
-  await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "How large is the party?" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
-  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("7:30 PM · Tables 1, 2");
+  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · Tables 1, 2");
 
   await page.locator("footer").getByRole("button", { name: "Guest" }).click();
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
@@ -724,7 +725,9 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await mockAvailability(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
-  await page.getByRole("button", { name: "Party size" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   await page.getByRole("spinbutton", { name: "Enter party size" }).fill("200");
 
   await expect(page.getByText("This party exceeds the floor capacity")).toBeVisible();
@@ -737,15 +740,13 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await expect(page.locator(".wizard-progress li").nth(2)).toHaveClass(/capacity-warning/);
   await expect(page.locator(".wizard-progress li").nth(2)).toHaveCSS("color", "rgb(255, 131, 120)");
 
-  const timeButton = page.locator("footer").getByRole("button", { name: "Time" });
-  await expect(timeButton).toHaveClass(/capacity-warning/);
+  const availabilityButton = page.locator("footer").getByRole("button", { name: "Check availability" });
+  await expect(availabilityButton).toHaveClass(/capacity-warning/);
   await page.mouse.move(0, 0);
-  await expect(timeButton).toHaveCSS("background-color", "rgb(159, 57, 47)");
-  await expect(timeButton).toBeEnabled();
-  await timeButton.click();
+  await expect(availabilityButton).toHaveCSS("background-color", "rgb(159, 57, 47)");
+  await expect(availabilityButton).toBeEnabled();
+  await availabilityButton.click();
 
-  await expect(page.getByText("Overbooking warning")).toBeVisible();
-  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   const unavailableTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await expect(unavailableTime).toBeEnabled();
   await unavailableTime.click();

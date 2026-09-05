@@ -333,7 +333,7 @@ export function BookingWizard({
 
   function stageIsFilled(stage: number) {
     if (stage === 1) return Boolean(serviceDate);
-    if (stage === 2) return partySize > 0 && durationMinutes > 0;
+    if (stage === 2) return Boolean(desiredTime);
     if (stage === 3) return Boolean(selectedOption);
     if (stage === 4) return Boolean(selectedOption && selectedGuest);
     return Boolean(selectedOption && selectedGuest);
@@ -341,10 +341,12 @@ export function BookingWizard({
 
   function stageValue(stage: number) {
     if (stage === 1) return serviceDate ? displayDateSummary(serviceDate) : "";
-    if (stage === 2) return partySize > 0 ? `${partySize} ${partySize === 1 ? "guest" : "guests"}` : "";
+    if (stage === 2) {
+      const time = selectedOption?.start_time || desiredTime;
+      return time ? `${displayTime(time)}${assignedTablesSummary ? ` · ${assignedTablesSummary}` : ""}` : "";
+    }
     if (stage === 3) {
-      if (!selectedOption) return "";
-      return `${displayTime(selectedOption.start_time)}${assignedTablesSummary ? ` · ${assignedTablesSummary}` : ""}`;
+      return partySize > 0 ? `${partySize} ${partySize === 1 ? "guest" : "guests"}` : "";
     }
     if (stage === 4) return selectedGuest?.full_name || "";
     if (!selectedGuest) return "";
@@ -483,7 +485,6 @@ export function BookingWizard({
   function chooseDesiredTime(value: string) {
     setDesiredTime(value);
     invalidateTimeSelection();
-    void findTimes(selectedShiftSlug, value);
   }
 
   function moveDesiredTimeWindow(direction: CarouselSlideDirection) {
@@ -513,15 +514,15 @@ export function BookingWizard({
     setDesiredTime("");
     setDesiredTimeWindowStart(centeredWindowStart(timeChoices, medianTime));
     invalidateTimeSelection();
-    advanceTo(3);
+    advanceTo(2);
   }
 
-  function openTimeStep() {
-    if (selectedOption && desiredTime) {
-      advanceTo(3);
+  function openDesiredTimeStep() {
+    if (desiredTime || !selectedShift) {
+      advanceTo(2);
       return;
     }
-    if (selectedShift) selectTimeShift(selectedShift);
+    selectTimeShift(selectedShift);
   }
 
   function updatePartySize(nextSize: number) {
@@ -722,7 +723,7 @@ export function BookingWizard({
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
-          {["Date", "Party", "Time", "Guest", "Details"].map((label, index) => {
+          {["Date", "Time", "Party", "Guest", "Details"].map((label, index) => {
             const stage = index + 1;
             const filled = stageIsFilled(stage);
             const visited = stage <= furthestStep;
@@ -773,7 +774,7 @@ export function BookingWizard({
             </div>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <div className="wizard-step">
               <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
               <div className="party-size-fields">
@@ -874,15 +875,10 @@ export function BookingWizard({
             </div>
           )}
 
-          {step === 3 && (
+          {(step === 2 || step === 3) && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Choose the guest&apos;s desired time to see nearby availability, then optionally assign tables.</p></div></div>
-              {partyExceedsFloorCapacity && (
-                <div className="booking-capacity-warning" role="status">
-                  <AlertTriangle aria-hidden="true" />
-                  <div><strong>Overbooking warning</strong><span>This party has {partySize} guests and the floor has {floorCoverCapacity} covers. Select any time to continue.</span></div>
-                </div>
-              )}
+              {step === 2 && <>
+              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose a desired time</h3><p>Choose the guest&apos;s preferred time, then we&apos;ll check availability for their party.</p></div></div>
               <div className="simple-shift-picker" aria-label="Reservation shift">
                 {shifts.map((shift) => (
                   <button
@@ -940,6 +936,27 @@ export function BookingWizard({
                   </button>
                 </div>
               </section>
+              <section className="time-choice-section" aria-labelledby="available-time-heading">
+                <header>
+                  <strong id="available-time-heading">Available times</strong>
+                  <span>Set party size to check availability</span>
+                </header>
+                <div className="time-carousel" aria-label="Available reservation times">
+                  <button type="button" className="time-carousel-arrow" aria-label="Show earlier available times" disabled>
+                    <ChevronLeft aria-hidden="true" />
+                  </button>
+                  <div className="time-carousel-track" aria-hidden="true">
+                    {Array.from({ length: VISIBLE_TIME_COUNT }, (_, index) => (
+                      <span className="time-carousel-placeholder" key={index} />
+                    ))}
+                  </div>
+                  <button type="button" className="time-carousel-arrow" aria-label="Show later available times" disabled>
+                    <ChevronRight aria-hidden="true" />
+                  </button>
+                </div>
+              </section>
+              </>}
+              {step === 3 && <>
               <section className="time-choice-section" aria-labelledby="available-time-heading">
                 <header>
                   <strong id="available-time-heading">Available times</strong>
@@ -1030,6 +1047,7 @@ export function BookingWizard({
                   {assignmentLoading ? "Loading floor…" : "Assign Tables"}
                 </button>
               </div>
+              </>}
             </div>
           )}
 
@@ -1175,9 +1193,11 @@ export function BookingWizard({
 
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
-          {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={openTimeStep} disabled={!stageIsFilled(2)}>Time <ArrowRight aria-hidden="true" /></button>}
-          {step === 3 && <button type="button" className="wizard-next" onClick={() => advanceTo(4)} disabled={!selectedOption}>Guest <ArrowRight aria-hidden="true" /></button>}
+          {step === 1 && <button type="button" className="wizard-next" onClick={openDesiredTimeStep} disabled={!serviceDate}>Time <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && <button type="button" className="wizard-next" onClick={() => { advanceTo(3); void findTimes(); }} disabled={!stageIsFilled(2)}>Party size <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && !selectedOption && !options.length && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || partySize <= 0 || durationMinutes <= 0}>{assignmentLoading ? "Checking availability…" : "Check availability"} <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && !selectedOption && options.length > 0 && <button type="button" className="wizard-next" disabled>Select a reservation time <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && selectedOption && <button type="button" className="wizard-next" onClick={() => advanceTo(4)}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </footer>
