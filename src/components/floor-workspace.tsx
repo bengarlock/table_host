@@ -225,6 +225,7 @@ const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_PARTY_SIZE = 40;
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const RESERVATION_DETAIL_ANIMATION_MS = 180;
+const FLOOR_VIEW_PREFERENCES_KEY = "tablehost.floor-view-preferences";
 const subscribeToHydration = () => () => undefined;
 
 const SERVICE_STEPS = [
@@ -625,6 +626,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [showReservationTimes, setShowReservationTimes] = useState(false);
   const [showSectionOutlines, setShowSectionOutlines] = useState(true);
   const [showFloorTimes, setShowFloorTimes] = useState(false);
+  const [viewPreferencesRestored, setViewPreferencesRestored] = useState(false);
   const [floorClock, setFloorClock] = useState(() => Date.now());
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
@@ -736,6 +738,38 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     window.addEventListener("popstate", restoreServiceFromUrl);
     return () => window.removeEventListener("popstate", restoreServiceFromUrl);
   }, []);
+
+  useEffect(() => {
+    let preferences: Record<string, unknown> = {};
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(FLOOR_VIEW_PREFERENCES_KEY) || "{}");
+      if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+        preferences = saved as Record<string, unknown>;
+      }
+    } catch {
+      // Ignore unavailable or malformed browser storage and keep the defaults.
+    }
+    const restorePreferences = window.requestAnimationFrame(() => {
+      if (typeof preferences.showReservationTimes === "boolean") setShowReservationTimes(preferences.showReservationTimes);
+      if (typeof preferences.showFloorTimes === "boolean") setShowFloorTimes(preferences.showFloorTimes);
+      if (typeof preferences.showSectionOutlines === "boolean") setShowSectionOutlines(preferences.showSectionOutlines);
+      setViewPreferencesRestored(true);
+    });
+    return () => window.cancelAnimationFrame(restorePreferences);
+  }, []);
+
+  useEffect(() => {
+    if (!viewPreferencesRestored) return;
+    try {
+      window.localStorage.setItem(FLOOR_VIEW_PREFERENCES_KEY, JSON.stringify({
+        showReservationTimes,
+        showFloorTimes,
+        showSectionOutlines,
+      }));
+    } catch {
+      // The floor remains usable when browser storage is unavailable.
+    }
+  }, [showFloorTimes, showReservationTimes, showSectionOutlines, viewPreferencesRestored]);
 
   useEffect(() => {
     const canvas = floorCanvasRef.current;

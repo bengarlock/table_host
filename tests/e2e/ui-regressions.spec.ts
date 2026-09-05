@@ -418,6 +418,24 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
   await expect(page.getByRole("checkbox", { name: "Reservation times" })).toHaveCount(0);
 });
 
+test("floor view preferences survive a refresh", async ({ page }) => {
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, sections: [] },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Reservation times" }).check();
+  await page.getByRole("checkbox", { name: "Floor times" }).check();
+  await page.getByRole("checkbox", { name: "Section outlines" }).uncheck();
+
+  await page.reload();
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "Reservation times" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Floor times" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Section outlines" })).not.toBeChecked();
+});
+
 async function mockAvailability(page: Page) {
   await page.route("**/api/grid/availability?*", async (route) => {
     const requestedPartySize = Number(new URL(route.request().url()).searchParams.get("party_size"));
