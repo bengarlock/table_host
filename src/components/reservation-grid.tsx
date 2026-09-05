@@ -19,7 +19,6 @@ import {
   ClockAlert,
   LoaderCircle,
   Lock,
-  Mail,
   Minus,
   Plus,
   ReceiptText,
@@ -225,12 +224,16 @@ export function ReservationGrid({
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
+  const [confirmationEmail, setConfirmationEmail] = useState("");
+  const [confirmationEmailSaving, setConfirmationEmailSaving] = useState(false);
+  const [confirmationEmailMessage, setConfirmationEmailMessage] = useState("");
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [blockNotes, setBlockNotes] = useState("");
   const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
+  const initializedConfirmationIdRef = useRef<number | undefined>(undefined);
   const resolveCurrentService = useRef(!initialServiceDate);
   const gridRequestVersion = useRef(0);
 
@@ -340,6 +343,17 @@ export function ReservationGrid({
     () => data?.reservations.find((reservation) => reservation.id === confirmationId) || null,
     [confirmationId, data],
   );
+
+  useEffect(() => {
+    if (!confirmationId) {
+      initializedConfirmationIdRef.current = undefined;
+      return;
+    }
+    if (!confirmedReservation || initializedConfirmationIdRef.current === confirmationId) return;
+    initializedConfirmationIdRef.current = confirmationId;
+    setConfirmationEmail(confirmedReservation.guest_email || "");
+    setConfirmationEmailMessage("");
+  }, [confirmationId, confirmedReservation]);
 
   const currentTimeMarker = useMemo(() => {
     if (!data || data.service_date !== data.current_service_date) return null;
@@ -564,6 +578,36 @@ export function ReservationGrid({
       setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveConfirmationEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmedReservation) return;
+    setConfirmationEmailSaving(true);
+    setConfirmationEmailMessage("");
+    try {
+      const response = await fetch(appPath(`/api/grid/reservations/${confirmedReservation.id}`), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ guest_email: confirmationEmail.trim() }),
+      });
+      const payload = (await response.json()) as Reservation | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      const savedReservation = payload as Reservation;
+      setData((current) => current && ({
+        ...current,
+        reservations: current.reservations.map((reservation) => (
+          reservation.id === savedReservation.id
+            ? { ...reservation, guest_email: savedReservation.guest_email }
+            : reservation
+        )),
+      }));
+      setConfirmationEmailMessage(savedReservation.guest_email ? "Email saved to the guest profile." : "Email removed from the guest profile.");
+    } catch (reason) {
+      setConfirmationEmailMessage(reason instanceof Error ? reason.message : "Unable to save the guest email.");
+    } finally {
+      setConfirmationEmailSaving(false);
     }
   }
 
@@ -959,10 +1003,20 @@ export function ReservationGrid({
             {confirmedReservation.is_unassigned && (
               <p className="reservation-confirmation-note">The reservation is confirmed and will be assigned to a table later.</p>
             )}
+            <form className="reservation-confirmation-email-form" onSubmit={saveConfirmationEmail}>
+              <label>
+                Guest email
+                <input
+                  type="email"
+                  value={confirmationEmail}
+                  onChange={(event) => setConfirmationEmail(event.currentTarget.value)}
+                  placeholder="guest@example.com"
+                />
+              </label>
+              <button type="submit" disabled={confirmationEmailSaving}>{confirmationEmailSaving ? "Saving…" : "Save email"}</button>
+              <p role={confirmationEmailMessage ? "status" : undefined}>{confirmationEmailMessage || "Confirmation emails are not being sent yet."}</p>
+            </form>
             <footer>
-              <button type="button" className="reservation-confirmation-email" disabled title="Confirmation emails are coming soon">
-                <Mail aria-hidden="true" /> Send confirmation email <span>Coming soon</span>
-              </button>
               <button type="button" className="reservation-confirmation-done" onClick={() => setConfirmationId(undefined)}>Done</button>
             </footer>
           </section>

@@ -4527,28 +4527,49 @@ textarea {
   font-weight: 800;
 }
 
-.reservation-confirmation-email {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--line-strong);
-  background: transparent;
-  color: var(--text-soft);
+.reservation-confirmation-email-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  margin-top: 20px;
 }
 
-.reservation-confirmation-email svg {
-  width: 16px;
-}
-
-.reservation-confirmation-email span {
+.reservation-confirmation-email-form label {
+  display: grid;
+  gap: 6px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
-.reservation-confirmation-email:disabled {
-  cursor: not-allowed;
-  opacity: 0.65;
+.reservation-confirmation-email-form input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #0c110e;
+  color: var(--text);
+  font: inherit;
+  text-transform: none;
+}
+
+.reservation-confirmation-email-form button {
+  align-self: end;
+  min-height: 44px;
+  padding: 0 17px;
+  border: 1px solid var(--accent-line);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: #f1d4a8;
+  font-weight: 800;
+}
+
+.reservation-confirmation-email-form p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .reservation-confirmation-done {
@@ -4569,6 +4590,14 @@ textarea {
   .reservation-confirmation-dialog footer {
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .reservation-confirmation-email-form {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-confirmation-email-form button {
+    width: 100%;
   }
 }
 

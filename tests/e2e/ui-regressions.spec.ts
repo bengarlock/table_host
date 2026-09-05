@@ -196,6 +196,11 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
       summary: { reservations: 1, covers: 2, seated: 0 },
     },
   }));
+  let emailUpdate: Record<string, unknown> | null = null;
+  await page.route("**/api/grid/reservations/101", async (route) => {
+    emailUpdate = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { ...reservation, guest_email: emailUpdate.guest_email } });
+  });
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner&confirmation=101`);
 
@@ -208,7 +213,13 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
   await expect(dialog).toContainText("Dinner");
   await expect(dialog).toContainText("1:30");
   await expect(dialog).toContainText("Table 1");
-  await expect(dialog.getByRole("button", { name: /Send confirmation email/ })).toBeDisabled();
+  const guestEmail = dialog.getByLabel("Guest email");
+  await expect(guestEmail).toHaveValue("alex@example.com");
+  await guestEmail.fill("alex.new@example.com");
+  await dialog.getByRole("button", { name: "Save email" }).click();
+  expect(emailUpdate).toEqual({ guest_email: "alex.new@example.com" });
+  await expect(dialog.getByText("Email saved to the guest profile.")).toBeVisible();
+  await expect(dialog.getByText("Confirmation emails are not being sent yet.")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(dialog).toBeHidden();
 });
