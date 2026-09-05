@@ -381,6 +381,9 @@ export function ReservationGrid({
     (option) => option.value === reservationEditDraft?.status,
   );
   const SelectedStatusIcon = selectedStatusOption?.icon;
+  const visibleStatusOptions = serviceStatusAllowed
+    ? RESERVATION_STATUS_OPTIONS
+    : RESERVATION_STATUS_OPTIONS.filter((option) => !SERVICE_STATUS_VALUES.includes(option.value));
 
   function clearDraft() {
     setDraft(null);
@@ -840,12 +843,11 @@ export function ReservationGrid({
                         <ChevronDown aria-hidden="true" />
                       </summary>
                       <div role="listbox" aria-label="Reservation status options">
-                        {RESERVATION_STATUS_OPTIONS.map((option) => {
+                        {visibleStatusOptions.map((option) => {
                           const StatusIcon = option.icon;
                           const active = option.value === reservationEditDraft.status;
-                          const disabled = !serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(option.value) && option.value !== selected.status;
                           return (
-                            <button type="button" role="option" aria-selected={active} key={option.value} disabled={disabled} onClick={() => {
+                            <button type="button" role="option" aria-selected={active} key={option.value} onClick={() => {
                               setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
                               reservationStatusMenuRef.current?.removeAttribute("open");
                             }}>

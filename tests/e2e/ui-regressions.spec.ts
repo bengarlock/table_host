@@ -376,8 +376,9 @@ for (const futureDate of [true, false]) {
     const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
     if (futureDate) {
       await statusMenu.click();
-      const seatedOption = dialog.getByRole("option", { name: "Seated" });
-      await expect(seatedOption).toHaveAttribute("disabled", "");
+      for (const serviceStatus of ["Seated", "Entree", "Dessert", "Check dropped", "Paid", "Complete"]) {
+        await expect(dialog.getByRole("option", { name: serviceStatus })).toHaveCount(0);
+      }
       expect(updates).toBe(0);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
       await expect(page.getByText("Viewing another service date. Return to today to seat parties or change table statuses.")).toHaveCount(0);
