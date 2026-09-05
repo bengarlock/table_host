@@ -105,6 +105,14 @@ type FloorSection = {
   table_ids: number[];
 };
 
+type ServerAssignment = {
+  id: number;
+  name: string;
+  color: string;
+  table_ids: number[];
+  section_ids: number[];
+};
+
 type ServiceStatus =
   | "booked"
   | "confirmed"
@@ -207,6 +215,7 @@ type GridData = {
   selected_shift: Shift;
   tables: DiningTable[];
   sections: FloorSection[];
+  servers: ServerAssignment[];
   reservations: Reservation[];
   summary: { reservations: number; covers: number; seated: number };
 };
@@ -626,6 +635,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [showReservationTimes, setShowReservationTimes] = useState(false);
   const [showSectionOutlines, setShowSectionOutlines] = useState(true);
   const [showFloorTimes, setShowFloorTimes] = useState(false);
+  const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
   const [viewPreferencesRestored, setViewPreferencesRestored] = useState(false);
   const [floorClock, setFloorClock] = useState(() => Date.now());
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
@@ -636,6 +646,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [activityLoading, setActivityLoading] = useState(false);
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const viewMenuRef = useRef<HTMLDetailsElement>(null);
+  const serversMenuRef = useRef<HTMLDetailsElement>(null);
   const reservationDetailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
@@ -817,15 +828,16 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }, []);
 
   useEffect(() => {
-    function dismissViewMenu(event: PointerEvent) {
-      const menu = viewMenuRef.current;
-      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
-        menu.removeAttribute("open");
-      }
+    function dismissMenus(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      [viewMenuRef.current, serversMenuRef.current].forEach((menu) => {
+        if (menu?.open && !menu.contains(target)) menu.removeAttribute("open");
+      });
     }
 
-    window.addEventListener("pointerdown", dismissViewMenu);
-    return () => window.removeEventListener("pointerdown", dismissViewMenu);
+    window.addEventListener("pointerdown", dismissMenus);
+    return () => window.removeEventListener("pointerdown", dismissMenus);
   }, []);
 
   useEffect(() => {
@@ -947,6 +959,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     })).filter((overlay) => overlay.shape),
     [data?.sections, displayedTables, floorStageMetrics],
   );
+  const selectedServer = data?.servers.find((server) => server.id === selectedServerId) || null;
+  const serverByTable = useMemo(() => {
+    const sections = new Map((data?.sections || []).map((section) => [section.id, section]));
+    const assignments = new Map<number, ServerAssignment>();
+    (data?.servers || []).forEach((server) => {
+      const tableIds = new Set(server.table_ids);
+      server.section_ids.forEach((sectionId) => sections.get(sectionId)?.table_ids.forEach((tableId) => tableIds.add(tableId)));
+      tableIds.forEach((tableId) => assignments.set(tableId, server));
+    });
+    return assignments;
+  }, [data?.sections, data?.servers]);
   const editorSelectedTables = useMemo(
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
     [editedTables, editorSelectedTableIds],
@@ -1699,8 +1722,53 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     cancelSeating();
     setSelectedPendingId(null);
     closeReservationDetails();
+    setSelectedServerId(null);
     writeServiceUrl(serviceDate, value);
     setShiftSlug(value);
+  }
+
+  async function saveServerAssignment(server: ServerAssignment, updates: Pick<ServerAssignment, "table_ids" | "section_ids">) {
+    if (!data || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(appPath(`/api/settings/servers/${server.id}/assignments/${data.selected_shift.id}`), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      const payload = (await response.json()) as ServerAssignment | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      const updated = payload as ServerAssignment;
+      setData((current) => current ? {
+        ...current,
+        servers: current.servers.map((item) => item.id === updated.id ? updated : item),
+      } : current);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update this server's tables.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleServerTable(tableId: number) {
+    if (!selectedServer) return;
+    void saveServerAssignment(selectedServer, {
+      table_ids: selectedServer.table_ids.includes(tableId)
+        ? selectedServer.table_ids.filter((id) => id !== tableId)
+        : [...selectedServer.table_ids, tableId],
+      section_ids: selectedServer.section_ids,
+    });
+  }
+
+  function toggleServerSection(sectionId: number) {
+    if (!selectedServer) return;
+    void saveServerAssignment(selectedServer, {
+      table_ids: selectedServer.table_ids,
+      section_ids: selectedServer.section_ids.includes(sectionId)
+        ? selectedServer.section_ids.filter((id) => id !== sectionId)
+        : [...selectedServer.section_ids, sectionId],
+    });
   }
 
   function jumpToNow() {
@@ -2432,6 +2500,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
                   ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
+                  const assignedServer = serverByTable.get(table.id);
                   const scheduledReservations = scheduledReservationsByTable.get(table.id) || [];
                   const floorTurn = showFloorTimes && liveService && reservation
                     ? turnProgress(reservation, floorClock)
@@ -2452,7 +2521,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       type="button"
                       key={table.id}
                       data-floor-table-id={table.id}
-                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}${overlappingTableIds.has(table.id) ? " overlapping-table" : ""}`}
+                      className={`floor-table floor-table-${table.shape}${available ? " available" : ` occupied status-${reservation.status}`}${dropTargetTableId === table.id ? " drop-target" : ""}${selectedTableIds.includes(table.id) ? " seat-selected" : ""}${editorSelected ? " editor-selected" : ""}${duplicateTableNumber ? " duplicate-number" : ""}${missingTableNumber ? " missing-number" : ""}${overlappingTableIds.has(table.id) ? " overlapping-table" : ""}${assignedServer ? " server-assigned" : ""}${selectedServer ? " assigning-server" : ""}`}
                       style={{
                         left: `${table.position_x}%`,
                         top: `${table.position_y}%`,
@@ -2460,10 +2529,13 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         height: `${table.height}px`,
                         "--table-rotation": `${table.rotation}deg`,
                         "--table-label-rotation": `${-table.rotation}deg`,
+                        "--server-color": assignedServer?.color,
                       } as CSSProperties}
                       onClick={(event) => {
                         if (editingFloor) {
                           selectEditorTable(table.id, event.shiftKey || event.metaKey);
+                        } else if (selectedServer) {
+                          toggleServerTable(table.id);
                         } else if (seatingMode) {
                           if (seatingMode === "reassignment" || !reservation || reservation.id === selectedPending?.id) {
                             toggleSeatingTable(table.id);
@@ -2552,6 +2624,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <div className="floor-selection-marquee" style={floorMarqueeBounds} aria-hidden="true" />
                 )}
               </div>
+              {!editingFloor && <div className="floor-server-controls">
+                <details ref={serversMenuRef} className="floor-servers-menu">
+                  <summary role="button" aria-label="Servers">
+                    <Users aria-hidden="true" /> Servers
+                    {selectedServer && <span className="floor-server-chip" style={{ "--server-color": selectedServer.color } as CSSProperties}>{selectedServer.name}</span>}
+                  </summary>
+                  <div className="floor-servers-menu-options" aria-label="Servers assigned to this shift">
+                    <p>{data?.servers.length ? "Choose a server, then click one or more tables to assign them." : "Assign servers to this shift in Settings first."}</p>
+                    {data?.servers.map((server) => <button key={server.id} type="button" className={selectedServerId === server.id ? "selected" : ""} onClick={() => setSelectedServerId((current) => current === server.id ? null : server.id)}><i style={{ backgroundColor: server.color }} aria-hidden="true" />{server.name}<span>{selectedServerId === server.id ? "Assigning" : "Assign"}</span></button>)}
+                    {selectedServer && data?.sections.length ? <fieldset><legend>Or assign whole sections to {selectedServer.name}</legend>{data.sections.map((section) => <label key={section.id}><input type="checkbox" checked={selectedServer.section_ids.includes(section.id)} disabled={saving} onChange={() => toggleServerSection(section.id)} /> {section.name}</label>)}</fieldset> : null}
+                  </div>
+                </details>
+              </div>}
 
               {focusedReservation && reservationEditDraft && (
                 <aside className={`floor-reservation-detail-card${reservationDetailClosing ? " is-closing" : ""}`} aria-label={`Reservation details for ${focusedReservation.guest_name}`} aria-hidden={reservationDetailClosing}>
