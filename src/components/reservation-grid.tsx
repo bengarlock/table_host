@@ -181,6 +181,7 @@ export function ReservationGrid({
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
+  const gridRequestVersion = useRef(0);
 
   useLayoutEffect(() => {
     pathnameRef.current = pathname;
@@ -196,6 +197,7 @@ export function ReservationGrid({
   }, [shouldSyncServiceUrl]);
 
   const loadGrid = useCallback(async () => {
+    const requestVersion = ++gridRequestVersion.current;
     setLoading(true);
     setError("");
     const query = new URLSearchParams({ date: serviceDate });
@@ -203,6 +205,7 @@ export function ReservationGrid({
     try {
       const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
       const payload = (await response.json()) as GridData | Record<string, unknown>;
+      if (requestVersion !== gridRequestVersion.current) return;
       if (!response.ok) throw new Error(readError(payload));
       const next = payload as GridData;
       if (resolveCurrentService.current) {
@@ -221,9 +224,11 @@ export function ReservationGrid({
       setShiftSlug(next.selected_shift.slug);
       syncServiceUrl(serviceDate, next.selected_shift.slug, "replace");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load the reservation grid.");
+      if (requestVersion === gridRequestVersion.current) {
+        setError(reason instanceof Error ? reason.message : "Unable to load the reservation grid.");
+      }
     } finally {
-      setLoading(false);
+      if (requestVersion === gridRequestVersion.current) setLoading(false);
     }
   }, [serviceDate, shiftSlug, syncServiceUrl]);
 
@@ -231,10 +236,12 @@ export function ReservationGrid({
     // The grid is intentionally refreshed whenever the active service date or shift changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadGrid();
+    return () => { gridRequestVersion.current += 1; };
   }, [loadGrid]);
 
   useEffect(() => {
     function restoreServiceFromUrl() {
+      gridRequestVersion.current += 1;
       const next = serviceStateFromSearch(window.location.search);
       if (next.serviceDate) {
         resolveCurrentService.current = false;
@@ -315,6 +322,7 @@ export function ReservationGrid({
   );
 
   function chooseDate(next: string) {
+    gridRequestVersion.current += 1;
     setDraft(null);
     setSelected(null);
     syncServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
@@ -322,6 +330,7 @@ export function ReservationGrid({
   }
 
   function chooseShift(next: string) {
+    gridRequestVersion.current += 1;
     setDraft(null);
     setSelected(null);
     syncServiceUrl(serviceDate, next);
@@ -329,6 +338,7 @@ export function ReservationGrid({
   }
 
   function returnToNow() {
+    gridRequestVersion.current += 1;
     setDraft(null);
     setSelected(null);
     const closest = closestServiceOccurrence(data?.shifts || []);

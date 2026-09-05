@@ -300,6 +300,29 @@ test("reservation navigation is not overwritten by a late grid response", async 
   await expect(page).toHaveURL(new RegExp(`/reservations\\?date=${serviceDate}&shift=dinner$`));
 });
 
+test("late default-shift responses cannot loop between breakfast and dinner", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-04T20:00:00") });
+  const breakfast = { ...shift, id: 2, name: "Breakfast", slug: "breakfast", start_time: "07:00", end_time: "11:00" };
+  const requests: string[] = [];
+  await page.route("**/api/grid?*", async (route) => {
+    const requestedShift = new URL(route.request().url()).searchParams.get("shift") || "default";
+    requests.push(requestedShift);
+    await new Promise((resolve) => setTimeout(resolve, requestedShift === "default" ? 250 : 40));
+    await route.fulfill({ json: {
+      ...gridPayload, shifts: [breakfast, shift],
+      selected_shift: requestedShift === "dinner" ? shift : breakfast,
+    } });
+  });
+  await page.goto("/reservations");
+  await expect(page).toHaveURL(/shift=dinner/);
+  await expect(page.getByRole("button", { name: "Book table 1 at 5:00 PM", exact: true })).toBeVisible();
+  // Let delayed default responses finish and verify that they cannot restart fetching.
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await expect(page).toHaveURL(/shift=dinner/);
+  expect(requests).not.toContain("breakfast");
+  expect(requests.length).toBeLessThanOrEqual(4);
+});
+
 test("floor changes can be undone and redone", async ({ page }) => {
   await mockGrid(page);
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
