@@ -5535,7 +5535,7 @@ textarea {
 .floor-editor-selection > span,
 .floor-editor-tool-group > span {
   color: var(--accent);
-  font-size: 0.48rem;
+  font-size: 0.56rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -5543,13 +5543,13 @@ textarea {
 
 .floor-editor-selection > strong {
   color: var(--text);
-  font-size: 0.76rem;
+  font-size: 0.9rem;
 }
 
 .floor-editor-selection > small {
   max-width: 260px;
   color: var(--text-muted);
-  font-size: 0.5rem;
+  font-size: 0.58rem;
   line-height: 1.4;
 }
 
@@ -5586,23 +5586,23 @@ textarea {
 
 .floor-editor-console button {
   display: inline-flex;
-  min-height: 30px;
+  min-height: 38px;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 0 9px;
+  gap: 6px;
+  padding: 0 11px;
   cursor: pointer;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   background: #292d28;
   color: var(--text-soft);
-  font-size: 0.52rem;
+  font-size: 0.64rem;
   font-weight: 720;
 }
 
 .floor-editor-console button svg {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
 }
 
 .floor-editor-console button:disabled {
@@ -5633,7 +5633,7 @@ textarea {
   display: grid;
   gap: 4px;
   color: var(--text-muted);
-  font-size: 0.46rem;
+  font-size: 0.54rem;
   font-weight: 720;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5641,19 +5641,19 @@ textarea {
 
 .floor-editor-fields input,
 .floor-editor-fields select {
-  width: 76px;
-  height: 30px;
-  padding: 0 7px;
+  width: 84px;
+  height: 38px;
+  padding: 0 9px;
   border: 1px solid var(--line-strong);
   border-radius: 7px;
   outline: none;
   background: #121512;
   color: var(--text);
-  font-size: 0.58rem;
+  font-size: 0.68rem;
 }
 
 .floor-editor-fields select {
-  width: 104px;
+  width: 116px;
 }
 
 .floor-editor-fields input[aria-invalid="true"] {
@@ -5677,7 +5677,7 @@ textarea {
 }
 
 .floor-editor-actions > button {
-  min-width: 102px;
+  min-width: 118px;
 }
 
 .floor-editor-actions > .floor-editor-save {
