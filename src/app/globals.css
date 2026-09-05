@@ -5852,7 +5852,7 @@ textarea {
 }
 
 .floor-table-turn-timer circle,
-.floor-table-turn-timer rect {
+.floor-table-turn-timer path {
   fill: none;
   stroke: #72c995;
   stroke-width: 3.5;
@@ -5874,12 +5874,12 @@ textarea {
 }
 
 .floor-table-turn-timer.warning circle,
-.floor-table-turn-timer.warning rect {
+.floor-table-turn-timer.warning path {
   stroke: #e5bb6f;
 }
 
 .floor-table-turn-timer.expired circle,
-.floor-table-turn-timer.expired rect {
+.floor-table-turn-timer.expired path {
   stroke: #ef754c;
   filter: drop-shadow(0 0 4px rgba(239, 117, 76, 0.56));
 }

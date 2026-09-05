@@ -2459,7 +2459,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         >
                           {table.shape === "round"
                             ? <circle cx="50" cy="50" r="47" pathLength="100" />
-                            : <rect x="3" y="3" width="94" height="94" rx="9" pathLength="100" />}
+                            : <path d="M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50" pathLength="100" />}
                         </svg>
                       )}
                       <span
