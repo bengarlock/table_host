@@ -43,6 +43,8 @@ type AvailabilityOption = {
   table_capacity: number | null;
   available: boolean;
   unavailable_reason: string;
+  is_exact?: boolean;
+  difference_minutes?: number;
 };
 
 type AvailabilityResponse = {
@@ -145,6 +147,36 @@ function groupTimesByHour(options: AvailabilityOption[]) {
   }));
 }
 
+function minutesFromTime(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function nearbyAvailabilityOptions(
+  options: AvailabilityOption[],
+  desiredTime: string,
+  limit = 7,
+) {
+  const desiredMinute = minutesFromTime(desiredTime);
+  return [...options]
+    .sort((left, right) => {
+      const leftDifference = minutesFromTime(left.start_time) - desiredMinute;
+      const rightDifference = minutesFromTime(right.start_time) - desiredMinute;
+      return Math.abs(leftDifference) - Math.abs(rightDifference)
+        || Number(leftDifference < 0) - Number(rightDifference < 0)
+        || left.start_time.localeCompare(right.start_time);
+    })
+    .slice(0, limit)
+    .sort((left, right) => left.start_time.localeCompare(right.start_time));
+}
+
+function timeFallsWithinShift(time: string, shift: ShiftChoice) {
+  if (shift.start_time <= shift.end_time) {
+    return time >= shift.start_time && time < shift.end_time;
+  }
+  return time >= shift.start_time || time < shift.end_time;
+}
+
 function displayDateSummary(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
@@ -195,6 +227,7 @@ export function BookingWizard({
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
   const initialTurnTime = normalizeTurnTime(initialDuration);
+  const initialShift = shifts.find((shift) => shift.slug === initialShiftSlug) || shifts[0];
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(
@@ -203,6 +236,7 @@ export function BookingWizard({
   const [selectedShiftSlug, setSelectedShiftSlug] = useState(
     initialShiftSlug || shifts[0]?.slug || "",
   );
+  const [desiredTime, setDesiredTime] = useState(initialShift?.start_time || "18:00");
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
@@ -328,7 +362,7 @@ export function BookingWizard({
     setError("");
     const availabilityQuery = new URLSearchParams({
       service_date: serviceDate,
-      desired_time: shift.start_time,
+      desired_time: desiredTime || shift.start_time,
       party_size: String(partySize),
       duration_minutes: String(durationMinutes),
     });
@@ -346,8 +380,11 @@ export function BookingWizard({
       if (!availabilityResponse.ok) throw new Error(readError(availabilityPayload));
       if (!gridResponse.ok) throw new Error(readError(gridPayload));
 
-      const shiftOptions = (availabilityPayload as AvailabilityResponse).options.filter(
-        (option) => option.shift_slug === shift.slug,
+      const shiftOptions = nearbyAvailabilityOptions(
+        (availabilityPayload as AvailabilityResponse).options.filter(
+          (option) => option.shift_slug === shift.slug,
+        ),
+        desiredTime || shift.start_time,
       );
       const preservedOption = preserveSelection && selectedOption?.shift_slug === shift.slug
         ? shiftOptions.find((option) => option.start_time === selectedOption.start_time)
@@ -382,7 +419,10 @@ export function BookingWizard({
     setStep(3);
   }
 
-  async function findTimes(shiftSlug = selectedShiftSlug) {
+  async function findTimes(
+    shiftSlug = selectedShiftSlug,
+    requestedTime = desiredTime,
+  ) {
     if (!stageIsFilled(2) || assignmentLoading) return;
     const shift = shifts.find((item) => item.slug === shiftSlug);
     if (!shift) return;
@@ -390,6 +430,7 @@ export function BookingWizard({
     setAssignmentLoading(true);
     setError("");
     setSelectedShiftSlug(shift.slug);
+    setDesiredTime(requestedTime);
     setSelectedOption(null);
     setSelectedTableIds([]);
     setAssignmentDraftTableIds([]);
@@ -398,7 +439,7 @@ export function BookingWizard({
     setOptions([]);
     const availabilityQuery = new URLSearchParams({
       service_date: serviceDate,
-      desired_time: shift.start_time,
+      desired_time: requestedTime,
       party_size: String(partySize),
       duration_minutes: String(durationMinutes),
     });
@@ -408,8 +449,11 @@ export function BookingWizard({
       });
       const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      const shiftOptions = (payload as AvailabilityResponse).options.filter(
-        (option) => option.shift_slug === shift.slug,
+      const shiftOptions = nearbyAvailabilityOptions(
+        (payload as AvailabilityResponse).options.filter(
+          (option) => option.shift_slug === shift.slug,
+        ),
+        requestedTime,
       );
       setOptions(shiftOptions);
       advanceTo(3);
@@ -418,6 +462,17 @@ export function BookingWizard({
     } finally {
       setAssignmentLoading(false);
     }
+  }
+
+  function updateDesiredTime(value: string) {
+    setDesiredTime(value);
+    invalidateTimeSelection();
+  }
+
+  function showAvailabilityForDesiredTime() {
+    if (!desiredTime) return;
+    const matchingShift = shifts.find((shift) => timeFallsWithinShift(desiredTime, shift));
+    void findTimes(matchingShift?.slug || selectedShiftSlug, desiredTime);
   }
 
   function updatePartySize(nextSize: number) {
@@ -772,13 +827,34 @@ export function BookingWizard({
 
           {step === 3 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Select a shift and time, then optionally assign tables before continuing.</p></div></div>
+              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Enter the guest&apos;s desired time to see the closest options, then optionally assign tables.</p></div></div>
               {partyExceedsFloorCapacity && (
                 <div className="booking-capacity-warning" role="status">
                   <AlertTriangle aria-hidden="true" />
                   <div><strong>Overbooking warning</strong><span>This party has {partySize} guests and the floor has {floorCoverCapacity} covers. Select any time to continue.</span></div>
                 </div>
               )}
+              <div className="desired-time-search">
+                <label htmlFor="desired-reservation-time">
+                  Guest&apos;s desired time
+                  <input
+                    id="desired-reservation-time"
+                    type="time"
+                    step={900}
+                    value={desiredTime}
+                    onChange={(event) => updateDesiredTime(event.currentTarget.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={showAvailabilityForDesiredTime}
+                  disabled={!desiredTime || assignmentLoading}
+                >
+                  {assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
+                  {assignmentLoading ? "Checking…" : "Show availability"}
+                </button>
+                <span>Times are shown closest to the guest&apos;s request.</span>
+              </div>
               <div className="wizard-shift-picker" aria-label="Reservation shift">
                 {shifts.map((shift) => (
                   <button
@@ -786,7 +862,10 @@ export function BookingWizard({
                     key={shift.id}
                     className={shift.slug === selectedShiftSlug ? "selected" : ""}
                     aria-pressed={shift.slug === selectedShiftSlug}
-                    onClick={() => void findTimes(shift.slug)}
+                    onClick={() => void findTimes(
+                      shift.slug,
+                      timeFallsWithinShift(desiredTime, shift) ? desiredTime : shift.start_time,
+                    )}
                     disabled={assignmentLoading}
                   >
                     <strong>{shift.name}</strong>
@@ -804,6 +883,7 @@ export function BookingWizard({
                           const optionKey = `${option.shift_slug}-${option.start_time}`;
                           const selected = selectedOption?.shift_slug === option.shift_slug
                             && selectedOption.start_time === option.start_time;
+                          const requested = option.start_time === desiredTime;
                           return (
                             <button
                               type="button"
@@ -814,11 +894,11 @@ export function BookingWizard({
                                 selected && !option.available ? "confirm-overbook" : "",
                               ].filter(Boolean).join(" ")}
                               aria-pressed={selected}
-                              aria-label={`${displayTime(option.start_time)}, ${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
+                              aria-label={`${displayTime(option.start_time)}, ${requested ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
                               onClick={() => chooseTime(option)}
                             >
                               <strong>{displayTime(option.start_time)}</strong>
-                              <span>{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
+                              <span>{requested ? "Requested · " : ""}{option.available ? `Seats up to ${option.table_capacity}` : option.unavailable_reason}</span>
                             </button>
                           );
                         })}

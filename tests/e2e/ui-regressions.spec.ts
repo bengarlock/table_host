@@ -288,6 +288,48 @@ async function mockAvailability(page: Page) {
   });
 }
 
+test("booking availability is centered around the guest's desired time", async ({ page }) => {
+  await mockGrid(page);
+  const requestedTimes: string[] = [];
+  await page.route("**/api/grid/availability?*", async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    requestedTimes.push(query.get("desired_time") || "");
+    const options = Array.from({ length: 9 }, (_, index) => {
+      const minutes = 17 * 60 + index * 15;
+      const startTime = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      return {
+        service_date: serviceDate,
+        shift_slug: shift.slug,
+        shift_name: shift.name,
+        start_time: startTime,
+        table_id: 1,
+        table_name: "1",
+        table_capacity: 4,
+        available: true,
+        unavailable_reason: "",
+      };
+    });
+    await route.fulfill({ json: { options } });
+  });
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Party size" }).click();
+  await page.getByRole("button", { name: "4", exact: true }).click();
+  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+
+  const desiredTime = page.getByLabel("Guest's desired time");
+  await expect(desiredTime).toHaveValue("17:00");
+  await desiredTime.fill("18:00");
+  await page.getByRole("button", { name: "Show availability" }).click();
+
+  expect(requestedTimes.at(-1)).toBe("18:00");
+  await expect(page.locator(".available-hour-group button")).toHaveCount(7);
+  await expect(page.locator(".available-hour-group button strong")).toHaveText([
+    "5:15 PM", "5:30 PM", "5:45 PM", "6:00 PM", "6:15 PM", "6:30 PM", "6:45 PM",
+  ]);
+  await expect(page.getByRole("button", { name: "6:00 PM, requested time, seats up to 4" })).toBeVisible();
+});
+
 test("reservation navigation is not overwritten by a late grid response", async ({ page }) => {
   await mockGrid(page, 600);
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
