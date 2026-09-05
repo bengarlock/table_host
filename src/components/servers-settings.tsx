@@ -257,13 +257,7 @@ export function ServersSettings() {
   }
 
   return (
-    <section className="settings-section servers-settings" aria-labelledby="servers-settings-title">
-      <header className="settings-section-header">
-        <p>Service team</p>
-        <h2 id="servers-settings-title">Servers</h2>
-        <span>Create the server roster and reusable sections of the floor. Assign servers to sections for a shift on the floor plan.</span>
-      </header>
-
+    <section className="settings-section servers-settings" aria-label="Servers">
       <div className="servers-tabs" role="tablist" aria-label="Server settings">
         {([{ id: "roster", label: "Server roster" }, { id: "sections", label: "Floor sections" }] as const).map((tab) => (
           <button key={tab.id} id={`servers-tab-${tab.id}`} type="button" role="tab"

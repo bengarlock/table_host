@@ -19,12 +19,6 @@ export function SettingsWorkspace({ children }: { children: ReactNode }) {
       <AppSidebar />
       <main className="main-content settings-main-content">
         <div className="settings-page">
-          <header className="settings-header">
-            <p>Restaurant setup</p>
-            <h1>Settings</h1>
-            <span>Configure the structure behind reservations and daily service.</span>
-          </header>
-
           <nav className="settings-section-nav" aria-label="Settings sections">
             <ul>
               {SETTINGS_SECTIONS.map((section) => (
