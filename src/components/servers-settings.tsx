@@ -60,9 +60,21 @@ function roundedRectPath(left: number, top: number, right: number, bottom: numbe
 }
 
 function roundedOutlinePath(points: Array<{ x: number; y: number }>) {
+  // Flush joins can repeat vertices. Remove zero-length edges before rounding,
+  // otherwise their direction divides by zero and corrupts the SVG path.
+  const distinct = points.filter((point, index) => {
+    const previous = points[(index + points.length - 1) % points.length];
+    return point.x !== previous.x || point.y !== previous.y;
+  });
+  points = distinct.filter((point, index) => {
+    const previous = distinct[(index + distinct.length - 1) % distinct.length];
+    const next = distinct[(index + 1) % distinct.length];
+    return (point.x - previous.x) * (next.y - point.y) !== (point.y - previous.y) * (next.x - point.x);
+  });
   const distance = (first: { x: number; y: number }, second: { x: number; y: number }) => Math.hypot(second.x - first.x, second.y - first.y);
   const toward = (from: { x: number; y: number }, to: { x: number; y: number }, amount: number) => {
     const length = distance(from, to);
+    if (!length) return from;
     return { x: from.x + (to.x - from.x) * amount / length, y: from.y + (to.y - from.y) * amount / length };
   };
   const corners = points.map((point, index) => {
