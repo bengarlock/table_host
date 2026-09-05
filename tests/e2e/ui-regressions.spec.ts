@@ -47,6 +47,7 @@ const gridPayload = {
       chair_layout: "across",
     },
   ],
+  servers: [],
   reservations: [],
   summary: { reservations: 0, covers: 0, seated: 0 },
 };
@@ -219,7 +220,7 @@ for (const futureDate of [true, false]) {
       await expect(page.getByRole("button", { name: "Cancel reservation", exact: true })).toBeEnabled();
       expect(updates).toBe(0);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
-      await expect(page.getByText("Viewing another service date. Return to today to seat parties or change table statuses.")).toBeVisible();
+      await expect(page.getByText("Viewing another service date. Return to today to seat parties or change table statuses.")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Seat", exact: true })).toBeDisabled();
       await expect(page.getByRole("button", { name: "Walk In", exact: true })).toBeDisabled();
       await expect(page.locator(".floor-reservation-move-indicator")).toHaveCount(0);

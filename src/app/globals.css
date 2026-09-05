@@ -5071,19 +5071,9 @@ textarea {
   min-width: 0;
 }
 
-.floor-alert,
-.floor-read-only {
+.floor-alert {
   flex: 0 0 auto;
   margin: -4px 0 0;
-}
-
-.floor-read-only {
-  padding: 9px 12px;
-  border: 1px solid rgba(217, 170, 98, 0.22);
-  border-radius: 9px;
-  background: rgba(217, 170, 98, 0.07);
-  color: #cfb68f;
-  font-size: 0.65rem;
 }
 
 .floor-service-layout {
