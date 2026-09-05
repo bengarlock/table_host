@@ -1505,7 +1505,7 @@ textarea {
 
 .reservation-editor-dialog {
   display: grid;
-  width: min(760px, 100%);
+  width: min(980px, 100%);
   max-height: min(860px, calc(100dvh - 56px));
   overflow: hidden;
   border: 1px solid var(--line-strong);
@@ -1582,6 +1582,8 @@ textarea {
 
 .reservation-editor-body {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   min-height: 0;
   gap: 18px;
   overflow-y: auto;
@@ -1590,6 +1592,7 @@ textarea {
 
 .reservation-editor-fields {
   display: grid;
+  grid-column: 1 / -1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
@@ -7268,6 +7271,10 @@ textarea {
   .reservation-editor-body {
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .reservation-editor-body {
+    grid-template-columns: 1fr;
   }
 
   .reservation-editor-fields {
