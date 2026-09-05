@@ -406,6 +406,36 @@ test("selected floor tables can be aligned and spaced vertically", async ({ page
   await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
 });
 
+test("cloning lettered tables preserves the prefix and advances its number", async ({ page }) => {
+  const numericTables = Array.from({ length: 6 }, (_, index) => ({
+    ...gridPayload.tables[0],
+    id: index + 1,
+    name: String(index + 1),
+    sort_order: index + 1,
+    position_x: 12 + index * 10,
+    position_y: 24,
+  }));
+  const letteredTables = [
+    { ...gridPayload.tables[0], id: 7, name: "B1", sort_order: 7, position_x: 30, position_y: 52 },
+    { ...gridPayload.tables[0], id: 8, name: "B2", sort_order: 8, position_x: 30, position_y: 68 },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, tables: [...numericTables, ...letteredTables] },
+  }));
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+
+  await page.locator('[data-floor-table-id="7"]').click();
+  await page.locator('[data-floor-table-id="8"]').click({ modifiers: ["Shift"] });
+  await page.getByRole("button", { name: "Clone Table" }).click();
+
+  await expect(page.getByRole("button", { name: /^Table B3,/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Table B4,/ })).toBeVisible();
+  await expect(page.getByText("2 tables selected")).toBeVisible();
+  await expect(page.locator(".floor-table.duplicate-number")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
+});
+
 test("floor tables can cross each other but overlapping drops block saving", async ({ page }) => {
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: {

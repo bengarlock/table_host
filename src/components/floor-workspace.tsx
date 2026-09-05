@@ -217,12 +217,18 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function nextAvailableTableNumber(sourceName: string, usedNumbers: Set<number>) {
-  const sourceNumber = /^\d+$/.test(sourceName.trim()) ? Number(sourceName) : 0;
+function nextAvailableTableName(sourceName: string, usedNames: Set<string>) {
+  const trimmedName = sourceName.trim();
+  const numberedName = trimmedName.match(/^(.*?)(\d+)$/);
+  const prefix = numberedName?.[1] ?? "";
+  const sourceNumber = numberedName ? Number(numberedName[2]) : 0;
+  const numberWidth = numberedName?.[2].length ?? 0;
   let candidate = sourceNumber + 1;
-  while (usedNumbers.has(candidate)) candidate += 1;
-  usedNumbers.add(candidate);
-  return String(candidate);
+  const formatCandidate = () => `${prefix}${String(candidate).padStart(numberWidth, "0")}`;
+  while (usedNames.has(formatCandidate().toLocaleLowerCase())) candidate += 1;
+  const candidateName = formatCandidate();
+  usedNames.add(candidateName.toLocaleLowerCase());
+  return candidateName;
 }
 
 function chairPositions(table: DiningTable): CSSProperties[] {
@@ -974,11 +980,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     if (!editorSelectedTables.length) return;
     const selected = [...editorSelectedTables].sort((left, right) =>
       left.sort_order - right.sort_order || left.id - right.id);
-    const usedNumbers = new Set(
+    const usedNames = new Set(
       editedTables
         .map((table) => table.name.trim())
-        .filter((name) => /^\d+$/.test(name))
-        .map(Number),
+        .filter(Boolean)
+        .map((name) => name.toLocaleLowerCase()),
     );
     const minimumX = Math.min(...selected.map((table) => table.position_x));
     const maximumX = Math.max(...selected.map((table) => table.position_x));
@@ -991,7 +997,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     const clones = selected.map((table, index) => ({
       ...table,
       id: temporaryId--,
-      name: nextAvailableTableNumber(table.name, usedNumbers),
+      name: nextAvailableTableName(table.name, usedNames),
       sort_order: nextSortOrder + index,
       position_x: clamp(table.position_x + horizontalShift, 0, 100),
       position_y: clamp(table.position_y + verticalShift, 0, 100),
