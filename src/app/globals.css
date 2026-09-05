@@ -700,7 +700,7 @@ textarea {
 
 .section-editor-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   align-items: start;
   gap: 16px;
   margin-top: 12px;
@@ -774,9 +774,23 @@ textarea {
 }
 
 .saved-sections-sidebar .section-list li {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-rows: 38px 30px 28px;
+  gap: 6px;
   padding: 10px;
 }
+
+.section-row-title { min-width: 0; }
+.section-row-title input, .section-row-title .section-row-select {
+  width: 100%; height: 38px; box-sizing: border-box; margin: 0; padding: 0 8px;
+  border: 1px solid transparent; border-radius: 6px; font: inherit; font-size: 0.76rem;
+  color: var(--text); align-items: center;
+}
+.section-row-title input { background: var(--canvas); border-color: var(--line-strong); }
+.section-row-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.saved-sections-sidebar .section-list .section-row-details { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.section-row-color { display: flex; align-items: center; gap: 8px; font-size: 0.7rem; }
+.section-row-color input { width: 42px; height: 28px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--canvas); padding: 2px; }
 
 .saved-sections-sidebar .section-list-actions {
   display: flex;

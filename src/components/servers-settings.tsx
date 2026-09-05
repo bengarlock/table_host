@@ -307,11 +307,37 @@ export function ServersSettings() {
             <aside className="saved-sections-sidebar" aria-label="Saved sections">
               <h4>Saved sections</h4>
               <button className="servers-add-button section-new-button" type="button" disabled={saving || creatingSection} onClick={() => { clearSectionForm(); setCreatingSection(true); setError(""); }}><Plus aria-hidden="true" /> New section</button>
-<ul className="section-list" aria-label="Floor sections">{creatingSection && <li className="is-selected"><label className="section-row-name"><span>New section name</span><input autoFocus form="section-editor-form" value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required disabled={saving} /></label><span>{sectionTableIds.length} tables selected</span></li>}{sections.map((section) => <li key={section.id} className={editingSectionId === section.id ? "is-selected" : ""} onClick={(event) => { if (!(event.target as HTMLElement).closest("button, input, label")) editSection(section); }}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" />{editingSectionId === section.id ? <label className="section-row-name"><span>Section name</span><input autoFocus form="section-editor-form" value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} required disabled={saving} /></label> : <button className="section-row-select" type="button" aria-label={`Edit section ${section.name}`} aria-pressed={editingSectionId === section.id} onClick={() => editSection(section)}><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></button>}<div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
+              <ul className="section-list" aria-label="Floor sections">
+                {[...(creatingSection ? [{ id: -1, name: "", color: sectionColor, table_ids: sectionTableIds }] : []), ...sections].map((section) => {
+                  const active = section.id === -1 || editingSectionId === section.id;
+                  const count = active ? sectionTableIds.length : section.table_ids.length;
+                  return <li key={section.id} className={active ? "is-selected" : ""} onClick={(event) => {
+                    if (!active && !saving && !(event.target as HTMLElement).closest("button, input, label")) editSection(section);
+                  }}>
+                    <div className="section-row-title">
+                      {active ? <input autoFocus aria-label={section.id === -1 ? "New section name" : "Section name"} form="section-editor-form"
+                        value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80}
+                        placeholder="e.g. Section 1" required disabled={saving} /> :
+                        <button className="section-row-select" type="button" aria-label={`Edit section ${section.name}`} onClick={() => editSection(section)} disabled={saving}><strong>{section.name}</strong></button>}
+                    </div>
+                    <div className="section-row-details">
+                      <span>{count} {count === 1 ? "table" : "tables"}</span>
+                      <label className="section-row-color"><span>Color</span><input type="color" aria-label={active ? "Section color" : `Color for ${section.name}`}
+                        value={active ? sectionColor : section.color || SECTION_COLORS[0]} disabled={!active || saving}
+                        onChange={(event) => setSectionColor(event.target.value.toUpperCase())} /></label>
+                    </div>
+                    <div className="section-list-actions">
+                      {section.id !== -1 && <><button type="button" disabled={saving || active} onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button>
+                      <button type="button" disabled={saving} className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""}
+                        onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>
+                        {deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></>}
+                    </div>
+                  </li>;
+                })}
+              </ul>
 {!sections.length && !creatingSection && <p className="servers-empty">No sections yet. Click New section to get started.</p>}
             </aside>
           <form id="section-editor-form" className="server-form" onSubmit={(event) => void saveSection(event)}>
-            <label className="section-color-field" style={{ visibility: sectionActive ? "visible" : "hidden" }}><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
             <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${(floorWidth - (floorBounds.right - floorBounds.left) * floorScale) / 2 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables, sections);
