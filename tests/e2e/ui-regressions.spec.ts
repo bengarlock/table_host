@@ -199,8 +199,9 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner&confirmation=101`);
 
-  const dialog = page.getByRole("dialog", { name: "Read this back to the guest" });
+  const dialog = page.getByRole("dialog", { name: "Reservation confirmation" });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Read this back to the guest")).toHaveCount(0);
   await expect(dialog).toContainText(
     "Alex Morgan is confirmed for 2 guests on Friday, September 4 at 5:00 PM.",
   );

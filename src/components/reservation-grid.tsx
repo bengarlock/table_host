@@ -933,7 +933,7 @@ export function ReservationGrid({
             className="reservation-confirmation-dialog"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="reservation-confirmation-title"
+            aria-label="Reservation confirmation"
           >
             <button
               type="button"
@@ -945,7 +945,6 @@ export function ReservationGrid({
             </button>
             <CircleCheck className="reservation-confirmation-icon" aria-hidden="true" />
             <p className="reservation-confirmation-eyebrow">Reservation booked</p>
-            <h2 id="reservation-confirmation-title">Read this back to the guest</h2>
             <p className="reservation-confirmation-readback">
               {confirmedReservation.guest_name} is confirmed for {confirmedReservation.party_size} {confirmedReservation.party_size === 1 ? "guest" : "guests"} on {displayServiceDate(data.service_date)} at {displayTime(confirmedReservation.start_time)}.
             </p>
