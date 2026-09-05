@@ -58,6 +58,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
+import { connectedSectionOutlines } from "@/lib/section-outline";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import { formatTurnTime } from "@/lib/turn-time";
 import {
@@ -300,10 +301,6 @@ function chairPositions(table: DiningTable): CSSProperties[] {
   });
 }
 
-function roundedRectPath(left: number, top: number, right: number, bottom: number) {
-  const radius = Math.min(28, (right - left) / 4, (bottom - top) / 4);
-  return `M ${left + radius} ${top} H ${right - radius} Q ${right} ${top} ${right} ${top + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${left + radius} Q ${left} ${bottom} ${left} ${bottom - radius} V ${top + radius} Q ${left} ${top} ${left + radius} ${top} Z`;
-}
 
 function roundedOutlinePath(points: Array<{ x: number; y: number }>) {
   // Flush joins can repeat vertices. Remove zero-length edges before rounding,
@@ -363,23 +360,10 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
     }
   }
   const first = bounds[0];
-  const connectors = bounds.slice(1).flatMap((bound, index) => {
-    const previous = bounds[index];
-    const left = Math.max(previous.left, bound.left);
-    const right = Math.min(previous.right, bound.right);
-    if (right <= left || bound.top <= previous.bottom) return [];
-    return [`M ${left} ${previous.bottom - 1} H ${right} V ${bound.top + 1} H ${left} Z`];
-  });
-  const joinedPaths = bounds.length === 2 && connectors.length ? [roundedOutlinePath([
-    { x: bounds[0].left, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].bottom },
-    { x: Math.min(bounds[0].right, bounds[1].right), y: bounds[0].bottom }, { x: Math.min(bounds[0].right, bounds[1].right), y: bounds[1].top },
-    { x: bounds[1].right, y: bounds[1].top }, { x: bounds[1].right, y: bounds[1].bottom }, { x: bounds[1].left, y: bounds[1].bottom },
-    { x: bounds[1].left, y: bounds[1].top }, { x: Math.max(bounds[0].left, bounds[1].left), y: bounds[1].top },
-    { x: Math.max(bounds[0].left, bounds[1].left), y: bounds[0].bottom }, { x: bounds[0].left, y: bounds[0].bottom },
-  ])] : bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom));
+  const joinedPaths = connectedSectionOutlines(bounds).map(roundedOutlinePath);
   return {
     paths: joinedPaths,
-    connectors: bounds.length === 2 && connectors.length ? [] : connectors,
+    connectors: [] as string[],
     labelX: Math.max(14, first.left + 16),
     labelY: Math.max(26, first.top + 24),
     labelWidth: Math.max(74, section.name.length * 9 + 20),
