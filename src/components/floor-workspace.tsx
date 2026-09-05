@@ -329,7 +329,7 @@ function roundedOutlinePath(points: Array<{ x: number; y: number }>) {
   return corners.reduce((path, corner) => `${path} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`, `M ${corners[0].entry.x} ${corners[0].entry.y}`) + " Z";
 }
 
-function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: FloorStageMetrics) {
+function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: FloorStageMetrics, sections: FloorSection[]) {
   const selected = tables.filter((table) => section.table_ids.includes(table.id));
   if (!selected.length) return null;
   const rows = selected.sort((first, second) => first.position_y - second.position_y).reduce<DiningTable[][]>((groups, table) => {
@@ -360,7 +360,22 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
     }
   }
   const first = bounds[0];
-  const joinedPaths = connectedSectionOutlines(bounds).map(roundedOutlinePath);
+  const obstacles = sections.filter((other) => other.id !== section.id).flatMap((other) => {
+    const otherTables = tables.filter((table) => other.table_ids.includes(table.id));
+    const groups: typeof otherTables[] = [];
+    for (const table of [...otherTables].sort((a, b) => a.position_y - b.position_y)) {
+      const group = groups.find((row) => Math.abs(row[0].position_y - table.position_y) < 10);
+      if (group) group.push(table); else groups.push([table]);
+    }
+    const dimensions = stage;
+    return groups.map((row) => ({
+      left: Math.min(...row.map((table) => dimensions.width * table.position_x / 100 - table.width / 2 - 25)),
+      right: Math.max(...row.map((table) => dimensions.width * table.position_x / 100 + table.width / 2 + 25)),
+      top: Math.min(...row.map((table) => dimensions.height * table.position_y / 100 - table.height / 2 - 25)),
+      bottom: Math.max(...row.map((table) => dimensions.height * table.position_y / 100 + table.height / 2 + 25)),
+    }));
+  });
+  const joinedPaths = connectedSectionOutlines(bounds, obstacles).map(roundedOutlinePath);
   return {
     paths: joinedPaths,
     connectors: [] as string[],
@@ -808,7 +823,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     () => (data?.sections || []).map((section, index) => ({
       section,
       color: section.color || ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5],
-      shape: sectionOverlay(section, displayedTables, floorStageMetrics),
+      shape: sectionOverlay(section, displayedTables, floorStageMetrics, data?.sections || []),
     })).filter((overlay) => overlay.shape),
     [data?.sections, displayedTables, floorStageMetrics],
   );

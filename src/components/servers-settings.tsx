@@ -83,7 +83,7 @@ function roundedOutlinePath(points: Array<{ x: number; y: number }>) {
   return corners.reduce((path, corner) => `${path} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`, `M ${corners[0].entry.x} ${corners[0].entry.y}`) + " Z";
 }
 
-function sectionOverlay(section: Section, tables: Table[]) {
+function sectionOverlay(section: Section, tables: Table[], sections: Section[]) {
   const selected = tables.filter((table) => section.table_ids.includes(table.id));
   if (!selected.length) return null;
   const rows = selected.sort((first, second) => first.position_y - second.position_y).reduce<Table[][]>((groups, table) => {
@@ -114,7 +114,22 @@ function sectionOverlay(section: Section, tables: Table[]) {
     }
   }
   const first = bounds[0];
-  const joinedPaths = connectedSectionOutlines(bounds).map(roundedOutlinePath);
+  const obstacles = sections.filter((other) => other.id !== section.id).flatMap((other) => {
+    const otherTables = tables.filter((table) => other.table_ids.includes(table.id));
+    const groups: typeof otherTables[] = [];
+    for (const table of [...otherTables].sort((a, b) => a.position_y - b.position_y)) {
+      const group = groups.find((row) => Math.abs(row[0].position_y - table.position_y) < 10);
+      if (group) group.push(table); else groups.push([table]);
+    }
+    const dimensions = { width: 1200, height: 660 };
+    return groups.map((row) => ({
+      left: Math.min(...row.map((table) => dimensions.width * table.position_x / 100 - table.width / 2 - 25)),
+      right: Math.max(...row.map((table) => dimensions.width * table.position_x / 100 + table.width / 2 + 25)),
+      top: Math.min(...row.map((table) => dimensions.height * table.position_y / 100 - table.height / 2 - 25)),
+      bottom: Math.max(...row.map((table) => dimensions.height * table.position_y / 100 + table.height / 2 + 25)),
+    }));
+  });
+  const joinedPaths = connectedSectionOutlines(bounds, obstacles).map(roundedOutlinePath);
   return { paths: joinedPaths, connectors: [] as string[], labelX: Math.max(14, first.left + 16), labelY: Math.max(26, first.top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
 }
 
@@ -249,7 +264,7 @@ export function ServersSettings() {
             <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
             <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
-                const shape = sectionOverlay(section, tables);
+                const shape = sectionOverlay(section, tables, sections);
                 const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
                 return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>{shape.connectors.map((path, pathIndex) => <path key={pathIndex} className="floor-section-connector" d={path} />)}{shape.paths.map((path, pathIndex) => <path key={pathIndex} d={path} />)}<rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
               })}</svg>}

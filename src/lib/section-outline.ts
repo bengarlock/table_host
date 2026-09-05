@@ -2,14 +2,18 @@ type Bounds = { left: number; right: number; top: number; bottom: number };
 type Point = { x: number; y: number };
 
 // Trace both sides of every row and connecting corridor as one outer polygon.
-export function connectedSectionOutlines(rows: Bounds[]): Point[][] {
+export function connectedSectionOutlines(rows: Bounds[], obstacles: Bounds[] = []): Point[][] {
   const groups: Bounds[][] = [];
   for (const row of rows) {
     const group = groups.at(-1);
     const previous = group?.at(-1);
     const left = previous ? Math.max(previous.left, row.left) : 0;
     const right = previous ? Math.min(previous.right, row.right) : 0;
-    if (group && previous && right > left && row.top >= previous.bottom) {
+    const blocked = previous && obstacles.some((obstacle) =>
+      obstacle.left < right && obstacle.right > left &&
+      obstacle.top < row.top && obstacle.bottom > previous.bottom,
+    );
+    if (group && previous && right > left && row.top >= previous.bottom && !blocked) {
       if (row.top > previous.bottom) {
         group.push({ left, right, top: previous.bottom, bottom: row.top });
       }
