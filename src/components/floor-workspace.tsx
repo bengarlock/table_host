@@ -1878,7 +1878,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   async function updateTableStatus(reservation: Reservation, status: ServiceStatus) {
     if (!SERVICE_LIFECYCLE_STATUSES.includes(status)) return;
     const updated = await updateReservation(reservation, { status });
-    if (updated && status === "complete") setStatusPopover(null);
+    if (updated) setStatusPopover(null);
   }
 
   function seatAtTable(reservation: Reservation, table: DiningTable) {
