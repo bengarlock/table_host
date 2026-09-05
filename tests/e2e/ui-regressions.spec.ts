@@ -376,7 +376,7 @@ for (const futureDate of [true, false]) {
     const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
     if (futureDate) {
       await statusMenu.click();
-      for (const serviceStatus of ["Seated", "Entree", "Dessert", "Check dropped", "Paid", "Complete"]) {
+      for (const serviceStatus of ["Seated", "Entree", "Dessert", "Check dropped", "Paid", "Complete", "No-show"]) {
         await expect(dialog.getByRole("option", { name: serviceStatus })).toHaveCount(0);
       }
       expect(updates).toBe(0);

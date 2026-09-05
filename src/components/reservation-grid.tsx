@@ -121,7 +121,7 @@ const RESERVATION_STATUS_OPTIONS = [
   { value: "cancelled" as const, label: "Cancelled", icon: Ban },
   { value: "no_show" as const, label: "No-show", icon: UserX },
 ];
-const SERVICE_STATUS_VALUES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid", "complete"];
+const SERVICE_STATUS_VALUES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid", "complete", "no_show"];
 
 type GridData = {
   restaurant: { id: number; name: string };
@@ -523,7 +523,7 @@ export function ReservationGrid({
       return;
     }
     if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(reservationEditDraft.status)) {
-      setError("Reservations cannot be seated or marked as served on future dates.");
+      setError("Reservations cannot be marked with an in-service outcome on future dates.");
       return;
     }
     setSaving(true);
