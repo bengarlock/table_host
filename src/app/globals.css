@@ -1704,7 +1704,7 @@ textarea {
   grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.1fr);
   grid-template-areas:
     "shift shift"
-    "party desired"
+    "desired desired"
     "party available"
     "party assignment";
   align-items: start;
@@ -1810,6 +1810,16 @@ textarea {
 
 .booking-time-party-step .time-assign-tables-action {
   min-height: 46px;
+}
+
+@media (min-width: 701px) and (max-height: 800px) {
+  .booking-time-party-step {
+    grid-template-areas:
+      "shift shift"
+      "party desired"
+      "party available"
+      "party assignment";
+  }
 }
 
 .wizard-step-heading {

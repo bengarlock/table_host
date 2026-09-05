@@ -300,6 +300,7 @@ async function mockAvailability(page: Page) {
 }
 
 test("booking availability is centered around the guest's desired time", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
   await mockGrid(page);
   const requestedTimes: string[] = [];
   await page.route("**/api/grid/availability?*", async (route) => {
@@ -333,6 +334,13 @@ test("booking availability is centered around the guest's desired time", async (
   expect(compactTimePartyLayout.scrollHeight).toBeLessThanOrEqual(compactTimePartyLayout.clientHeight);
 
   const desiredTimes = page.getByLabel("Desired reservation times");
+  const [timePartyBounds, desiredBounds] = await Promise.all([
+    page.locator(".booking-time-party-step").boundingBox(),
+    page.locator(".time-choice-section").first().boundingBox(),
+  ]);
+  expect(timePartyBounds).not.toBeNull();
+  expect(desiredBounds).not.toBeNull();
+  expect(desiredBounds!.width).toBeGreaterThanOrEqual(timePartyBounds!.width - 1);
   await expect(desiredTimes.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
