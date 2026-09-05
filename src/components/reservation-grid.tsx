@@ -411,7 +411,7 @@ export function ReservationGrid({
       duration: String(draft.durationMinutes),
       tables: draft.tableIds.join(","),
     });
-    router.push(`${appPath("/reservations/book")}?${query}`);
+    router.push(`/reservations/book?${query}`);
   }
 
   async function updateStatus(status: Reservation["status"]) {
