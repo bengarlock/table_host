@@ -385,19 +385,36 @@ test("grid date controls stay compact and centered", async ({ page }) => {
   await mockGrid(page);
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
 
-  const [toolbarBounds, dateBounds, nextBounds, nowBounds] = await Promise.all([
+  const [toolbarBounds, shiftBounds, dateBounds, nextBounds, nowBounds] = await Promise.all([
     page.locator(".grid-toolbar").boundingBox(),
+    page.locator(".grid-toolbar .shift-tabs").boundingBox(),
     page.locator(".grid-toolbar > .date-control").boundingBox(),
     page.getByRole("button", { name: "Next day" }).boundingBox(),
     page.getByRole("button", { name: "Return to current day and shift" }).boundingBox(),
   ]);
   expect(toolbarBounds).not.toBeNull();
+  expect(shiftBounds).not.toBeNull();
   expect(dateBounds).not.toBeNull();
   expect(nextBounds).not.toBeNull();
   expect(nowBounds).not.toBeNull();
   expect(Math.abs((dateBounds!.x + dateBounds!.width / 2) - (toolbarBounds!.x + toolbarBounds!.width / 2))).toBeLessThan(2);
   expect(dateBounds!.width).toBeLessThan(360);
   expect(Math.abs(nowBounds!.x - (nextBounds!.x + nextBounds!.width))).toBeLessThan(2);
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  const floorToolbar = page.locator('header[aria-label="Floor plan controls"]');
+  await expect(page.getByRole("heading", { name: "Floor plan", exact: true })).toHaveCount(0);
+  const [floorToolbarBounds, floorShiftBounds, floorDateBounds] = await Promise.all([
+    floorToolbar.boundingBox(),
+    floorToolbar.locator(".shift-tabs").boundingBox(),
+    floorToolbar.locator(".date-control").boundingBox(),
+  ]);
+  expect(floorToolbarBounds).not.toBeNull();
+  expect(floorShiftBounds).not.toBeNull();
+  expect(floorDateBounds).not.toBeNull();
+  expect(Math.abs(floorToolbarBounds!.x - toolbarBounds!.x)).toBeLessThan(2);
+  expect(Math.abs(floorShiftBounds!.x - shiftBounds!.x)).toBeLessThan(2);
+  expect(Math.abs((floorDateBounds!.x + floorDateBounds!.width / 2) - (dateBounds!.x + dateBounds!.width / 2))).toBeLessThan(2);
 });
 
 test("booking availability is centered around the guest's desired time", async ({ page }) => {

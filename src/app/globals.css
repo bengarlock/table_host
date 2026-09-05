@@ -526,12 +526,6 @@ textarea {
   padding: 7px 9px;
 }
 
-.floor-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 @media (max-width: 560px) {
   .settings-option {
     gap: 13px;
@@ -4410,16 +4404,6 @@ textarea {
   margin: 0;
 }
 
-.floor-toolbar {
-  display: grid;
-  flex: 0 0 auto;
-  grid-template-columns: minmax(170px, 1fr) auto auto;
-  align-items: end;
-  gap: 20px;
-}
-
-.floor-toolbar h1,
-.floor-toolbar p,
 .floor-panel-heading h2,
 .floor-plan-heading h2,
 .floor-dialog h2,
@@ -4427,7 +4411,6 @@ textarea {
   margin: 0;
 }
 
-.floor-kicker,
 .floor-panel-heading span,
 .floor-plan-heading > div > span,
 .floor-dialog > span {
@@ -4438,11 +4421,12 @@ textarea {
   text-transform: uppercase;
 }
 
-.floor-toolbar h1 {
-  margin-top: 4px;
-  font-size: 1.55rem;
-  font-weight: 650;
-  letter-spacing: -0.025em;
+.floor-grid-toolbar {
+  margin: -26px -28px 0;
+}
+
+.floor-toolbar-spacer {
+  min-width: 0;
 }
 
 .floor-alert,
@@ -6137,9 +6121,8 @@ textarea {
     overflow-y: auto;
   }
 
-  .floor-toolbar {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+  .floor-grid-toolbar > .floor-toolbar-spacer {
+    display: none;
   }
 
   .floor-service-layout {
@@ -6333,6 +6316,10 @@ textarea {
     height: auto;
     min-height: 100vh;
     padding: 18px;
+  }
+
+  .floor-grid-toolbar {
+    margin: -18px -18px 0;
   }
 
   .floor-service-layout {

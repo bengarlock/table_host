@@ -1688,26 +1688,22 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       <AppSidebar onNavigateAttempt={allowPageNavigation} />
       <main className="main-content floor-main-content">
         <div className={`floor-page${editingFloor ? " editing-floor-page" : ""}`}>
-          {!editingFloor && <header className="floor-toolbar">
-            <div>
-              <p className="floor-kicker">Live service</p>
-              <div className="floor-title-row">
-                <h1>Floor plan</h1>
-                {data?.training_mode && <span className="training-mode-indicator">Training mode</span>}
+          {!editingFloor && <header className="grid-toolbar floor-grid-toolbar" aria-label="Floor plan controls">
+            <div className="toolbar-leading">
+              {data?.training_mode && <span className="training-mode-indicator">Training mode</span>}
+              <div className="shift-tabs" aria-label="Shift">
+                {data?.shifts.map((shift) => (
+                  <button
+                    type="button"
+                    key={shift.id}
+                    className={shift.slug === data.selected_shift.slug ? "active" : ""}
+                    onClick={() => chooseShift(shift.slug)}
+                  >
+                    {shift.name}
+                    <span>{displayTime(shift.start_time)}</span>
+                  </button>
+                ))}
               </div>
-            </div>
-            <div className="shift-tabs" aria-label="Shift">
-              {data?.shifts.map((shift) => (
-                <button
-                  type="button"
-                  key={shift.id}
-                  className={shift.slug === data.selected_shift.slug ? "active" : ""}
-                  onClick={() => chooseShift(shift.slug)}
-                >
-                  {shift.name}
-                  <span>{displayTime(shift.start_time)}</span>
-                </button>
-              ))}
             </div>
             <div className="date-control" aria-label="Choose service date">
               <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
@@ -1721,6 +1717,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <Clock3 aria-hidden="true" />
               </button>
             </div>
+            <div className="floor-toolbar-spacer" aria-hidden="true" />
           </header>}
 
           {error && <div className="grid-alert floor-alert" role="alert">{error}</div>}
