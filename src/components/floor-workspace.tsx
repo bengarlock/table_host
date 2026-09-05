@@ -3,16 +3,28 @@
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
+  Armchair,
+  BadgeCheck,
+  Ban,
+  CakeSlice,
+  CalendarCheck,
   Check,
   ChevronLeft,
   ChevronRight,
+  CircleCheckBig,
+  CircleDollarSign,
+  CircleHelp,
   CirclePlus,
   Clock3,
+  ClockAlert,
   Columns3,
   CopyPlus,
   GripVertical,
   LoaderCircle,
+  Minus,
   PencilRuler,
+  Plus,
+  ReceiptText,
   RotateCcw,
   RotateCw,
   Redo2,
@@ -24,7 +36,9 @@ import {
   Trash2,
   TriangleAlert,
   Undo2,
+  Utensils,
   UserPlus,
+  UserX,
   Users,
   X,
 } from "lucide-react";
@@ -43,6 +57,7 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { appPath } from "@/lib/app-paths";
+import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import { formatTurnTime } from "@/lib/turn-time";
 import {
   closestServiceOccurrence,
@@ -108,6 +123,9 @@ type Reservation = {
   is_unassigned: boolean;
   notes: string;
   tags: string[];
+  guest_notes?: string;
+  guest_profile_notes?: string;
+  guest_tags?: string[];
 };
 
 type ReservationEditDraft = {
@@ -116,8 +134,10 @@ type ReservationEditDraft = {
   startTime: string;
   durationMinutes: string;
   status: ServiceStatus;
-  tags: string;
-  notes: string;
+  reservationTags: string[];
+  guestTags: string[];
+  reservationNotes: string;
+  guestNotes: string;
 };
 
 type ReservationUpdate = {
@@ -130,6 +150,8 @@ type ReservationUpdate = {
   status?: ServiceStatus;
   tags?: string[];
   notes?: string;
+  guest_tags?: string[];
+  guest_notes?: string;
 };
 
 type GuestRecord = {
@@ -179,27 +201,29 @@ const ACTIVE_STATUSES: ServiceStatus[] = [
 ];
 const WAITING_STATUSES: ServiceStatus[] = ["booked", "confirmed", "late", "not_confirmed"];
 const FLOOR_DESIGN_MIN_WIDTH = 1200;
-const WALK_IN_RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
+const WALK_IN_RESERVATION_TAGS = RESERVATION_TAGS;
+const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
+const MAX_PARTY_SIZE = 40;
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const subscribeToHydration = () => () => undefined;
 
-const SERVICE_STEPS: Array<{ value: ServiceStatus; label: string }> = [
-  { value: "seated", label: "Seated" },
-  { value: "entree", label: "Entree" },
-  { value: "dessert", label: "Dessert" },
-  { value: "check_dropped", label: "Check dropped" },
-  { value: "paid", label: "Paid" },
-  { value: "complete", label: "Done" },
+const SERVICE_STEPS = [
+  { value: "seated" as const, label: "Seated", icon: Armchair },
+  { value: "entree" as const, label: "Entree", icon: Utensils },
+  { value: "dessert" as const, label: "Dessert", icon: CakeSlice },
+  { value: "check_dropped" as const, label: "Check dropped", icon: ReceiptText },
+  { value: "paid" as const, label: "Paid", icon: CircleDollarSign },
+  { value: "complete" as const, label: "Done", icon: CircleCheckBig },
 ];
 const RESERVATION_STATUS_OPTIONS = [
-  { value: "booked" as const, label: "Booked" },
-  { value: "confirmed" as const, label: "Confirmed" },
-  { value: "late" as const, label: "Late" },
-  { value: "not_confirmed" as const, label: "Not Confirmed" },
-  { value: "cancelled" as const, label: "Cancelled" },
-  { value: "no_show" as const, label: "No-show" },
+  { value: "booked" as const, label: "Booked", icon: CalendarCheck },
+  { value: "confirmed" as const, label: "Confirmed", icon: BadgeCheck },
+  { value: "late" as const, label: "Late", icon: ClockAlert },
+  { value: "not_confirmed" as const, label: "Not Confirmed", icon: CircleHelp },
+  { value: "cancelled" as const, label: "Cancelled", icon: Ban },
+  { value: "no_show" as const, label: "No-show", icon: UserX },
 ];
-const SERVICE_LIFECYCLE_STATUSES = SERVICE_STEPS.map((step) => step.value);
+const SERVICE_LIFECYCLE_STATUSES: ServiceStatus[] = SERVICE_STEPS.map((step) => step.value);
 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -475,6 +499,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
+  const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
@@ -679,6 +704,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
+  const focusedStatusOption = reservationEditDraft
+    ? [...RESERVATION_STATUS_OPTIONS, ...SERVICE_STEPS].find((option) => option.value === reservationEditDraft.status)
+    : null;
+  const FocusedStatusIcon = focusedStatusOption?.icon;
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const liveService = hydrated && serviceDate === data?.current_service_date;
   const displayedTables = editingFloor ? editedTables : data?.tables || [];
@@ -741,8 +770,38 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       startTime: reservation.start_time,
       durationMinutes: String(reservation.duration_minutes),
       status: reservation.status,
-      tags: reservation.tags.join(", "),
-      notes: reservation.notes,
+      reservationTags: reservation.tags || [],
+      guestTags: reservation.guest_tags || [],
+      reservationNotes: reservation.notes || "",
+      guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
+    });
+  }
+
+  function setReservationPartySize(value: number | string) {
+    setReservationEditDraft((current) => current && ({ ...current, partySize: String(value) }));
+  }
+
+  function adjustReservationPartySize(delta: number) {
+    const currentSize = Number(reservationEditDraft?.partySize);
+    setReservationPartySize(clamp(Number.isInteger(currentSize) ? currentSize + delta : 9, 9, MAX_PARTY_SIZE));
+  }
+
+  function adjustReservationTurnTime(delta: number) {
+    const currentMinutes = Number(reservationEditDraft?.durationMinutes);
+    const nextMinutes = clamp(Number.isInteger(currentMinutes) ? currentMinutes + delta : 90, 15, 360);
+    setReservationEditDraft((current) => current && ({ ...current, durationMinutes: String(nextMinutes) }));
+  }
+
+  function toggleReservationEditTag(kind: "reservationTags" | "guestTags", tag: string) {
+    setReservationEditDraft((current) => {
+      if (!current) return current;
+      const selectedTags = current[kind];
+      return {
+        ...current,
+        [kind]: selectedTags.includes(tag)
+          ? selectedTags.filter((selectedTag) => selectedTag !== tag)
+          : [...selectedTags, tag],
+      };
     });
   }
 
@@ -1460,8 +1519,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       party_size: partySize,
       start_time: reservationEditDraft.startTime,
       duration_minutes: durationMinutes,
-      notes: reservationEditDraft.notes.trim(),
-      tags: [...new Set(reservationEditDraft.tags.split(",").map((tag) => tag.trim()).filter(Boolean))],
+      notes: reservationEditDraft.reservationNotes.trim(),
+      tags: reservationEditDraft.reservationTags,
+      guest_notes: reservationEditDraft.guestNotes.trim(),
+      guest_tags: reservationEditDraft.guestTags,
     };
     if (reservationEditDraft.status !== focusedReservation.status) {
       updates.status = reservationEditDraft.status;
@@ -2159,41 +2220,61 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           required
                         />
                       </label>
-                      <label>
-                        Party size
-                        <input
-                          type="number"
-                          min={1}
-                          max={40}
-                          value={reservationEditDraft.partySize}
-                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, partySize: event.target.value }))}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Expected turn (minutes)
-                        <input
-                          type="number"
-                          min={15}
-                          max={360}
-                          step={15}
-                          value={reservationEditDraft.durationMinutes}
-                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, durationMinutes: event.target.value }))}
-                          required
-                        />
-                      </label>
-                      <label className="floor-reservation-status-select">
-                        Status
-                        <select
-                          value={reservationEditDraft.status}
-                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, status: event.target.value as ServiceStatus }))}
-                          disabled={saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))}
-                        >
-                          {statusOptionsFor(focusedReservation.status).map((option) => (
-                            <option key={option.value} value={option.value}>{option.label}</option>
-                          ))}
-                        </select>
-                      </label>
+                      <div className="floor-reservation-turn-field">
+                        <span>Turn time</span>
+                        <div className="floor-reservation-stepper">
+                          <button type="button" aria-label="Decrease turn time" onClick={() => adjustReservationTurnTime(-15)} disabled={Number(reservationEditDraft.durationMinutes) <= 15}><Minus aria-hidden="true" /></button>
+                          <input aria-label="Turn time" value={formatTurnTime(Number(reservationEditDraft.durationMinutes))} readOnly />
+                          <button type="button" aria-label="Increase turn time" onClick={() => adjustReservationTurnTime(15)} disabled={Number(reservationEditDraft.durationMinutes) >= 360}><Plus aria-hidden="true" /></button>
+                        </div>
+                      </div>
+                      <div className="floor-reservation-party-size floor-reservation-detail-wide">
+                        <fieldset className="party-size-picker">
+                          <legend>Party size</legend>
+                          <div className="party-size-options">
+                            {PARTY_SIZE_PRESETS.map((size) => (
+                              <button type="button" key={size} className={Number(reservationEditDraft.partySize) === size ? "selected" : ""} aria-label={`Party size ${size}`} aria-pressed={Number(reservationEditDraft.partySize) === size} onClick={() => setReservationPartySize(size)}>{size}</button>
+                            ))}
+                          </div>
+                        </fieldset>
+                        <div className="party-size-manual">
+                          <span id="reservation-manual-party-size-label">Enter party size</span>
+                          <div className={`party-size-manual-control${Number(reservationEditDraft.partySize) >= 9 ? " selected" : ""}`}>
+                            <button type="button" aria-label="Decrease party size" onClick={() => adjustReservationPartySize(-1)} disabled={Number(reservationEditDraft.partySize) <= 9}><Minus aria-hidden="true" /></button>
+                            <input type="number" min={9} max={MAX_PARTY_SIZE} inputMode="numeric" placeholder="9" value={Number(reservationEditDraft.partySize) >= 9 ? reservationEditDraft.partySize : ""} aria-labelledby="reservation-manual-party-size-label" onFocus={() => Number(reservationEditDraft.partySize) < 9 && setReservationPartySize(9)} onChange={(event) => setReservationPartySize(event.currentTarget.value)} />
+                            <button type="button" aria-label="Increase party size" onClick={() => adjustReservationPartySize(1)} disabled={Number(reservationEditDraft.partySize) >= MAX_PARTY_SIZE}><Plus aria-hidden="true" /></button>
+                          </div>
+                          <span className="party-size-manual-hint">9 or more guests</span>
+                        </div>
+                      </div>
+                      <div className="floor-reservation-status-field">
+                        <span>Status</span>
+                        <details ref={reservationStatusMenuRef} className="floor-reservation-status-menu">
+                          <summary role="button" aria-label="Status" aria-disabled={saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))} onClick={(event) => {
+                            if (saving || (!liveService && SERVICE_LIFECYCLE_STATUSES.includes(focusedReservation.status))) event.preventDefault();
+                          }}>
+                            {FocusedStatusIcon && <FocusedStatusIcon aria-hidden="true" />}
+                            <strong>{focusedStatusOption?.label || statusLabel(reservationEditDraft.status)}</strong>
+                            <ChevronRight aria-hidden="true" />
+                          </summary>
+                          <div role="listbox" aria-label="Reservation status options">
+                            {statusOptionsFor(focusedReservation.status).map((option) => {
+                              const StatusIcon = option.icon;
+                              const selected = option.value === reservationEditDraft.status;
+                              return (
+                                <button type="button" role="option" aria-selected={selected} key={option.value} onClick={() => {
+                                  setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
+                                  reservationStatusMenuRef.current?.removeAttribute("open");
+                                }}>
+                                  <StatusIcon aria-hidden="true" />
+                                  <span>{option.label}</span>
+                                  {selected && <Check aria-hidden="true" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      </div>
                       <div className="floor-reservation-table-edit floor-reservation-detail-wide">
                         <span>
                           <small>{focusedReservation.table_names.length > 1 ? "Tables" : "Table"}</small>
@@ -2201,24 +2282,32 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         </span>
                         <button type="button" onClick={() => beginTableReassignment(focusedReservation)}>Reassign tables</button>
                       </div>
-                      <label className="floor-reservation-detail-wide">
-                        Tags
-                        <input
-                          type="text"
-                          value={reservationEditDraft.tags}
-                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, tags: event.target.value }))}
-                          placeholder="VIP, Birthday, Accessibility"
-                        />
-                      </label>
-                      <label className="floor-reservation-detail-wide">
-                        Reservation note
-                        <textarea
-                          rows={5}
-                          value={reservationEditDraft.notes}
-                          onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, notes: event.target.value }))}
-                          maxLength={5000}
-                        />
-                      </label>
+                      <section className="floor-reservation-metadata-panel reservation-detail-section">
+                        <div className="booking-detail-section-heading"><Tag aria-hidden="true" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div>
+                        <fieldset className="tag-picker">
+                          <legend>Reservation tags</legend>
+                          <div className="tag-options">
+                            {[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => {
+                              const selected = reservationEditDraft.reservationTags.includes(tag);
+                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("reservationTags", tag)}><Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />{tag}</button>;
+                            })}
+                          </div>
+                        </fieldset>
+                        <label>Reservation notes<textarea rows={4} value={reservationEditDraft.reservationNotes} onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, reservationNotes: event.target.value }))} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label>
+                      </section>
+                      <section className="floor-reservation-metadata-panel guest-detail-section">
+                        <div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div>
+                        <fieldset className="tag-picker">
+                          <legend>Guest tags</legend>
+                          <div className="tag-options">
+                            {[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => {
+                              const selected = reservationEditDraft.guestTags.includes(tag);
+                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("guestTags", tag)}><Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />{tag}</button>;
+                            })}
+                          </div>
+                        </fieldset>
+                        <label>Guest notes<textarea rows={4} value={reservationEditDraft.guestNotes} onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, guestNotes: event.target.value }))} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label>
+                      </section>
                     </div>
                     <footer className="floor-reservation-detail-actions">
                       <button type="button" onClick={closeReservationDetails}>Cancel</button>

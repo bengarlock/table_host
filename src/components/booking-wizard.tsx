@@ -33,6 +33,7 @@ import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { capitalizeNameInitial } from "@/lib/guest-names";
 import { ReservationFloorBooking } from "@/lib/reservation-table-availability";
+import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 
 type AvailabilityOption = {
   service_date: string;
@@ -112,8 +113,6 @@ type PendingCarouselSelection =
   | { carousel: "desired"; time: string }
   | { carousel: "availability"; option: AvailabilityOption };
 
-const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
-const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_PARTY_SIZE = 32_767;
 const VISIBLE_TIME_COUNT = 5;

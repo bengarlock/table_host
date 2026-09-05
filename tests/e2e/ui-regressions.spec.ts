@@ -191,8 +191,8 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     id: 102, table_id: 1, table_name: "10", table_ids: [1],
     table_names: ["16", "12", "14", "10", "15", "11"],
     guest_name: "Large Assignment", party_size: 12, start_time: "17:00", duration_minutes: 90,
-    status: "confirmed", assignment_type: "soft", guest_tags: [], tags: ["VIP", "Birthday"],
-    notes: "Window table if possible.",
+    status: "confirmed", assignment_type: "soft", guest_tags: ["Regular"], tags: ["VIP", "Birthday"],
+    guest_profile_notes: "Prefers a quiet corner.", notes: "Window table if possible.",
   };
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 12, seated: 0 } },
@@ -240,28 +240,36 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   const [detailsBox, floorBox] = await Promise.all([details.evaluate((element) => element.getBoundingClientRect().width), floorPanel.evaluate((element) => element.getBoundingClientRect().width)]);
   expect(Math.abs(detailsBox - floorBox)).toBeLessThan(2);
   await expect(details.getByLabel("Guest name")).toHaveValue("Large Assignment");
-  await expect(details.getByLabel("Party size")).toHaveValue("12");
-  await expect(details.getByLabel("Time")).toHaveValue("17:00");
-  await expect(details.getByLabel("Expected turn (minutes)")).toHaveValue("90");
-  const statusSelect = details.getByLabel("Status");
-  await expect(statusSelect).toHaveValue("confirmed");
-  await expect(statusSelect.locator("option")).toHaveText([
+  await expect(details.getByLabel("Enter party size")).toHaveValue("12");
+  await expect(details.getByRole("textbox", { name: "Time", exact: true })).toHaveValue("17:00");
+  await expect(details.getByRole("textbox", { name: "Turn time", exact: true })).toHaveValue("1:30");
+  const statusButton = details.getByRole("button", { name: "Status" });
+  await expect(statusButton).toContainText("Confirmed");
+  expect((await statusButton.boundingBox())!.height).toBe(44);
+  await statusButton.click();
+  await expect(details.getByRole("option")).toHaveText([
     "Booked", "Confirmed", "Late", "Not Confirmed", "Cancelled", "No-show",
   ]);
-  expect((await statusSelect.boundingBox())!.height).toBeGreaterThanOrEqual(56);
-  await expect(statusSelect.locator('option[value="seated"]')).toHaveCount(0);
+  await expect(details.getByRole("option", { name: "Seated" })).toHaveCount(0);
   await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
-  await expect(details.getByLabel("Tags")).toHaveValue("VIP, Birthday");
-  await expect(details.getByLabel("Reservation note")).toHaveValue("Window table if possible.");
+  await expect(details.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Birthday" })).toHaveAttribute("aria-pressed", "true");
+  await expect(details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "Regular" })).toHaveAttribute("aria-pressed", "true");
+  await expect(details.getByLabel("Reservation notes")).toHaveValue("Window table if possible.");
+  await expect(details.getByLabel("Guest notes")).toHaveValue("Prefers a quiet corner.");
   expect(await details.evaluate((element) => getComputedStyle(element).animationName)).toBe("floor-reservation-detail-slide-in");
 
   await details.getByLabel("Guest name").fill("Updated Assignment");
-  await details.getByLabel("Party size").fill("10");
-  await details.getByLabel("Time").fill("18:15");
-  await details.getByLabel("Expected turn (minutes)").fill("120");
-  await statusSelect.selectOption("late");
-  await details.getByLabel("Tags").fill("VIP, Anniversary");
-  await details.getByLabel("Reservation note").fill("Updated reservation note.");
+  await details.getByLabel("Enter party size").fill("10");
+  await details.getByRole("textbox", { name: "Time", exact: true }).fill("18:15");
+  await details.getByRole("button", { name: "Increase turn time" }).click();
+  await details.getByRole("button", { name: "Increase turn time" }).click();
+  await details.getByRole("option", { name: "Late" }).click();
+  const reservationTags = details.getByRole("group", { name: "Reservation tags" });
+  await reservationTags.getByRole("button", { name: "Birthday" }).click();
+  await reservationTags.getByRole("button", { name: "Anniversary" }).click();
+  await details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "VIP" }).click();
+  await details.getByLabel("Reservation notes").fill("Updated reservation note.");
+  await details.getByLabel("Guest notes").fill("Updated guest note.");
   await details.getByRole("button", { name: "Save changes" }).click();
   expect(savedUpdate).toEqual({
     guest_name: "Updated Assignment",
@@ -270,6 +278,8 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     duration_minutes: 120,
     notes: "Updated reservation note.",
     tags: ["VIP", "Anniversary"],
+    guest_notes: "Updated guest note.",
+    guest_tags: ["Regular", "VIP"],
     status: "late",
   });
   await details.getByRole("button", { name: "Close reservation details" }).click();
@@ -288,12 +298,14 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
   await page.getByRole("button", { name: "Table 1, Service Guest, Seated" }).click();
-  const statusSelect = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByLabel("Status");
-  await expect(statusSelect.locator("option")).toHaveText([
+  const statusButton = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByRole("button", { name: "Status" });
+  expect((await statusButton.boundingBox())!.height).toBe(44);
+  await statusButton.click();
+  const statusOptions = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByRole("option");
+  await expect(statusOptions).toHaveText([
     "Seated", "Entree", "Dessert", "Check dropped", "Paid", "Done",
   ]);
-  expect((await statusSelect.boundingBox())!.height).toBeGreaterThanOrEqual(56);
-  await expect(statusSelect.locator('option[value="confirmed"]')).toHaveCount(0);
+  await expect(page.getByRole("option", { name: "Confirmed" })).toHaveCount(0);
 });
 
 async function mockAvailability(page: Page) {
