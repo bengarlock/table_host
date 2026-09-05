@@ -315,6 +315,18 @@ export function ReservationGrid({
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    function closeStatusMenuOnOutsideClick(event: PointerEvent) {
+      const menu = reservationStatusMenuRef.current;
+      if (menu?.open && event.target instanceof Node && !menu.contains(event.target)) {
+        menu.removeAttribute("open");
+      }
+    }
+
+    document.addEventListener("pointerdown", closeStatusMenuOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeStatusMenuOnOutsideClick);
+  }, []);
+
   const slots = useMemo(() => {
     if (!data) return [];
     const start = minutes(data.selected_shift.start_time);
