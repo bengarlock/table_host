@@ -15,8 +15,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { usePathname } from "next/navigation";
-import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
@@ -167,6 +167,7 @@ export function ReservationGrid({
   initialShiftSlug,
   shouldSyncServiceUrl,
 }: ReservationGridProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
@@ -177,7 +178,6 @@ export function ReservationGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<BookingDraft | null>(null);
-  const [bookingFormOpen, setBookingFormOpen] = useState(false);
   const [selected, setSelected] = useState<Reservation | null>(null);
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
@@ -338,13 +338,11 @@ export function ReservationGrid({
 
   function clearDraft() {
     setDraft(null);
-    setBookingFormOpen(false);
   }
 
   function toggleDraftTable(table: DiningTable, time: string) {
     if (!data || !bookingAllowed) return;
     setSelected(null);
-    setBookingFormOpen(false);
     setDraft((current) => {
       if (!current || current.time !== time) {
         return {
@@ -403,38 +401,17 @@ export function ReservationGrid({
     setShiftSlug(currentShift);
   }
 
-  async function createReservation(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!draft || !data || !bookingAllowed) return;
-    setSaving(true);
-    setError("");
-    const values = new FormData(event.currentTarget);
-    const payload = {
-      service_date: serviceDate,
-      shift_slug: data.selected_shift.slug,
-      table_ids: draft.tableIds,
-      assignment_type: "hard",
-      guest_name: values.get("guest_name"),
-      party_size: Number(values.get("party_size")),
-      start_time: draft.time,
-      duration_minutes: Number(values.get("duration_minutes")),
-      notes: values.get("notes"),
-    };
-    try {
-      const response = await fetch(appPath("/api/grid"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const responsePayload = (await response.json()) as Record<string, unknown>;
-      if (!response.ok) throw new Error(readError(responsePayload));
-      clearDraft();
-      await loadGrid();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to save the reservation.");
-    } finally {
-      setSaving(false);
-    }
+  function continueDraftInBookingFlow() {
+    if (!draft || !data) return;
+    const query = new URLSearchParams({
+      date: serviceDate,
+      shift: data.selected_shift.slug,
+      time: draft.time,
+      party_size: String(draft.capacity),
+      duration: String(draft.durationMinutes),
+      tables: draft.tableIds.join(","),
+    });
+    router.push(`${appPath("/reservations/book")}?${query}`);
   }
 
   async function updateStatus(status: Reservation["status"]) {
@@ -611,7 +588,7 @@ export function ReservationGrid({
         </div>
       )}
 
-      <div className={`grid-and-panel ${bookingFormOpen || selected ? "has-panel" : ""}`}>
+      <div className={`grid-and-panel ${selected ? "has-panel" : ""}`}>
         <section className="grid-card" aria-label="Table reservation timeline">
           {loading && !data ? (
             <div className="grid-loading"><LoaderCircle aria-hidden="true" /> Loading the book…</div>
@@ -774,32 +751,12 @@ export function ReservationGrid({
           )}
         </section>
 
-        {(bookingFormOpen || selected) && (
-          <aside className="booking-panel" aria-label={bookingFormOpen ? "New reservation" : "Reservation details"}>
-            <button className="panel-close" type="button" onClick={() => {
-              if (bookingFormOpen) setBookingFormOpen(false);
-              else setSelected(null);
-            }} aria-label="Close panel">
+        {selected && (
+          <aside className="booking-panel" aria-label="Reservation details">
+            <button className="panel-close" type="button" onClick={() => setSelected(null)} aria-label="Close panel">
               <X aria-hidden="true" />
             </button>
-            {bookingFormOpen && draft && data && (
-              <form {...IGNORE_AUTOFILL} onSubmit={createReservation}>
-                <p className="panel-eyebrow">New reservation</p>
-                <h2>{draft.tableNames.length > 1 ? "Tables" : "Table"} {draft.tableNames.join(" + ")}</h2>
-                <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(draft.time)} · seats {draft.capacity}</div>
-                <label>Guest name<input {...IGNORE_AUTOFILL} name="guest_name" required autoFocus placeholder="Guest name" /></label>
-                <div className="form-pair">
-                  <label>Party size<input {...IGNORE_AUTOFILL} name="party_size" type="number" min="1" max="32767" defaultValue={draft.capacity} required /></label>
-                  <label>Turn time<select {...IGNORE_AUTOFILL} name="duration_minutes" defaultValue={draft.durationMinutes}>
-                    {[45, 60, 75, 90, 105, 120, 135, 150, 180].map((value) => <option key={value} value={value}>{formatTurnTime(value)}</option>)}
-                  </select></label>
-                </div>
-                <label>Notes<textarea {...IGNORE_AUTOFILL} name="notes" rows={3} placeholder="Occasion, preferences, accessibility…" /></label>
-                <button className="primary-action" type="submit" disabled={saving}>{saving ? "Saving…" : "Book Reservation"}</button>
-              </form>
-            )}
-            {selected && (
-              <div>
+            <div>
                 <p className="panel-eyebrow">Reservation</p>
                 <h2>{selected.guest_name}</h2>
                 <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</div>
@@ -902,17 +859,16 @@ export function ReservationGrid({
                 </div>
                 {!serviceStatusAllowed && <p role="status">Reservations cannot be seated or marked as served on future dates.</p>}
                 <button className="danger-action" type="button" onClick={() => void cancelReservation()} disabled={saving}>Cancel reservation</button>
-              </div>
-            )}
+            </div>
           </aside>
         )}
       </div>
 
       <section
-        className={`grid-draft-bar ${draft && !bookingFormOpen ? "" : "is-empty"}`}
+        className={`grid-draft-bar ${draft ? "" : "is-empty"}`}
         aria-label="New reservation selection"
       >
-        {draft && !bookingFormOpen && (
+        {draft && (
           <>
             <div>
               <p>New reservation selection</p>
@@ -921,7 +877,7 @@ export function ReservationGrid({
             </div>
             <div className="grid-draft-actions">
               <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
-              <button className="primary-action" type="button" onClick={() => setBookingFormOpen(true)}>Book Reservation</button>
+              <button className="primary-action" type="button" onClick={continueDraftInBookingFlow}>Book Reservation</button>
             </div>
           </>
         )}

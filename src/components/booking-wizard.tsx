@@ -63,6 +63,9 @@ type BookingWizardProps = {
   initialDate: string;
   initialShiftSlug: string;
   initialDuration: number;
+  initialTime?: string;
+  initialPartySize?: number;
+  initialTableIds?: number[];
   floorCoverCapacity: number;
   shifts: ShiftChoice[];
   onClose: () => void;
@@ -212,6 +215,9 @@ export function BookingWizard({
   initialDate,
   initialShiftSlug,
   initialDuration,
+  initialTime,
+  initialPartySize,
+  initialTableIds = [],
   floorCoverCapacity,
   shifts,
   onClose,
@@ -220,25 +226,30 @@ export function BookingWizard({
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
   const initialTurnTime = normalizeTurnTime(initialDuration);
-  const [step, setStep] = useState(1);
-  const [furthestStep, setFurthestStep] = useState(1);
+  const hasGridPrefill = Boolean(initialTime && initialPartySize && initialTableIds.length);
+  const [step, setStep] = useState(hasGridPrefill ? 2 : 1);
+  const [furthestStep, setFurthestStep] = useState(hasGridPrefill ? 2 : 1);
   const [serviceDate, setServiceDate] = useState(
     initialDate < minimumBookingDate ? minimumBookingDate : initialDate,
   );
   const [selectedShiftSlug, setSelectedShiftSlug] = useState(
     initialShiftSlug || shifts[0]?.slug || "",
   );
-  const [desiredTime, setDesiredTime] = useState("");
-  const [desiredTimeWindowStart, setDesiredTimeWindowStart] = useState(0);
+  const [desiredTime, setDesiredTime] = useState(initialTime || "");
+  const [desiredTimeWindowStart, setDesiredTimeWindowStart] = useState(() => centeredWindowStart(
+    shiftTimeChoices(shifts.find((shift) => shift.slug === initialShiftSlug) || shifts[0]),
+    initialTime || "",
+  ));
   const [availabilityWindowStart, setAvailabilityWindowStart] = useState(0);
   const [desiredTimeSlide, setDesiredTimeSlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
   const [availabilitySlide, setAvailabilitySlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
   const [carouselDrag, setCarouselDrag] = useState<{ carousel: CarouselName; offset: number } | null>(null);
   const availabilityRequestId = useRef(0);
+  const gridPrefillLoaded = useRef(false);
   const carouselDragStart = useRef<{ carousel: CarouselName; pointerId: number; x: number } | null>(null);
   const pendingCarouselSelection = useRef<PendingCarouselSelection | null>(null);
-  const [partySize, setPartySize] = useState(2);
-  const [partySizeInput, setPartySizeInput] = useState("9");
+  const [partySize, setPartySize] = useState(initialPartySize || 2);
+  const [partySizeInput, setPartySizeInput] = useState(String(initialPartySize || 9));
   const durationMinutes = initialTurnTime;
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
@@ -293,6 +304,79 @@ export function BookingWizard({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
+
+  useEffect(() => {
+    if (!hasGridPrefill || gridPrefillLoaded.current || !initialTime || !initialPartySize) return;
+    const prefilledTime = initialTime;
+    const prefilledPartySize = initialPartySize;
+    const shift = shifts.find((item) => item.slug === initialShiftSlug) || shifts[0];
+    if (!shift) return;
+
+    let active = true;
+    async function loadGridPrefill() {
+      setAssignmentLoading(true);
+      setError("");
+      const availabilityQuery = new URLSearchParams({
+        service_date: serviceDate,
+        desired_time: prefilledTime,
+        party_size: String(prefilledPartySize),
+        duration_minutes: String(durationMinutes),
+      });
+      const gridQuery = new URLSearchParams({ date: serviceDate, shift: shift.slug });
+      try {
+        const [availabilityResponse, gridResponse] = await Promise.all([
+          fetch(`${appPath("/api/grid/availability")}?${availabilityQuery}`, { cache: "no-store" }),
+          fetch(`${appPath("/api/grid")}?${gridQuery}`, { cache: "no-store" }),
+        ]);
+        const availabilityPayload = (await availabilityResponse.json()) as AvailabilityResponse | Record<string, unknown>;
+        const gridPayload = (await gridResponse.json()) as AssignmentGridResponse | Record<string, unknown>;
+        if (!availabilityResponse.ok) throw new Error(readError(availabilityPayload));
+        if (!gridResponse.ok) throw new Error(readError(gridPayload));
+        if (!active) return;
+
+        const optionsForShift = availabilityOptionsForShift(
+          (availabilityPayload as AvailabilityResponse).options,
+          shift.slug,
+        );
+        const requestedOption = optionsForShift.find((option) => option.start_time === prefilledTime);
+        if (!requestedOption) throw new Error("The selected time is not available for this shift.");
+        const assignment = gridPayload as AssignmentGridResponse;
+        const validTableIds = initialTableIds.filter((id) => assignment.tables.some((table) => table.id === id));
+        if (!validTableIds.length) throw new Error("The selected tables are no longer available on this floor.");
+        const selectedCapacity = assignment.tables
+          .filter((table) => validTableIds.includes(table.id))
+          .reduce((total, table) => total + table.capacity, 0);
+
+        gridPrefillLoaded.current = true;
+        setSelectedShiftSlug(shift.slug);
+        setDesiredTime(prefilledTime);
+        setDesiredTimeWindowStart(centeredWindowStart(
+          shiftTimeChoices(shift),
+          prefilledTime,
+        ));
+        setOptions(optionsForShift);
+        setAvailabilityChecked(true);
+        setAvailabilityWindowStart(centeredWindowStart(
+          optionsForShift.map((option) => option.start_time),
+          prefilledTime,
+        ));
+        setSelectedOption({
+          ...requestedOption,
+          available: requestedOption.available || selectedCapacity >= prefilledPartySize,
+          unavailable_reason: selectedCapacity >= prefilledPartySize ? "" : requestedOption.unavailable_reason,
+        });
+        setAssignmentGrid(assignment);
+        setSelectedTableIds(validTableIds);
+        setAssignmentDraftTableIds(validTableIds);
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "Unable to prepare the selected tables.");
+      } finally {
+        if (active) setAssignmentLoading(false);
+      }
+    }
+    void loadGridPrefill();
+    return () => { active = false; };
+  }, [durationMinutes, hasGridPrefill, initialPartySize, initialShiftSlug, initialTableIds, initialTime, serviceDate, shifts]);
 
   useEffect(() => {
     if (step !== 3) return;
