@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 const SETTINGS_SECTIONS = [
   { href: "/settings/general", label: "General" },
   { href: "/settings/floor-sheets-schedules", label: "Floor, Sheets and Schedules" },
+  { href: "/settings/servers", label: "Servers" },
 ];
 
 export function SettingsWorkspace({ children }: { children: ReactNode }) {
