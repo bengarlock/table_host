@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, LoaderCircle, Pencil, Plus, Trash2, UsersRound, X } from "lucide-react";
-import { CSSProperties, FormEvent, useEffect, useMemo, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useState } from "react";
 import { appPath } from "@/lib/app-paths";
 
 type Server = { id: number; name: string; color: string };
@@ -54,93 +54,29 @@ function chairPositions(table: Table): CSSProperties[] {
   });
 }
 
-type Point = { x: number; y: number };
-
-function cross(origin: Point, first: Point, second: Point) {
-  return (first.x - origin.x) * (second.y - origin.y) - (first.y - origin.y) * (second.x - origin.x);
-}
-
-function convexHull(points: Point[]) {
-  const ordered = [...points].sort((left, right) => left.x - right.x || left.y - right.y);
-  if (ordered.length <= 2) return ordered;
-  const lower: Point[] = [];
-  for (const point of ordered) {
-    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0) lower.pop();
-    lower.push(point);
-  }
-  const upper: Point[] = [];
-  for (const point of [...ordered].reverse()) {
-    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0) upper.pop();
-    upper.push(point);
-  }
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+function roundedRectPath(left: number, top: number, right: number, bottom: number) {
+  const radius = Math.min(28, (right - left) / 4, (bottom - top) / 4);
+  return `M ${left + radius} ${top} H ${right - radius} Q ${right} ${top} ${right} ${top + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${left + radius} Q ${left} ${bottom} ${left} ${bottom - radius} V ${top + radius} Q ${left} ${top} ${left + radius} ${top} Z`;
 }
 
 function sectionOverlay(section: Section, tables: Table[]) {
   const selected = tables.filter((table) => section.table_ids.includes(table.id));
   if (!selected.length) return null;
-  const points = selected.flatMap((table) => {
-    const centerX = 1200 * table.position_x / 100;
-    const centerY = 660 * table.position_y / 100;
+  const rows = selected.sort((first, second) => first.position_y - second.position_y).reduce<Table[][]>((groups, table) => {
+    const row = groups.find((group) => Math.abs(group[0].position_y - table.position_y) < 10);
+    if (row) row.push(table); else groups.push([table]);
+    return groups;
+  }, []);
+  const bounds = rows.map((row) => {
     const padding = 25;
-    const halfWidth = table.width / 2 + padding;
-    const halfHeight = table.height / 2 + padding;
-    return [
-      { x: centerX - halfWidth, y: centerY - halfHeight },
-      { x: centerX + halfWidth, y: centerY - halfHeight },
-      { x: centerX + halfWidth, y: centerY + halfHeight },
-      { x: centerX - halfWidth, y: centerY + halfHeight },
-    ];
+    const left = Math.min(...row.map((table) => 1200 * table.position_x / 100 - table.width / 2 - padding));
+    const right = Math.max(...row.map((table) => 1200 * table.position_x / 100 + table.width / 2 + padding));
+    const top = Math.min(...row.map((table) => 660 * table.position_y / 100 - table.height / 2 - padding));
+    const bottom = Math.max(...row.map((table) => 660 * table.position_y / 100 + table.height / 2 + padding));
+    return { left, right, top, bottom };
   });
-  const hull = convexHull(points);
-  if (hull.length < 3) return null;
-  const distance = (first: Point, second: Point) => Math.hypot(second.x - first.x, second.y - first.y);
-  const toward = (from: Point, to: Point, amount: number) => {
-    const length = distance(from, to);
-    return { x: from.x + (to.x - from.x) * amount / length, y: from.y + (to.y - from.y) * amount / length };
-  };
-  const corners = hull.map((point, index) => {
-    const previous = hull[(index - 1 + hull.length) % hull.length];
-    const next = hull[(index + 1) % hull.length];
-    const radius = Math.min(28, distance(point, previous) / 4, distance(point, next) / 4);
-    return { point, entry: toward(point, previous, radius), exit: toward(point, next, radius) };
-  });
-  const path = corners.reduce(
-    (result, corner) => `${result} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`,
-    `M ${corners[0].entry.x} ${corners[0].entry.y}`,
-  ) + " Z";
-  const left = Math.min(...hull.map((point) => point.x));
-  const top = Math.min(...hull.map((point) => point.y));
-  return { path, polygon: hull, labelX: Math.max(14, left + 16), labelY: Math.max(26, top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
-}
-
-function pointInPolygon(point: Point, polygon: Point[]) {
-  return polygon.reduce((inside, current, index) => {
-    const previous = polygon[(index + polygon.length - 1) % polygon.length];
-    const crosses = (current.y > point.y) !== (previous.y > point.y)
-      && point.x < (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x;
-    return crosses ? !inside : inside;
-  }, false);
-}
-
-function orientation(first: Point, second: Point, third: Point) {
-  return cross(first, second, third);
-}
-
-function segmentsCross(first: Point, second: Point, third: Point, fourth: Point) {
-  const one = orientation(first, second, third);
-  const two = orientation(first, second, fourth);
-  const three = orientation(third, fourth, first);
-  const four = orientation(third, fourth, second);
-  return ((one > 0 && two < 0) || (one < 0 && two > 0)) && ((three > 0 && four < 0) || (three < 0 && four > 0));
-}
-
-function polygonsOverlap(first: Point[], second: Point[]) {
-  const edgesCross = first.some((point, index) => {
-    const next = first[(index + 1) % first.length];
-    return second.some((other, otherIndex) => segmentsCross(point, next, other, second[(otherIndex + 1) % second.length]));
-  });
-  return edgesCross || pointInPolygon(first[0], second) || pointInPolygon(second[0], first);
+  const first = bounds[0];
+  return { paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)), labelX: Math.max(14, first.left + 16), labelY: Math.max(26, first.top + 24), labelWidth: Math.max(74, section.name.length * 9 + 20) };
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -246,23 +182,6 @@ export function ServersSettings() {
     setSectionTableIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
-  const claimedTableIds = useMemo(
-    () => new Set(sections.filter((section) => section.id !== editingSectionId).flatMap((section) => section.table_ids)),
-    [editingSectionId, sections],
-  );
-  const sectionConflict = useMemo(() => {
-    if (!sectionTableIds.length) return "";
-    const draft: Section = { id: editingSectionId || -1, name: sectionName || "New section", color: sectionColor, table_ids: sectionTableIds };
-    const draftShape = sectionOverlay(draft, tables);
-    if (!draftShape) return "";
-    const collision = sections.find((section) => {
-      if (section.id === editingSectionId) return false;
-      const shape = sectionOverlay(section, tables);
-      return shape && polygonsOverlap(draftShape.polygon, shape.polygon);
-    });
-    return collision ? `This boundary overlaps ${collision.name}. Choose a different group of tables.` : "";
-  }, [editingSectionId, sectionColor, sectionName, sectionTableIds, sections, tables]);
-
   return (
     <section className="settings-section servers-settings" aria-labelledby="servers-settings-title">
       <header className="settings-section-header">
@@ -293,19 +212,18 @@ export function ServersSettings() {
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables);
                 const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
-                return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}><path d={shape.path} /><rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
+                return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>{shape.paths.map((path, pathIndex) => <path key={pathIndex} d={path} />)}<rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
               })}</svg>}
               {tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);
-              const claimed = claimedTableIds.has(table.id);
-              return <button key={table.id} type="button" disabled={claimed} className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}${claimed ? " section-table-claimed" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${claimed ? ", assigned to another section" : selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
+              return <button key={table.id} type="button" className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
                 {chairPositions(table).map((style, index) => <i key={index} className="chair" style={style} aria-hidden="true" />)}
                 <span className="floor-table-surface" aria-hidden="true" />
                 <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
-            <p className={`section-selection-status${sectionConflict ? " section-selection-conflict" : ""}`} role="status">{sectionConflict || (sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section.")}</p>
-            <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length || Boolean(sectionConflict)}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
+            <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
+            <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
           </form>
           <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
           {!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}

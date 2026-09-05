@@ -300,67 +300,32 @@ function chairPositions(table: DiningTable): CSSProperties[] {
   });
 }
 
-type Point = { x: number; y: number };
-
-function cross(origin: Point, first: Point, second: Point) {
-  return (first.x - origin.x) * (second.y - origin.y) - (first.y - origin.y) * (second.x - origin.x);
-}
-
-function convexHull(points: Point[]) {
-  const ordered = [...points].sort((left, right) => left.x - right.x || left.y - right.y);
-  if (ordered.length <= 2) return ordered;
-  const lower: Point[] = [];
-  for (const point of ordered) {
-    while (lower.length >= 2 && cross(lower.at(-2)!, lower.at(-1)!, point) <= 0) lower.pop();
-    lower.push(point);
-  }
-  const upper: Point[] = [];
-  for (const point of [...ordered].reverse()) {
-    while (upper.length >= 2 && cross(upper.at(-2)!, upper.at(-1)!, point) <= 0) upper.pop();
-    upper.push(point);
-  }
-  return [...lower.slice(0, -1), ...upper.slice(0, -1)];
+function roundedRectPath(left: number, top: number, right: number, bottom: number) {
+  const radius = Math.min(28, (right - left) / 4, (bottom - top) / 4);
+  return `M ${left + radius} ${top} H ${right - radius} Q ${right} ${top} ${right} ${top + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${left + radius} Q ${left} ${bottom} ${left} ${bottom - radius} V ${top + radius} Q ${left} ${top} ${left + radius} ${top} Z`;
 }
 
 function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: FloorStageMetrics) {
   const selected = tables.filter((table) => section.table_ids.includes(table.id));
   if (!selected.length) return null;
-  const points = selected.flatMap((table) => {
-    const centerX = stage.width * table.position_x / 100;
-    const centerY = stage.height * table.position_y / 100;
+  const rows = selected.sort((first, second) => first.position_y - second.position_y).reduce<DiningTable[][]>((groups, table) => {
+    const row = groups.find((group) => Math.abs(group[0].position_y - table.position_y) < 10);
+    if (row) row.push(table); else groups.push([table]);
+    return groups;
+  }, []);
+  const bounds = rows.map((row) => {
     const padding = 25;
-    const halfWidth = table.width / 2 + padding;
-    const halfHeight = table.height / 2 + padding;
-    return [
-      { x: centerX - halfWidth, y: centerY - halfHeight },
-      { x: centerX + halfWidth, y: centerY - halfHeight },
-      { x: centerX + halfWidth, y: centerY + halfHeight },
-      { x: centerX - halfWidth, y: centerY + halfHeight },
-    ];
+    const left = Math.min(...row.map((table) => stage.width * table.position_x / 100 - table.width / 2 - padding));
+    const right = Math.max(...row.map((table) => stage.width * table.position_x / 100 + table.width / 2 + padding));
+    const top = Math.min(...row.map((table) => stage.height * table.position_y / 100 - table.height / 2 - padding));
+    const bottom = Math.max(...row.map((table) => stage.height * table.position_y / 100 + table.height / 2 + padding));
+    return { left, right, top, bottom };
   });
-  const hull = convexHull(points);
-  if (hull.length < 3) return null;
-  const distance = (first: Point, second: Point) => Math.hypot(second.x - first.x, second.y - first.y);
-  const toward = (from: Point, to: Point, amount: number) => {
-    const length = distance(from, to);
-    return { x: from.x + (to.x - from.x) * amount / length, y: from.y + (to.y - from.y) * amount / length };
-  };
-  const corners = hull.map((point, index) => {
-    const previous = hull[(index - 1 + hull.length) % hull.length];
-    const next = hull[(index + 1) % hull.length];
-    const radius = Math.min(28, distance(point, previous) / 4, distance(point, next) / 4);
-    return { point, entry: toward(point, previous, radius), exit: toward(point, next, radius) };
-  });
-  const path = corners.reduce(
-    (result, corner) => `${result} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`,
-    `M ${corners[0].entry.x} ${corners[0].entry.y}`,
-  ) + " Z";
-  const left = Math.min(...hull.map((point) => point.x));
-  const top = Math.min(...hull.map((point) => point.y));
+  const first = bounds[0];
   return {
-    path,
-    labelX: Math.max(14, left + 16),
-    labelY: Math.max(26, top + 24),
+    paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)),
+    labelX: Math.max(14, first.left + 16),
+    labelY: Math.max(26, first.top + 24),
     labelWidth: Math.max(74, section.name.length * 9 + 20),
   };
 }
@@ -2215,7 +2180,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     >
                       {sectionOverlays.map(({ section, color, shape }) => shape && (
                         <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}>
-                          <path d={shape.path} />
+                          {shape.paths.map((path, index) => <path key={index} d={path} />)}
                           <rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" />
                           <text x={shape.labelX} y={shape.labelY}>{section.name}</text>
                         </g>

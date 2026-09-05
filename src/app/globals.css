@@ -690,15 +690,6 @@ textarea {
   cursor: pointer;
 }
 
-.section-floor-plan .floor-table.section-table-claimed {
-  cursor: not-allowed;
-  opacity: 0.38;
-}
-
-.section-floor-plan .floor-table.section-table-claimed .floor-table-surface {
-  border-style: dashed;
-}
-
 .section-floor-plan .floor-table:focus-visible {
   outline: none;
 }
@@ -712,10 +703,6 @@ textarea {
   min-height: 17px;
   color: var(--text-muted);
   font-size: 0.66rem;
-}
-
-.section-selection-conflict {
-  color: #eab9aa;
 }
 
 .section-color-field {
