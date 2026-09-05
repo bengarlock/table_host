@@ -56,6 +56,7 @@ import {
 } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ServiceDatePicker } from "@/components/service-date-picker";
+import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import { formatTurnTime } from "@/lib/turn-time";
@@ -2313,7 +2314,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           <div className="tag-options">
                             {[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => {
                               const selected = reservationEditDraft.reservationTags.includes(tag);
-                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("reservationTags", tag)}><Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />{tag}</button>;
+                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={selected ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>;
                             })}
                           </div>
                         </fieldset>
@@ -2326,7 +2327,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           <div className="tag-options">
                             {[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => {
                               const selected = reservationEditDraft.guestTags.includes(tag);
-                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("guestTags", tag)}><Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />{tag}</button>;
+                              return <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={selected ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>;
                             })}
                           </div>
                         </fieldset>
@@ -2476,8 +2477,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         aria-pressed={walkInTags.includes(tag)}
                         onClick={() => toggleWalkInTag(tag)}
                       >
-                        {walkInTags.includes(tag) && <Check aria-hidden="true" />}
-                        {tag}
+                        <TagIcon tag={tag} />
+                        <span>{tag}</span>
+                        <Check className={walkInTags.includes(tag) ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" />
                       </button>
                     ))}
                     {walkInTags.filter((tag) => !WALK_IN_RESERVATION_TAGS.includes(tag)).map((tag) => (
@@ -2488,8 +2490,9 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         aria-pressed="true"
                         onClick={() => toggleWalkInTag(tag)}
                       >
-                        <Check aria-hidden="true" />
-                        {tag}
+                        <TagIcon tag={tag} />
+                        <span>{tag}</span>
+                        <Check className="tag-selected-check" aria-hidden="true" />
                       </button>
                     ))}
                   </div>

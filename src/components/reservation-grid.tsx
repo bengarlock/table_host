@@ -18,6 +18,7 @@ import {
 import { usePathname } from "next/navigation";
 import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
+import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { formatTurnTime } from "@/lib/turn-time";
@@ -780,8 +781,8 @@ export function ReservationGrid({
                   {selected.notes && <div><dt>Reservation notes</dt><dd>{selected.notes}</dd></div>}
                   {(selected.guest_profile_notes || selected.guest_notes) && <div><dt>Guest notes</dt><dd>{selected.guest_profile_notes || selected.guest_notes}</dd></div>}
                 </dl>
-                {selected.tags.length > 0 && <div className="reservation-tags" aria-label="Reservation tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
-                {selected.guest_tags.length > 0 && <div className="reservation-tags guest-profile-tags" aria-label="Guest tags">{selected.guest_tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+                {selected.tags.length > 0 && <div className="reservation-tags" aria-label="Reservation tags">{selected.tags.map((tag) => <span key={tag}><TagIcon tag={tag} />{tag}</span>)}</div>}
+                {selected.guest_tags.length > 0 && <div className="reservation-tags guest-profile-tags" aria-label="Guest tags">{selected.guest_tags.map((tag) => <span key={tag}><TagIcon tag={tag} />{tag}</span>)}</div>}
                 <label className="table-assignment">
                   Assigned table
                   <select

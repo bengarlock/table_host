@@ -278,8 +278,12 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await expect(details.getByRole("option", { name: "Seated" })).toHaveCount(0);
   await details.getByRole("option", { name: "Late" }).click();
   await expect(details).toContainText("16 + 12 + 14 + 10 + 15 + 11");
-  await expect(details.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Birthday" })).toHaveAttribute("aria-pressed", "true");
-  await expect(details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "Regular" })).toHaveAttribute("aria-pressed", "true");
+  const birthdayTag = details.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Birthday" });
+  const regularTag = details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "Regular" });
+  await expect(birthdayTag).toHaveAttribute("aria-pressed", "true");
+  await expect(regularTag).toHaveAttribute("aria-pressed", "true");
+  await expect(birthdayTag.locator('[data-tag-icon="Birthday"]')).toBeVisible();
+  await expect(regularTag.locator('[data-tag-icon="Regular"]')).toBeVisible();
   await expect(details.getByLabel("Reservation notes")).toHaveValue("Window table if possible.");
   await expect(details.getByLabel("Guest notes")).toHaveValue("Prefers a quiet corner.");
   expect(await details.evaluate((element) => getComputedStyle(element).animationName)).toBe("floor-reservation-detail-slide-in");

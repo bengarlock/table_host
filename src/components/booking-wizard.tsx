@@ -29,6 +29,7 @@ import {
   ReservationTablePicker,
 } from "@/components/reservation-table-picker";
 import { ServiceDatePicker } from "@/components/service-date-picker";
+import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { capitalizeNameInitial } from "@/lib/guest-names";
@@ -1102,8 +1103,9 @@ export function BookingWizard({
                         const selected = reservationTags.includes(tag);
                         return (
                           <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleReservationTag(tag)}>
-                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
-                            {tag}
+                            <TagIcon tag={tag} />
+                            <span>{tag}</span>
+                            <Check className={selected ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" />
                           </button>
                         );
                       })}
@@ -1122,8 +1124,9 @@ export function BookingWizard({
                         const selected = guestTags.includes(tag);
                         return (
                           <button type="button" key={tag} className={selected ? "selected" : ""} aria-pressed={selected} onClick={() => toggleGuestTag(tag)}>
-                            <Check className={selected ? undefined : "tag-check-placeholder"} aria-hidden="true" />
-                            {tag}
+                            <TagIcon tag={tag} />
+                            <span>{tag}</span>
+                            <Check className={selected ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" />
                           </button>
                         );
                       })}

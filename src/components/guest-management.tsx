@@ -14,9 +14,11 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { PhoneInput } from "@/components/phone-input";
+import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { capitalizeNameInitial } from "@/lib/guest-names";
+import { GUEST_TAGS } from "@/lib/reservation-tags";
 
 type GuestRecord = {
   id: number;
@@ -44,8 +46,6 @@ type GuestDraft = {
   notes: string;
   tags: string[];
 };
-
-const PRESET_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 
 const EMPTY_GUEST: GuestDraft = {
   firstName: "",
@@ -244,7 +244,7 @@ export function GuestManagement() {
                   <strong>{guest.full_name}</strong>
                   <small>{guest.company || guest.email || guest.phone_number || "No contact details"}</small>
                 </span>
-                {guest.tags.length > 0 && <em>{guest.tags[0]}</em>}
+                {guest.tags.length > 0 && <em><TagIcon tag={guest.tags[0]} />{guest.tags[0]}</em>}
               </button>
             ))}
             {!loading && guests.length === 0 && (
@@ -276,13 +276,13 @@ export function GuestManagement() {
               <fieldset className="guest-record-tags">
                 <legend><Tag aria-hidden="true" /> Guest tags</legend>
                 <div className="guest-record-tag-options">
-                  {PRESET_TAGS.map((tag) => (
+                  {GUEST_TAGS.map((tag) => (
                     <button type="button" key={tag} className={draft.tags.includes(tag) ? "selected" : ""} onClick={() => toggleTag(tag)}>
-                      {draft.tags.includes(tag) && <Check aria-hidden="true" />}{tag}
+                      <TagIcon tag={tag} /><span>{tag}</span><Check className={draft.tags.includes(tag) ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" />
                     </button>
                   ))}
-                  {draft.tags.filter((tag) => !PRESET_TAGS.includes(tag)).map((tag) => (
-                    <button type="button" key={tag} className="selected custom" onClick={() => toggleTag(tag)}><Check aria-hidden="true" />{tag}</button>
+                  {draft.tags.filter((tag) => !GUEST_TAGS.includes(tag)).map((tag) => (
+                    <button type="button" key={tag} className="selected custom" onClick={() => toggleTag(tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className="tag-selected-check" aria-hidden="true" /></button>
                   ))}
                 </div>
                 <div className="guest-custom-tag">
