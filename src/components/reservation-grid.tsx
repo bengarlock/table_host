@@ -121,7 +121,7 @@ const RESERVATION_STATUS_OPTIONS = [
   { value: "cancelled" as const, label: "Cancelled", icon: Ban },
   { value: "no_show" as const, label: "No-show", icon: UserX },
 ];
-const SERVICE_STATUS_VALUES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid", "complete", "no_show"];
+const SERVICE_STATUS_VALUES: Reservation["status"][] = ["late", "seated", "entree", "dessert", "check_dropped", "paid", "complete", "no_show"];
 
 type GridData = {
   restaurant: { id: number; name: string };
