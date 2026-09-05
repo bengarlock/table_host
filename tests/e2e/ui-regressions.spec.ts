@@ -910,6 +910,38 @@ test("booking restores time selection before optional table assignment", async (
   expect(Math.abs((guestNotes!.y + guestNotes!.height) - (guestSection!.y + guestSection!.height - 14))).toBeLessThan(2);
 });
 
+test("table assignment stacks every active reservation time on its table", async ({ page }) => {
+  await mockAvailability(page);
+  const reservations = [
+    {
+      id: 201, table_id: 1, table_ids: [1], guest_name: "First seating", party_size: 2,
+      start_time: "17:00", duration_minutes: 90, status: "confirmed", assignment_type: "hard",
+    },
+    {
+      id: 202, table_id: 1, table_ids: [1], guest_name: "Second seating", party_size: 2,
+      start_time: "19:30", duration_minutes: 90, status: "confirmed", assignment_type: "hard",
+    },
+    {
+      id: 203, table_id: 1, table_ids: [1], guest_name: "Cancelled seating", party_size: 2,
+      start_time: "20:30", duration_minutes: 90, status: "cancelled", assignment_type: "hard",
+    },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations, summary: { reservations: 3, covers: 6, seated: 0 } },
+  }));
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ }).click();
+  await page.getByRole("button", { name: "Assign Tables" }).click();
+
+  const table = page.getByRole("button", { name: /Table 1, 2 seats, reservations at 5PM, 7:30PM/ });
+  await expect(table.locator(".reservation-turn-times em")).toHaveText(["5PM", "7:30PM"]);
+  await expect(table.locator(".reservation-turn-times")).toHaveCSS("display", "grid");
+  await expect(table).not.toContainText("8:30PM");
+});
+
 test("oversized parties warn but can continue to time selection", async ({ page }) => {
   await mockGrid(page);
   await mockAvailability(page);

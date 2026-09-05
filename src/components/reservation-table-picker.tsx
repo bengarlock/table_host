@@ -207,19 +207,22 @@ export function ReservationTablePicker({
             <div className="reservation-assignment-stage" style={{ transform: `scale(${floorScale})` }}>
               {tables.map((table) => {
                 const tableBookings = bookingsByTable.get(table.id) || [];
-                const conflicts = tableBookings.filter((booking) => (
+                const activeBookings = tableBookings.filter((booking) => ![
+                  "cancelled",
+                  "complete",
+                ].includes(booking.status));
+                const conflicts = activeBookings.filter((booking) => (
                   reservationOverlaps(booking, startTime, durationMinutes)
                 ));
                 const hardConflict = conflicts.find((booking) => booking.assignment_type === "hard");
                 const hasFlexibleConflict = conflicts.some((booking) => booking.assignment_type === "soft");
                 const selected = selectedTableIds.includes(table.id);
-                const visibleTurns = tableBookings.slice(0, 3);
-                const turnLabels = visibleTurns.map((booking) => displayTurnTime(booking.start_time));
+                const turnLabels = activeBookings.map((booking) => displayTurnTime(booking.start_time));
                 return (
                   <button
                     type="button"
                     key={table.id}
-                    className={`floor-table floor-table-${table.shape}${hardConflict ? " occupied reservation-booked" : hasFlexibleConflict ? " available reservation-flexible-conflict" : " available"}${tableBookings.length ? " reservation-has-turns" : ""}${selected ? " seat-selected" : ""}`}
+                    className={`floor-table floor-table-${table.shape}${hardConflict ? " occupied reservation-booked" : hasFlexibleConflict ? " available reservation-flexible-conflict" : " available"}${activeBookings.length ? " reservation-has-turns" : ""}${selected ? " seat-selected" : ""}`}
                     style={{
                       left: `${table.position_x}%`,
                       top: `${table.position_y}%`,
@@ -238,7 +241,7 @@ export function ReservationTablePicker({
                       <strong>{table.name}</strong>
                       {turnLabels.length ? (
                         <span className="reservation-turn-times">
-                          {visibleTurns.map((booking) => <em key={booking.id}>{displayTurnTime(booking.start_time)}</em>)}
+                          {activeBookings.map((booking) => <em key={booking.id}>{displayTurnTime(booking.start_time)}</em>)}
                         </span>
                       ) : (
                         <><small>{table.capacity} seats</small><em>{selected ? "Selected" : "Available"}</em></>

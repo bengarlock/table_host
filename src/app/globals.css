@@ -3617,9 +3617,8 @@ textarea {
 
 .reservation-turn-times {
   display: grid;
-  max-height: 34px;
   gap: 1px;
-  overflow: hidden;
+  text-align: center;
 }
 
 .reservation-turn-times em {
