@@ -2738,7 +2738,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           <button
                             type="button"
                             key={step.value}
-                            className={`${styles.step}${current ? ` ${styles.current}` : ""}`}
+                            className={`${styles.step} ${styles[`status-${step.value}`]}${current ? ` ${styles.current}` : ""}`}
                             aria-pressed={current}
                             disabled={saving || !liveService || current}
                             // This handler runs after the click; it does not read a ref during render.

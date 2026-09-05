@@ -141,6 +141,27 @@
   color: #f0c982;
 }
 
+/* Match each action to the service color used on its Floor table. */
+.step.status-seated { border-color: #58769a; background: #34455b; color: #e2eaf3; }
+.step.status-entree { border-color: #a87c42; background: #58452d; color: #f1d5a8; }
+.step.status-dessert { border-color: #9b6682; background: #563d4c; color: #edd1e0; }
+.step.status-check_dropped { border-color: #8e884d; background: #4c4930; color: #e6dfa4; }
+.step.status-paid { border-color: #5e906e; background: #344b3b; color: #cee8d5; }
+.step.status-complete { border-color: #3a4038; background: #30362f; color: #d1d6ce; }
+
+.step.status-seated:hover:not(:disabled),
+.step.status-seated:focus-visible { border-color: #7f9fc4; background: #40546d; color: #f0f5fb; }
+.step.status-entree:hover:not(:disabled),
+.step.status-entree:focus-visible { border-color: #cea15d; background: #6b5435; color: #fff0d5; }
+.step.status-dessert:hover:not(:disabled),
+.step.status-dessert:focus-visible { border-color: #c489a5; background: #674958; color: #ffe4f1; }
+.step.status-check_dropped:hover:not(:disabled),
+.step.status-check_dropped:focus-visible { border-color: #b5ae67; background: #5e5a39; color: #fff9bc; }
+.step.status-paid:hover:not(:disabled),
+.step.status-paid:focus-visible { border-color: #80b993; background: #416049; color: #e5f7e9; }
+.step.status-complete:hover:not(:disabled),
+.step.status-complete:focus-visible { border-color: #7a8577; background: #414a3f; color: #f0f3ed; }
+
 .step:disabled {
   cursor: default;
   opacity: 0.55;
