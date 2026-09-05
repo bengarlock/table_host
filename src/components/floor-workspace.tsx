@@ -215,6 +215,8 @@ type StatusPopover = {
   top: number;
 };
 
+type AvailableTablePopover = { tableId: number; tableName: string; left: number; top: number };
+
 type GridData = {
   restaurant: { id: number; name: string };
   training_mode: boolean;
@@ -671,6 +673,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [viewPreferencesRestored, setViewPreferencesRestored] = useState(false);
   const [floorClock, setFloorClock] = useState(() => Date.now());
   const [statusPopover, setStatusPopover] = useState<StatusPopover | null>(null);
+  const [availableTablePopover, setAvailableTablePopover] = useState<AvailableTablePopover | null>(null);
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
@@ -888,10 +891,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         && !(target instanceof Element && target.closest("[data-floor-table-id]"))
       ) {
         setStatusPopover(null);
+        setAvailableTablePopover(null);
       }
     }
     function dismissForViewportChange() {
       setStatusPopover(null);
+      setAvailableTablePopover(null);
     }
     function dismissForEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setStatusPopover(null);
@@ -2646,7 +2651,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         } else if (reservation) {
                           openTableStatus(event, reservation, table);
                         } else {
-                          openFloorBlock(table.id);
+                          setAvailableTablePopover({ tableId: table.id, tableName: table.name, ...statusPopoverPosition(event.currentTarget) });
                         }
                       }}
                       onPointerDown={(event) => beginTableMove(event, table.id)}
@@ -2802,6 +2807,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   </div>
                 );
               })()}
+              {availableTablePopover && (
+                <div ref={statusPopoverRef} className={styles.popover} role="dialog" aria-label={`Actions for table ${availableTablePopover.tableName}`} style={{ left: availableTablePopover.left, top: availableTablePopover.top }}>
+                  <div className={styles.header}><div><span className={styles.eyebrow}>Table {availableTablePopover.tableName}</span><h2 className={styles.guest}>Available</h2></div><button type="button" className={styles.close} onClick={() => setAvailableTablePopover(null)} aria-label="Close table actions"><X aria-hidden="true" /></button></div>
+                  <button type="button" className={styles.details} onClick={() => { openFloorBlock(availableTablePopover.tableId); setAvailableTablePopover(null); }}>Block table</button>
+                </div>
+              )}
 
               {focusedReservation && reservationEditDraft && (
                 <aside className={`floor-reservation-detail-card${reservationDetailClosing ? " is-closing" : ""}`} aria-label={`Reservation details for ${focusedReservation.guest_name}`} aria-hidden={reservationDetailClosing}>
