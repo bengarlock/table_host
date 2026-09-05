@@ -5892,6 +5892,12 @@ textarea {
   display: none;
 }
 
+/* Rotation is editor feedback, not service metadata; retain it while editing. */
+.floor-canvas.editing .floor-table-label-reduced em,
+.floor-canvas.editing .floor-table-label-numbers em {
+  display: block;
+}
+
 .chair {
   position: absolute;
   z-index: 1;
