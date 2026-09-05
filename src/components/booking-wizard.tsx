@@ -170,6 +170,19 @@ function looksLikePhoneSearch(value: string) {
   return /^[\d\s()+.-]+$/.test(trimmed) && trimmed.replace(/\D/g, "").length >= 7;
 }
 
+function formatAssignedTables(
+  tables: ReservationFloorTable[],
+  selectedTableIds: number[],
+) {
+  const selectedNames = tables
+    .filter((table) => selectedTableIds.includes(table.id))
+    .map((table) => table.name)
+    .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+
+  if (!selectedNames.length) return "";
+  return `${selectedNames.length === 1 ? "Table" : "Tables"} ${selectedNames.join(", ")}`;
+}
+
 export function BookingWizard({
   initialDate,
   initialShiftSlug,
@@ -224,6 +237,10 @@ export function BookingWizard({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const partyExceedsFloorCapacity = floorCoverCapacity > 0 && partySize > floorCoverCapacity;
+  const assignedTablesSummary = formatAssignedTables(
+    assignmentGrid?.tables || [],
+    selectedTableIds,
+  );
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -282,8 +299,7 @@ export function BookingWizard({
     if (stage === 2) return partySize > 0 ? `${partySize} ${partySize === 1 ? "guest" : "guests"}` : "";
     if (stage === 3) {
       if (!selectedOption) return "";
-      const tableCount = selectedTableIds.length;
-      return `${displayTime(selectedOption.start_time)}${tableCount ? ` · ${tableCount} table${tableCount === 1 ? "" : "s"}` : ""}`;
+      return `${displayTime(selectedOption.start_time)}${assignedTablesSummary ? ` · ${assignedTablesSummary}` : ""}`;
     }
     if (stage === 4) return selectedGuest?.full_name || "";
     if (!selectedGuest) return "";
@@ -818,7 +834,7 @@ export function BookingWizard({
               <div className="time-and-tables-selection">
                 <div>
                   <strong>{selectedOption ? displayTime(selectedOption.start_time) : "Select a reservation time"}</strong>
-                  <span>{selectedTableIds.length ? `${selectedTableIds.length} table${selectedTableIds.length === 1 ? "" : "s"} assigned` : "Table assignment is optional"}</span>
+                  <span>{assignedTablesSummary || "Table assignment is optional"}</span>
                 </div>
                 <button
                   type="button"
@@ -921,7 +937,7 @@ export function BookingWizard({
 
           {step === 5 && selectedOption && selectedGuest && (
             <form {...IGNORE_AUTOFILL} id="booking-details-form" className="wizard-step" onSubmit={bookReservation}>
-              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · {selectedTableIds.length ? `Table${selectedTableIds.length === 1 ? "" : "s"} ${assignmentGrid?.tables.filter((table) => selectedTableIds.includes(table.id)).map((table) => table.name).join(" + ")}` : "No tables assigned"}</p></div></div>
+              <div className="wizard-step-heading"><Check aria-hidden="true" /><div><h3>Reservation details</h3><p>{displayTime(selectedOption.start_time)} · {partySize} guests · {assignedTablesSummary || "No tables assigned"}</p></div></div>
               <div className="details-guest-summary">
                 <span className="guest-result-avatar" aria-hidden="true">{selectedGuest.first_name.slice(0, 1)}{selectedGuest.last_name.slice(0, 1)}</span>
                 <div><strong>{selectedGuest.full_name}</strong><small>{[selectedGuest.company, selectedGuest.phone_number, selectedGuest.email].filter(Boolean).join(" · ")}</small></div>

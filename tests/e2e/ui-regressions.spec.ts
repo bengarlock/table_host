@@ -618,9 +618,11 @@ test("booking restores time selection before optional table assignment", async (
   await assignTables.click();
   await expect(page.getByRole("heading", { name: "Assign tables" })).toBeVisible();
   await page.getByRole("button", { name: /^Table 1, 2 seats/ }).click();
+  await page.getByRole("button", { name: /^Table 2, 2 seats/ }).click();
   await page.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
-  await expect(page.locator(".time-and-tables-selection span")).toHaveText("1 table assigned");
+  await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
+  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("5:30 PM · Tables 1, 2");
 });
 
 test("oversized parties warn but can continue to time selection", async ({ page }) => {
