@@ -2756,8 +2756,7 @@ textarea {
 
 .time-carousel-track button:hover:not(:disabled),
 .time-carousel-track button:focus-visible:not(:disabled),
-.time-carousel-track button.selected,
-.time-carousel-track button.requested-time {
+.time-carousel-track button.selected {
   background: var(--accent-soft);
   outline: none;
 }

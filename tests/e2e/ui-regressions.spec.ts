@@ -463,7 +463,19 @@ test("booking availability is centered around the guest's desired time", async (
   await expect(availableResults.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
-  await expect(page.getByRole("button", { name: "7:30 PM, requested time, seats up to 4" })).toBeVisible();
+  const requestedAvailableTime = page.getByRole("button", { name: "7:30 PM, requested time, seats up to 4" });
+  const alternateAvailableTime = page.getByRole("button", { name: "7:45 PM, seats up to 4" });
+  await expect(requestedAvailableTime).toHaveAttribute("aria-pressed", "false");
+  await alternateAvailableTime.click();
+  await expect(alternateAvailableTime).toHaveAttribute("aria-pressed", "true");
+  await expect(requestedAvailableTime).toHaveAttribute("aria-pressed", "false");
+  await expect(availableResults.locator("button.selected")).toHaveCount(1);
+  await expect(availableResults.locator('button[aria-pressed="true"]')).toHaveCount(1);
+  const [requestedBackground, selectedBackground] = await Promise.all([
+    requestedAvailableTime.evaluate((element) => getComputedStyle(element).backgroundColor),
+    alternateAvailableTime.evaluate((element) => getComputedStyle(element).backgroundColor),
+  ]);
+  expect(requestedBackground).not.toBe(selectedBackground);
   await page.getByRole("button", { name: "Show later available times" }).click();
   await expect(page.locator(".time-carousel-track.time-carousel-slide-later")).toBeVisible();
   await expect(availableResults.locator("button strong")).toHaveText([
