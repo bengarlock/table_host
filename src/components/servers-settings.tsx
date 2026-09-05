@@ -238,6 +238,17 @@ export function ServersSettings() {
     setDeleteTarget(null);
   }
 
+  function newSection() {
+    clearSectionForm();
+    const usedColors = new Set(sections.map((section) => section.color.toUpperCase()));
+    const unusedColors = SECTION_COLORS.filter((color) => !usedColors.has(color));
+    const palette = unusedColors.length ? unusedColors : SECTION_COLORS;
+    setSectionColor(palette[Math.floor(Math.random() * palette.length)]);
+    setCreatingSection(true);
+    setDeleteTarget(null);
+    setError("");
+  }
+
   async function saveSection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!sectionActive || !sectionName.trim() || saving) return;
@@ -305,7 +316,7 @@ export function ServersSettings() {
           <div className="section-editor-layout">
             <aside className="saved-sections-sidebar" aria-label="Saved sections">
               <h4>Saved sections</h4>
-              <button className="servers-add-button section-new-button" type="button" disabled={saving || creatingSection} onClick={() => { clearSectionForm(); setCreatingSection(true); setError(""); }}><Plus aria-hidden="true" /> New section</button>
+              <button className="servers-add-button section-new-button" type="button" disabled={saving || creatingSection} onClick={newSection}><Plus aria-hidden="true" /> New section</button>
               <ul className="section-list" aria-label="Floor sections">
                 {[...(creatingSection ? [{ id: -1, name: "", color: sectionColor, table_ids: sectionTableIds }] : []), ...sections].map((section) => {
                   const active = section.id === -1 || editingSectionId === section.id;
