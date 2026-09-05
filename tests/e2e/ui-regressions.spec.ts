@@ -351,6 +351,7 @@ test("booking availability is centered around the guest's desired time", async (
   const availableTimes = page.getByLabel("Available reservation times");
   await expect(availableTimes).toHaveCount(1);
   await expect(availableTimes.locator(".time-carousel-placeholder")).toHaveCount(5);
+  await expect(page.getByText("No reservation times found")).toHaveCount(0);
   await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
 
   const desiredTimeBounds = await desiredTimes.boundingBox();
@@ -365,7 +366,6 @@ test("booking availability is centered around the guest's desired time", async (
   ]);
   await expect(desiredTimes.getByRole("button", { name: "7:30 PM", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "4", exact: true }).click();
-  await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
 
   await expect.poll(() => requestedTimes.at(-1)).toBe("19:30");
   const availableResults = page.getByLabel("Available reservation times");
@@ -711,7 +711,6 @@ test("booking restores time selection before optional table assignment", async (
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 12 guests");
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("12");
-  await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
 
   const assignTables = page.getByRole("button", { name: "Assign Tables" });
   await expect(assignTables).toBeDisabled();
@@ -766,13 +765,6 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   expect(warningBounds!.y + warningBounds!.height).toBeLessThanOrEqual(partyBounds!.y + partyBounds!.height);
   await expect(page.locator(".wizard-progress li").nth(1)).toHaveClass(/capacity-warning/);
   await expect(page.locator(".wizard-progress li").nth(1)).toHaveCSS("color", "rgb(255, 131, 120)");
-
-  const availabilityButton = page.locator("footer").getByRole("button", { name: "Check availability" });
-  await expect(availabilityButton).toHaveClass(/capacity-warning/);
-  await page.mouse.move(0, 0);
-  await expect(availabilityButton).toHaveCSS("background-color", "rgb(159, 57, 47)");
-  await expect(availabilityButton).toBeEnabled();
-  await availabilityButton.click();
 
   const unavailableTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await expect(unavailableTime).toBeEnabled();

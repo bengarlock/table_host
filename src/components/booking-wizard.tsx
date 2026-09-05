@@ -241,6 +241,7 @@ export function BookingWizard({
   const [partySizeInput, setPartySizeInput] = useState("9");
   const durationMinutes = initialTurnTime;
   const [options, setOptions] = useState<AvailabilityOption[]>([]);
+  const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [selectedOption, setSelectedOption] = useState<AvailabilityOption | null>(null);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [assignmentDraftTableIds, setAssignmentDraftTableIds] = useState<number[]>([]);
@@ -349,6 +350,7 @@ export function BookingWizard({
 
   function invalidateTimeSelection() {
     setOptions([]);
+    setAvailabilityChecked(false);
     setAvailabilityWindowStart(0);
     setSelectedOption(null);
     setSelectedTableIds([]);
@@ -428,8 +430,9 @@ export function BookingWizard({
   async function findTimes(
     shiftSlug = selectedShiftSlug,
     requestedTime = desiredTime,
+    requestedPartySize = partySize,
   ) {
-    if (!requestedTime || partySize <= 0 || durationMinutes <= 0) return;
+    if (!requestedTime || requestedPartySize <= 0 || durationMinutes <= 0) return;
     const shift = shifts.find((item) => item.slug === shiftSlug);
     if (!shift) return;
     const requestId = availabilityRequestId.current + 1;
@@ -445,10 +448,11 @@ export function BookingWizard({
     setAssignmentGrid(null);
     setTablePickerOpen(false);
     setOptions([]);
+    setAvailabilityChecked(false);
     const availabilityQuery = new URLSearchParams({
       service_date: serviceDate,
       desired_time: requestedTime,
-      party_size: String(partySize),
+      party_size: String(requestedPartySize),
       duration_minutes: String(durationMinutes),
     });
     try {
@@ -463,6 +467,7 @@ export function BookingWizard({
       );
       if (requestId !== availabilityRequestId.current) return;
       setOptions(shiftOptions);
+      setAvailabilityChecked(true);
       setAvailabilityWindowStart(centeredWindowStart(
         shiftOptions.map((option) => option.start_time),
         requestedTime,
@@ -477,8 +482,7 @@ export function BookingWizard({
   }
 
   function chooseDesiredTime(value: string) {
-    setDesiredTime(value);
-    invalidateTimeSelection();
+    void findTimes(selectedShiftSlug, value, partySize);
   }
 
   function moveDesiredTimeWindow(direction: CarouselSlideDirection) {
@@ -567,7 +571,8 @@ export function BookingWizard({
     const normalizedSize = Math.min(MAX_PARTY_SIZE, Math.max(1, Math.round(nextSize)));
     if (normalizedSize === partySize) return;
     setPartySize(normalizedSize);
-    invalidateTimeSelection();
+    if (desiredTime) void findTimes(selectedShiftSlug, desiredTime, normalizedSize);
+    else invalidateTimeSelection();
   }
 
   function updateManualPartySize(value: string) {
@@ -580,7 +585,8 @@ export function BookingWizard({
     }
     if (nextSize === partySize) return;
     setPartySize(nextSize);
-    invalidateTimeSelection();
+    if (desiredTime) void findTimes(selectedShiftSlug, desiredTime, nextSize);
+    else invalidateTimeSelection();
   }
 
   function adjustManualPartySize(amount: number) {
@@ -952,7 +958,7 @@ export function BookingWizard({
                         <ChevronRight aria-hidden="true" />
                       </button>
                     </div>
-                ) : desiredTime && !assignmentLoading ? (
+                ) : availabilityChecked && !assignmentLoading ? (
                   <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
                 ) : (
                   <div className="time-carousel" aria-label="Available reservation times" aria-busy={assignmentLoading}>
