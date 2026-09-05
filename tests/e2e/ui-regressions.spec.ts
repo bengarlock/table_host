@@ -736,6 +736,7 @@ test("auto polish keeps small bar stools separate beside larger tables", async (
 });
 
 test("booking restores time selection before optional table assignment", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
   await mockGrid(page);
   await mockAvailability(page);
   await page.route("**/api/guests?q=*", (route) => route.fulfill({
@@ -763,9 +764,15 @@ test("booking restores time selection before optional table assignment", async (
   await expect(manualPartySize).toHaveValue("9");
   const quickSelectBounds = await page.locator(".party-size-picker").boundingBox();
   const manualBounds = await page.locator(".party-size-manual").boundingBox();
+  const quickButtonBounds = await page.getByRole("button", { name: "1", exact: true }).boundingBox();
+  const decreaseButtonBounds = await page.getByRole("button", { name: "Decrease party size" }).boundingBox();
   expect(quickSelectBounds).not.toBeNull();
   expect(manualBounds).not.toBeNull();
-  expect(manualBounds!.y).toBeGreaterThanOrEqual(quickSelectBounds!.y + quickSelectBounds!.height);
+  expect(quickButtonBounds).not.toBeNull();
+  expect(decreaseButtonBounds).not.toBeNull();
+  expect(Math.abs(manualBounds!.y - quickSelectBounds!.y)).toBeLessThan(2);
+  expect(Math.abs(decreaseButtonBounds!.y - quickButtonBounds!.y)).toBeLessThan(2);
+  expect(Math.abs(decreaseButtonBounds!.height - quickButtonBounds!.height)).toBeLessThan(2);
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("9");
   await manualPartySize.click();
