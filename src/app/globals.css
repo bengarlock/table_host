@@ -694,6 +694,46 @@ textarea {
   gap: 8px;
 }
 
+.section-editor-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.section-editor-layout > .server-form {
+  margin-top: 0;
+}
+
+.saved-sections-sidebar h4 {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.75rem;
+}
+
+.saved-sections-sidebar .section-list {
+  margin-top: 12px;
+}
+
+.saved-sections-sidebar .section-list li {
+  flex-wrap: wrap;
+  padding: 10px;
+}
+
+.saved-sections-sidebar .section-list-actions {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 760px) {
+  .section-editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .section-floor-plan {
   position: relative;
   min-height: 410px;

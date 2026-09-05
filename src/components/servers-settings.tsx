@@ -294,6 +294,12 @@ export function ServersSettings() {
 
         <article className="servers-card" role="tabpanel" id="servers-panel-sections" aria-labelledby="servers-tab-sections" hidden={activeTab !== "sections"}>
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
+          <div className="section-editor-layout">
+            <aside className="saved-sections-sidebar" aria-label="Saved sections">
+              <h4>Saved sections</h4>
+<ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
+{!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
+            </aside>
           <form className="server-form" onSubmit={(event) => void saveSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
             <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
@@ -314,8 +320,7 @@ export function ServersSettings() {
             <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
             <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
           </form>
-          <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
-          {!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
+          </div>
         </article>
       </div>}
     </section>
