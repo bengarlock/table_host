@@ -130,6 +130,7 @@ type Reservation = {
   start_time: string;
   duration_minutes: number;
   status: ServiceStatus;
+  seated_at: string | null;
   is_unassigned: boolean;
   notes: string;
   tags: string[];
@@ -244,16 +245,17 @@ function displayTime(time: string) {
 
 function turnProgress(
   reservation: Reservation,
-  serviceDate: string,
   now: number,
 ) {
-  const startedAt = new Date(`${serviceDate}T${reservation.start_time}:00`).getTime();
+  const startedAt = Date.parse(reservation.seated_at || "");
+  if (Number.isNaN(startedAt)) return null;
   const durationMilliseconds = reservation.duration_minutes * 60_000;
   const elapsedMilliseconds = Math.max(0, now - startedAt);
   const remainingMilliseconds = Math.max(0, durationMilliseconds - elapsedMilliseconds);
   return {
     expired: elapsedMilliseconds >= durationMilliseconds,
     remainingMinutes: Math.ceil(remainingMilliseconds / 60_000),
+    remainingMilliseconds,
     remainingPercent: clamp(remainingMilliseconds / durationMilliseconds, 0, 1) * 100,
   };
 }
@@ -2346,7 +2348,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   const reservation = activeByTable.get(table.id);
                   const scheduledReservations = scheduledReservationsByTable.get(table.id) || [];
                   const floorTurn = showFloorTimes && liveService && reservation
-                    ? turnProgress(reservation, serviceDate, floorClock)
+                    ? turnProgress(reservation, floorClock)
                     : null;
                   const floorTurnState = floorTurn?.expired
                     ? "expired"
@@ -2415,10 +2417,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ))}
                       <span className="floor-table-surface" aria-hidden="true" />
                       {floorTurn && floorTurnDash !== undefined && (
-                        <svg className={`floor-table-turn-timer ${floorTurnState}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        <svg
+                          className={`floor-table-turn-timer ${floorTurnState}`}
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                          aria-hidden="true"
+                          style={{
+                            "--turn-dash": `${floorTurnDash} ${100 - floorTurnDash}`,
+                            "--turn-countdown-duration": `${floorTurn.remainingMilliseconds}ms`,
+                          } as CSSProperties}
+                        >
                           {table.shape === "round"
-                            ? <circle cx="50" cy="50" r="47" pathLength="100" strokeDasharray={`${floorTurnDash} ${100 - floorTurnDash}`} />
-                            : <rect x="3" y="3" width="94" height="94" rx="9" pathLength="100" strokeDasharray={`${floorTurnDash} ${100 - floorTurnDash}`} />}
+                            ? <circle cx="50" cy="50" r="47" pathLength="100" />
+                            : <rect x="3" y="3" width="94" height="94" rx="9" pathLength="100" />}
                         </svg>
                       )}
                       <span

@@ -5857,7 +5857,15 @@ textarea {
   stroke: #72c995;
   stroke-width: 3.5;
   stroke-linecap: round;
-  transition: stroke-dasharray 30s linear, stroke 220ms ease;
+  stroke-dasharray: var(--turn-dash);
+  transition: stroke 220ms ease;
+  animation: floor-table-turn-countdown var(--turn-countdown-duration) linear forwards;
+}
+
+@keyframes floor-table-turn-countdown {
+  to {
+    stroke-dasharray: 0 100;
+  }
 }
 
 .floor-table-turn-timer circle {

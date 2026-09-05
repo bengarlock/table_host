@@ -366,7 +366,7 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
     {
       id: 106, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
       guest_name: "Seated party", party_size: 2, start_time: "17:00", duration_minutes: 90,
-      status: "seated", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+      status: "seated", seated_at: "2026-09-04T17:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
     },
   ];
   await page.route("**/api/grid?*", (route) => route.fulfill({
@@ -398,9 +398,11 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
   const floorTimer = page.locator('[data-floor-table-id="2"] .floor-table-turn-timer');
   await expect(floorTimer).toHaveClass(/on-track/);
   await expect(floorTimer).toBeVisible();
-  const turnDash = await floorTimer.locator("rect").getAttribute("stroke-dasharray");
-  expect(turnDash).not.toBeNull();
-  expect(Number(turnDash!.split(" ")[0])).toBeCloseTo(50, 1);
+  const timerDuration = await floorTimer.evaluate((element) => Number.parseFloat(
+    getComputedStyle(element).getPropertyValue("--turn-countdown-duration"),
+  ));
+  expect(timerDuration).toBeGreaterThan(2_650_000);
+  expect(timerDuration).toBeLessThanOrEqual(2_700_000);
 
   await sectionOutlines.uncheck();
   await expect(page.locator(".floor-section-overlays")).toHaveCount(0);
