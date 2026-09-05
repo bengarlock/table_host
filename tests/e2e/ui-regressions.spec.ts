@@ -58,6 +58,51 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+test("new reservation confirmation is readable from the grid", async ({ page }) => {
+  const reservation = {
+    id: 101,
+    table_id: 1,
+    table_name: "1",
+    table_ids: [1],
+    table_names: ["1"],
+    guest_name: "Alex Morgan",
+    party_size: 2,
+    start_time: "17:00",
+    duration_minutes: 90,
+    status: "confirmed",
+    assignment_type: "soft",
+    is_unassigned: false,
+    guest_phone: "",
+    guest_email: "alex@example.com",
+    guest_notes: "",
+    guest_profile_notes: "",
+    guest_tags: [],
+    tags: [],
+    notes: "",
+  };
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      reservations: [reservation],
+      summary: { reservations: 1, covers: 2, seated: 0 },
+    },
+  }));
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner&confirmation=101`);
+
+  const dialog = page.getByRole("dialog", { name: "Read this back to the guest" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(
+    "Alex Morgan is confirmed for 2 guests on Friday, September 4 at 5:00 PM.",
+  );
+  await expect(dialog).toContainText("Dinner");
+  await expect(dialog).toContainText("1:30");
+  await expect(dialog).toContainText("Table 1");
+  await expect(dialog.getByRole("button", { name: /Send confirmation email/ })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test("reservation grid date controls do not overlap shift buttons", async ({ page }) => {
   const shifts = [
     { ...shift, id: 1, name: "Breakfast", slug: "breakfast", start_time: "07:00", end_time: "11:00" },

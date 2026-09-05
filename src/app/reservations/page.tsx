@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 type ReservationsPageProps = {
   searchParams: Promise<{
     book?: string;
+    confirmation?: string | string[];
     date?: string | string[];
     shift?: string | string[];
   }>;
@@ -22,8 +23,15 @@ export default async function ReservationsPage({ searchParams }: ReservationsPag
   }
   return (
     <ReservationsWorkspace
+      initialConfirmationId={positiveInteger(params.confirmation)}
       initialServiceDate={validServiceDate(params.date)}
       initialShiftSlug={validShiftSlug(params.shift)}
     />
   );
+}
+
+function positiveInteger(value: string | string[] | undefined) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(candidate);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : undefined;
 }

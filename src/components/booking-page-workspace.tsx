@@ -29,10 +29,11 @@ type BookingPageWorkspaceProps = {
   initialShiftSlug?: string;
 };
 
-function reservationsUrl(serviceDate?: string, shiftSlug?: string) {
+function reservationsUrl(serviceDate?: string, shiftSlug?: string, confirmationId?: number) {
   const query = new URLSearchParams();
   if (serviceDate) query.set("date", serviceDate);
   if (shiftSlug) query.set("shift", shiftSlug);
+  if (confirmationId) query.set("confirmation", String(confirmationId));
   return `/reservations${query.size ? `?${query}` : ""}`;
 }
 
@@ -66,8 +67,8 @@ export function BookingPageWorkspace({
     void loadSetup();
   }, [loadSetup]);
 
-  function returnToReservations(serviceDate?: string, shiftSlug?: string) {
-    router.push(reservationsUrl(serviceDate, shiftSlug));
+  function returnToReservations(serviceDate?: string, shiftSlug?: string, confirmationId?: number) {
+    router.push(reservationsUrl(serviceDate, shiftSlug, confirmationId));
   }
 
   return (

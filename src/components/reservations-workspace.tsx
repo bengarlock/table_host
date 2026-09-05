@@ -5,11 +5,13 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ReservationGrid } from "@/components/reservation-grid";
 
 type ReservationsWorkspaceProps = {
+  initialConfirmationId?: number;
   initialServiceDate?: string;
   initialShiftSlug?: string;
 };
 
 export function ReservationsWorkspace({
+  initialConfirmationId,
   initialServiceDate,
   initialShiftSlug,
 }: ReservationsWorkspaceProps) {
@@ -23,6 +25,7 @@ export function ReservationsWorkspace({
       }} />
       <main className="main-content">
         <ReservationGrid
+          initialConfirmationId={initialConfirmationId}
           initialServiceDate={initialServiceDate}
           initialShiftSlug={initialShiftSlug}
           shouldSyncServiceUrl={() => !navigationStartedRef.current}

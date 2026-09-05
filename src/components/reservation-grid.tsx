@@ -5,9 +5,11 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarX2,
+  CircleCheck,
   Clock3,
   LoaderCircle,
   Lock,
+  Mail,
   Plus,
   Unlock,
   Users,
@@ -70,6 +72,7 @@ type Reservation = {
     | "cancelled"
     | "no_show";
   assignment_type: "soft" | "hard";
+  is_unassigned: boolean;
   guest_phone: string;
   guest_email: string;
   guest_notes: string;
@@ -152,12 +155,14 @@ function readError(payload: unknown) {
 }
 
 type ReservationGridProps = {
+  initialConfirmationId?: number;
   initialServiceDate?: string;
   initialShiftSlug?: string;
   shouldSyncServiceUrl?: () => boolean;
 };
 
 export function ReservationGrid({
+  initialConfirmationId,
   initialServiceDate,
   initialShiftSlug,
   shouldSyncServiceUrl,
@@ -177,6 +182,7 @@ export function ReservationGrid({
   const [tableMoves, setTableMoves] = useState<TableMove[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [moveHistoryOpen, setMoveHistoryOpen] = useState(false);
+  const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
   const [unlocking, setUnlocking] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -271,6 +277,11 @@ export function ReservationGrid({
       timeFromMinutes(start + index * SLOT_MINUTES),
     );
   }, [data]);
+
+  const confirmedReservation = useMemo(
+    () => data?.reservations.find((reservation) => reservation.id === confirmationId) || null,
+    [confirmationId, data],
+  );
 
   const currentTimeMarker = useMemo(() => {
     if (!data || data.service_date !== data.current_service_date) return null;
@@ -846,6 +857,64 @@ export function ReservationGrid({
           </aside>
         )}
       </div>
+
+      {confirmedReservation && data && (
+        <div
+          className="reservation-confirmation-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setConfirmationId(undefined);
+          }}
+        >
+          <section
+            className="reservation-confirmation-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservation-confirmation-title"
+          >
+            <button
+              type="button"
+              className="reservation-confirmation-close"
+              onClick={() => setConfirmationId(undefined)}
+              aria-label="Close reservation confirmation"
+            >
+              <X aria-hidden="true" />
+            </button>
+            <CircleCheck className="reservation-confirmation-icon" aria-hidden="true" />
+            <p className="reservation-confirmation-eyebrow">Reservation booked</p>
+            <h2 id="reservation-confirmation-title">Read this back to the guest</h2>
+            <p className="reservation-confirmation-readback">
+              {confirmedReservation.guest_name} is confirmed for {confirmedReservation.party_size} {confirmedReservation.party_size === 1 ? "guest" : "guests"} on {displayServiceDate(data.service_date)} at {displayTime(confirmedReservation.start_time)}.
+            </p>
+            <dl className="reservation-confirmation-details">
+              <div><dt>Service</dt><dd>{data.selected_shift.name}</dd></div>
+              <div><dt>Turn time</dt><dd>{formatTurnTime(confirmedReservation.duration_minutes)}</dd></div>
+              <div>
+                <dt>Table</dt>
+                <dd>{confirmedReservation.is_unassigned ? "To be assigned" : `${confirmedReservation.table_names.length > 1 ? "Tables" : "Table"} ${(confirmedReservation.table_names.length ? confirmedReservation.table_names : [confirmedReservation.table_name]).join(" + ")}`}</dd>
+              </div>
+            </dl>
+            {confirmedReservation.is_unassigned && (
+              <p className="reservation-confirmation-note">The reservation is confirmed and will be assigned to a table later.</p>
+            )}
+            <footer>
+              <button type="button" className="reservation-confirmation-email" disabled title="Confirmation emails are coming soon">
+                <Mail aria-hidden="true" /> Send confirmation email <span>Coming soon</span>
+              </button>
+              <button type="button" className="reservation-confirmation-done" onClick={() => setConfirmationId(undefined)}>Done</button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
+}
+
+function displayServiceDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date(year, month - 1, day));
 }

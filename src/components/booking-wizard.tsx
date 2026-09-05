@@ -64,7 +64,7 @@ type BookingWizardProps = {
   floorCoverCapacity: number;
   shifts: ShiftChoice[];
   onClose: () => void;
-  onBooked: (serviceDate: string, shiftSlug: string) => void;
+  onBooked: (serviceDate: string, shiftSlug: string, reservationId: number) => void;
   presentation?: "modal" | "page";
 };
 
@@ -724,7 +724,11 @@ export function BookingWizard({
       });
       const payload = (await response.json()) as Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      onBooked(serviceDate, selectedOption.shift_slug);
+      const reservationId = Number(payload.id);
+      if (!Number.isSafeInteger(reservationId) || reservationId <= 0) {
+        throw new Error("The reservation was saved, but its confirmation could not be loaded.");
+      }
+      onBooked(serviceDate, selectedOption.shift_slug, reservationId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to book the reservation.");
     } finally {

@@ -3476,6 +3476,167 @@ textarea {
   outline: none;
 }
 
+.reservation-confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(4 7 5 / 72%);
+  backdrop-filter: blur(6px);
+}
+
+.reservation-confirmation-dialog {
+  position: relative;
+  width: min(520px, 100%);
+  padding: 34px;
+  border: 1px solid #6f5731;
+  border-radius: 18px;
+  background: #111713;
+  box-shadow: 0 28px 80px rgb(0 0 0 / 48%);
+  color: var(--text);
+}
+
+.reservation-confirmation-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.reservation-confirmation-close svg,
+.reservation-confirmation-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.reservation-confirmation-icon {
+  width: 42px;
+  height: 42px;
+  margin-bottom: 18px;
+  color: #d6a452;
+}
+
+.reservation-confirmation-eyebrow {
+  margin: 0 0 7px;
+  color: #d6a452;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.reservation-confirmation-dialog h2 {
+  margin: 0;
+  font: 700 28px/1.1 var(--font-display);
+}
+
+.reservation-confirmation-readback {
+  margin: 20px 0;
+  color: #f3eee3;
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.reservation-confirmation-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 0;
+}
+
+.reservation-confirmation-details div {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0c110e;
+}
+
+.reservation-confirmation-details dt {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.reservation-confirmation-details dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.reservation-confirmation-note {
+  margin: 14px 0 0;
+  color: #d7b77e;
+  font-size: 13px;
+}
+
+.reservation-confirmation-dialog footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 26px;
+}
+
+.reservation-confirmation-dialog footer button {
+  min-height: 44px;
+  padding: 0 17px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.reservation-confirmation-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-soft);
+}
+
+.reservation-confirmation-email svg {
+  width: 16px;
+}
+
+.reservation-confirmation-email span {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.reservation-confirmation-email:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.reservation-confirmation-done {
+  border: 1px solid #d3a45c;
+  background: #a87331;
+  color: #fff8eb;
+}
+
+@media (max-width: 620px) {
+  .reservation-confirmation-dialog {
+    padding: 28px 22px 22px;
+  }
+
+  .reservation-confirmation-details {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-confirmation-dialog footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}
+
 .assignment-lock-button {
   display: inline-flex;
   align-items: center;
