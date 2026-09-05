@@ -301,7 +301,7 @@ export function ServersSettings() {
         <article className="servers-card" role="tabpanel" id="servers-panel-sections" aria-labelledby="servers-tab-sections" hidden={activeTab !== "sections"}>
           <div className="section-panel-heading">
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
-            {sectionActive && <div className="section-form-actions"><button className="servers-add-button" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button><button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></div>}
+            <div className="section-form-actions" style={{ visibility: sectionActive ? "visible" : "hidden" }}><button className="servers-add-button" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button><button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></div>
           </div>
           <div className="section-editor-layout">
             <aside className="saved-sections-sidebar" aria-label="Saved sections">
@@ -311,7 +311,7 @@ export function ServersSettings() {
 {!sections.length && !creatingSection && <p className="servers-empty">No sections yet. Click New section to get started.</p>}
             </aside>
           <form id="section-editor-form" className="server-form" onSubmit={(event) => void saveSection(event)}>
-            {sectionActive && <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>}
+            <label className="section-color-field" style={{ visibility: sectionActive ? "visible" : "hidden" }}><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
             <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${(floorWidth - (floorBounds.right - floorBounds.left) * floorScale) / 2 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables, sections);
