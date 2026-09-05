@@ -13,7 +13,7 @@ export function connectedSectionOutlines(rows: Bounds[], obstacles: Bounds[] = [
       obstacle.left < right && obstacle.right > left &&
       obstacle.top < row.top && obstacle.bottom > previous.bottom,
     );
-    if (group && previous && right > left && row.top >= previous.bottom && !blocked) {
+    if (group && previous && right > left && !blocked) {
       if (row.top > previous.bottom) {
         group.push({ left, right, top: previous.bottom, bottom: row.top });
       }
@@ -22,7 +22,23 @@ export function connectedSectionOutlines(rows: Bounds[], obstacles: Bounds[] = [
       groups.push([row]);
     }
   }
-  return groups.map((bands) => [
+  return groups.map((group) => {
+    // Padded rows can overlap vertically. Sweep their edges to trace the union,
+    // rather than drawing each overlapping rectangle as a separate outline.
+    const edges = [...new Set(group.flatMap((band) => [band.top, band.bottom]))].sort((a, b) => a - b);
+    const bands: Bounds[] = [];
+    for (let index = 0; index < edges.length - 1; index++) {
+      const top = edges[index];
+      const bottom = edges[index + 1];
+      const active = group.filter((band) => band.top < bottom && band.bottom > top);
+      if (!active.length) continue;
+      bands.push({
+        top, bottom,
+        left: Math.min(...active.map((band) => band.left)),
+        right: Math.max(...active.map((band) => band.right)),
+      });
+    }
+    return [
     ...bands.flatMap((band) => [
       { x: band.right, y: band.top },
       { x: band.right, y: band.bottom },
@@ -31,5 +47,6 @@ export function connectedSectionOutlines(rows: Bounds[], obstacles: Bounds[] = [
       { x: band.left, y: band.bottom },
       { x: band.left, y: band.top },
     ]),
-  ]);
+    ];
+  });
 }
