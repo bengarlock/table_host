@@ -1816,7 +1816,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       const updated = payload as ServerAssignment;
       setData((current) => current ? {
         ...current,
-        servers: current.servers.map((item) => item.id === updated.id ? updated : item),
+        servers: current.servers.map((item) => item.id === updated.id
+          ? updated
+          : {
+              ...item,
+              table_ids: item.table_ids.filter((tableId) => !updated.table_ids.includes(tableId)),
+            }),
       } : current);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update this server's tables.");
@@ -2741,7 +2746,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     {selectedServer && <span className="floor-server-chip" style={{ "--server-color": selectedServer.color } as CSSProperties}>{selectedServer.name}</span>}
                   </summary>
                   <div className="floor-servers-menu-options" aria-label="Servers assigned to this shift">
-                    <p>{data?.servers.length ? "Choose a server, then click one or more tables to assign them." : "Assign servers to this shift in Settings first."}</p>
+                    <p>{data?.servers.length ? "Choose a server, then click tables to assign them. Click that server's table again to remove it; choose another server to switch it." : "Assign servers to this shift in Settings first."}</p>
                     {data?.servers.map((server) => <button key={server.id} type="button" className={selectedServerId === server.id ? "selected" : ""} onClick={() => setSelectedServerId((current) => current === server.id ? null : server.id)}><i style={{ backgroundColor: server.color }} aria-hidden="true" />{server.name}<span>{selectedServerId === server.id ? "Assigning" : "Assign"}</span></button>)}
                     {selectedServer && data?.sections.length ? <fieldset><legend>Or assign whole sections to {selectedServer.name}</legend>{data.sections.map((section) => <label key={section.id}><input type="checkbox" checked={selectedServer.section_ids.includes(section.id)} disabled={saving} onChange={() => toggleServerSection(section.id)} /> {section.name}</label>)}</fieldset> : null}
                   </div>

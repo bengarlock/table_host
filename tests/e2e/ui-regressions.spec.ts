@@ -284,6 +284,62 @@ test("reservation grid date controls do not overlap shift buttons", async ({ pag
   }
 });
 
+test("Floor server tables can be unassigned and switched", async ({ page }) => {
+  const servers = [
+    { id: 1, name: "Jordan", color: "#3C8FA8", table_ids: [1], section_ids: [] },
+    { id: 2, name: "Kelly", color: "#D95763", table_ids: [], section_ids: [] },
+  ];
+  const savedAssignments: Array<{ serverId: number; tableIds: number[] }> = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, sections: [], servers },
+  }));
+  await page.route("**/api/settings/servers/*/assignments/*", async (route) => {
+    const serverId = Number(route.request().url().match(/servers\/(\d+)\/assignments/)?.[1]);
+    const update = route.request().postDataJSON() as { table_ids: number[]; section_ids: number[] };
+    const selected = servers.find((server) => server.id === serverId)!;
+    selected.table_ids = update.table_ids;
+    selected.section_ids = update.section_ids;
+    servers.forEach((server) => {
+      if (server.id !== serverId) {
+        server.table_ids = server.table_ids.filter((tableId) => !update.table_ids.includes(tableId));
+      }
+    });
+    savedAssignments.push({ serverId, tableIds: update.table_ids });
+    await route.fulfill({ json: selected });
+  });
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Servers" }).click();
+  await page.getByRole("button", { name: /Jordan/ }).click();
+  await page.locator('[data-floor-table-id="1"]').click();
+  await expect.poll(() => savedAssignments).toEqual([{ serverId: 1, tableIds: [] }]);
+
+  await page.locator('[data-floor-table-id="1"]').click();
+  await expect.poll(() => savedAssignments).toEqual([
+    { serverId: 1, tableIds: [] },
+    { serverId: 1, tableIds: [1] },
+  ]);
+
+  await page.getByRole("button", { name: "Servers" }).click();
+  await page.getByRole("button", { name: /Kelly/ }).click();
+  await page.locator('[data-floor-table-id="1"]').click();
+  await expect.poll(() => savedAssignments).toEqual([
+    { serverId: 1, tableIds: [] },
+    { serverId: 1, tableIds: [1] },
+    { serverId: 2, tableIds: [1] },
+  ]);
+
+  await page.getByRole("button", { name: "Servers" }).click();
+  await page.getByRole("button", { name: /Jordan/ }).click();
+  await page.locator('[data-floor-table-id="1"]').click();
+  await expect.poll(() => savedAssignments).toEqual([
+    { serverId: 1, tableIds: [] },
+    { serverId: 1, tableIds: [1] },
+    { serverId: 2, tableIds: [1] },
+    { serverId: 1, tableIds: [1] },
+  ]);
+});
+
 for (const futureDate of [true, false]) {
   test(`reservation seating is ${futureDate ? "blocked for future dates" : "available today"}`, async ({ page }) => {
     // The server's restaurant date is authoritative, even when the browser is ahead.
