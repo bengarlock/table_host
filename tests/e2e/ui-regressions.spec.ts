@@ -299,6 +299,25 @@ async function mockAvailability(page: Page) {
   });
 }
 
+test("grid date controls stay compact and centered", async ({ page }) => {
+  await mockGrid(page);
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+
+  const [toolbarBounds, dateBounds, nextBounds, nowBounds] = await Promise.all([
+    page.locator(".grid-toolbar").boundingBox(),
+    page.locator(".grid-toolbar > .date-control").boundingBox(),
+    page.getByRole("button", { name: "Next day" }).boundingBox(),
+    page.getByRole("button", { name: "Return to current day and shift" }).boundingBox(),
+  ]);
+  expect(toolbarBounds).not.toBeNull();
+  expect(dateBounds).not.toBeNull();
+  expect(nextBounds).not.toBeNull();
+  expect(nowBounds).not.toBeNull();
+  expect(Math.abs((dateBounds!.x + dateBounds!.width / 2) - (toolbarBounds!.x + toolbarBounds!.width / 2))).toBeLessThan(2);
+  expect(dateBounds!.width).toBeLessThan(360);
+  expect(Math.abs(nowBounds!.x - (nextBounds!.x + nextBounds!.width))).toBeLessThan(2);
+});
+
 test("booking availability is centered around the guest's desired time", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await mockGrid(page);

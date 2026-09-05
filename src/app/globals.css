@@ -753,7 +753,7 @@ textarea {
 .grid-toolbar {
   display: grid;
   flex: 0 0 auto;
-  grid-template-columns: max-content minmax(336px, 1fr) max-content;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   min-height: 64px;
   align-items: center;
   gap: 22px;
@@ -767,7 +767,13 @@ textarea {
   display: flex;
   min-width: 0;
   align-items: center;
+  justify-self: start;
   gap: 10px;
+}
+
+.grid-toolbar > .date-control {
+  width: max-content;
+  justify-self: center;
 }
 
 .shift-tabs {
@@ -834,7 +840,8 @@ textarea {
 
   .grid-toolbar > .date-control {
     grid-area: date-control;
-    width: 100%;
+    width: max-content;
+    justify-self: center;
   }
 
   .service-summary {
@@ -5679,7 +5686,7 @@ textarea {
     align-items: stretch;
   }
 
-  .date-control {
+  .grid-toolbar > .date-control {
     width: 100%;
   }
 
