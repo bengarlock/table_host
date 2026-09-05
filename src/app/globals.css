@@ -3948,6 +3948,15 @@ textarea {
   overflow: hidden;
 }
 
+.floor-page.editing-floor-page {
+  gap: 0;
+  padding: 0;
+}
+
+.floor-page.editing-floor-page .floor-service-layout {
+  margin: 0;
+}
+
 .floor-toolbar {
   display: grid;
   flex: 0 0 auto;
@@ -4438,7 +4447,9 @@ textarea {
 }
 
 .floor-service-layout.editing-floor .floor-plan-panel {
-  overflow-y: auto;
+  gap: 10px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .floor-editor-console {

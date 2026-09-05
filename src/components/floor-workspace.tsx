@@ -1499,8 +1499,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     <div className="app-shell">
       <AppSidebar onNavigateAttempt={allowPageNavigation} />
       <main className="main-content floor-main-content">
-        <div className="floor-page">
-          <header className="floor-toolbar">
+        <div className={`floor-page${editingFloor ? " editing-floor-page" : ""}`}>
+          {!editingFloor && <header className="floor-toolbar">
             <div>
               <p className="floor-kicker">Live service</p>
               <div className="floor-title-row">
@@ -1533,10 +1533,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 <Clock3 aria-hidden="true" />
               </button>
             </div>
-          </header>
+          </header>}
 
           {error && <div className="grid-alert floor-alert" role="alert">{error}</div>}
-          {!liveService && (
+          {!editingFloor && !liveService && (
             <div className="floor-read-only" role="status">
               Viewing another service date. Return to today to seat parties or change table statuses.
             </div>
@@ -1692,7 +1692,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             </aside>
 
             <section className="floor-plan-panel" aria-label="Restaurant floor plan">
-              <div className="floor-plan-heading">
+              {!editingFloor && <div className="floor-plan-heading">
                 <div>
                   <span>Dining room</span>
                   <h2>{data?.restaurant.name || "Floor"}</h2>
@@ -1708,7 +1708,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <PencilRuler aria-hidden="true" /> {editingFloor ? "Editing Floor" : "Edit Floor"}
                   </button>
                 </div>
-              </div>
+              </div>}
 
               {editingFloor && (
                 <section className="floor-editor-console" aria-label="Floor editor console">

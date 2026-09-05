@@ -305,6 +305,22 @@ test("floor changes can be undone and redone", async ({ page }) => {
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
   await page.getByRole("button", { name: "Edit Floor" }).click();
 
+  await expect(page.getByRole("heading", { name: "Floor plan" })).toHaveCount(0);
+  await expect(page.getByLabel("Shift")).toHaveCount(0);
+  await expect(page.getByLabel("Choose service date")).toHaveCount(0);
+  await expect(page.getByText("Dining room", { exact: true })).toHaveCount(0);
+  const [pageBounds, workspaceBounds, pageStyle, panelStyle] = await Promise.all([
+    page.locator(".floor-page").boundingBox(),
+    page.locator(".floor-service-layout").boundingBox(),
+    page.locator(".floor-page").evaluate((element) => getComputedStyle(element).padding),
+    page.locator(".floor-plan-panel").evaluate((element) => getComputedStyle(element).padding),
+  ]);
+  expect(pageBounds).not.toBeNull();
+  expect(workspaceBounds).not.toBeNull();
+  expect(Math.abs(pageBounds!.width - workspaceBounds!.width)).toBeLessThan(2);
+  expect(pageStyle).toBe("0px");
+  expect(panelStyle).toBe("0px");
+
   const undo = page.getByRole("button", { name: "Undo last floor change" });
   const redo = page.getByRole("button", { name: "Redo last floor change" });
   await expect(undo).toBeDisabled();
