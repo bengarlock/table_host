@@ -324,7 +324,7 @@ test("booking availability is centered around the guest's desired time", async (
   });
 
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
 
   const desiredTimes = page.getByLabel("Desired reservation times");
   await expect(desiredTimes.locator("button strong")).toHaveText([
@@ -346,7 +346,6 @@ test("booking availability is centered around the guest's desired time", async (
     "6:45 PM", "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM",
   ]);
   await expect(desiredTimes.getByRole("button", { name: "7:30 PM", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   await page.getByRole("button", { name: "4", exact: true }).click();
   await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
 
@@ -674,9 +673,8 @@ test("booking restores time selection before optional table assignment", async (
   }));
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
-  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
-  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
   await expect(manualPartySize).toHaveValue("9");
   const quickSelectBounds = await page.locator(".party-size-picker").boundingBox();
@@ -690,7 +688,7 @@ test("booking restores time selection before optional table assignment", async (
   await expect(manualPartySize).toHaveValue("");
   await expect(manualPartySize).toHaveAttribute("placeholder", "9");
   await manualPartySize.fill("12");
-  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("12 guests");
+  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 12 guests");
   await page.getByRole("button", { name: "4", exact: true }).click();
   await expect(manualPartySize).toHaveValue("12");
   await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
@@ -712,7 +710,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(page.getByRole("heading", { name: "How large is the party?" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
-  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · Tables 1, 2");
+  await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 4 guests · Tables 1, 2");
 
   await page.locator("footer").getByRole("button", { name: "Guest" }).click();
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
@@ -732,9 +730,8 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await mockAvailability(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
-  await page.locator("footer").getByRole("button", { name: "Time" }).click();
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
-  await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   await page.getByRole("spinbutton", { name: "Enter party size" }).fill("200");
 
   await expect(page.getByText("This party exceeds the floor capacity")).toBeVisible();
@@ -744,8 +741,8 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   expect(expectedTurnBounds).not.toBeNull();
   expect(warningBounds).not.toBeNull();
   expect(warningBounds!.y).toBeGreaterThanOrEqual(expectedTurnBounds!.y + expectedTurnBounds!.height);
-  await expect(page.locator(".wizard-progress li").nth(2)).toHaveClass(/capacity-warning/);
-  await expect(page.locator(".wizard-progress li").nth(2)).toHaveCSS("color", "rgb(255, 131, 120)");
+  await expect(page.locator(".wizard-progress li").nth(1)).toHaveClass(/capacity-warning/);
+  await expect(page.locator(".wizard-progress li").nth(1)).toHaveCSS("color", "rgb(255, 131, 120)");
 
   const availabilityButton = page.locator("footer").getByRole("button", { name: "Check availability" });
   await expect(availabilityButton).toHaveClass(/capacity-warning/);
