@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarX2,
+  Ban,
   CircleCheck,
   Clock3,
   LoaderCircle,
@@ -91,6 +92,15 @@ type ReservationActivity = {
   created_at: string;
 };
 
+type TableBlock = {
+  id: number;
+  table_ids: number[];
+  table_names: string[];
+  start_time: string;
+  duration_minutes: number;
+  notes: string;
+};
+
 const WAITING_RESERVATION_STATUSES: Reservation["status"][] = ["booked", "confirmed", "late", "not_confirmed"];
 const ACTIVE_SERVICE_STATUSES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid"];
 
@@ -105,6 +115,7 @@ type GridData = {
   selected_shift: Shift;
   tables: DiningTable[];
   reservations: Reservation[];
+  blocks?: TableBlock[];
   summary: { reservations: number; covers: number; seated: number };
 };
 
@@ -186,6 +197,9 @@ export function ReservationGrid({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [blockNotes, setBlockNotes] = useState("");
+  const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
   const [unlocking, setUnlocking] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -414,6 +428,33 @@ export function ReservationGrid({
     router.push(`/reservations/book?${query}`);
   }
 
+  async function createBlock() {
+    if (!data || !draft) return;
+    setSaving(true);
+    setError("");
+    try {
+      const remainingMinutes = minutes(data.selected_shift.end_time) - minutes(draft.time);
+      const durationMinutes = blockScope === "shift"
+        ? remainingMinutes
+        : Math.min(draft.durationMinutes, remainingMinutes);
+      const response = await fetch(appPath("/api/grid/blocks"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ service_date: serviceDate, shift_slug: data.selected_shift.slug, table_ids: draft.tableIds, start_time: draft.time, duration_minutes: durationMinutes, notes: blockNotes.trim() }),
+      });
+      const payload = await response.json() as TableBlock | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      setData((current) => current ? { ...current, blocks: [...(current.blocks || []), payload as TableBlock] } : current);
+      setBlockDialogOpen(false);
+      setBlockNotes("");
+      clearDraft();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to block these tables.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function updateStatus(status: Reservation["status"]) {
     if (!selected) return;
     if (!serviceStatusAllowed && (status === "seated" || status === "complete")) return;
@@ -620,6 +661,7 @@ export function ReservationGrid({
                   const tableReservations = data.reservations.filter((item) =>
                     (item.table_ids.length ? item.table_ids : [item.table_id]).includes(table.id),
                   );
+                  const tableBlocks = (data.blocks || []).filter((item) => item.table_ids.includes(table.id));
                   const isOriginalTable = draggedReservation?.table_id === table.id;
                   const isSuggested = Boolean(
                     draggedReservation &&
@@ -716,6 +758,13 @@ export function ReservationGrid({
                               </small>
                             </button>
                           );
+                        })}
+                        {tableBlocks.map((block) => {
+                          const offset = (minutes(block.start_time) - minutes(data.selected_shift.start_time)) / SLOT_MINUTES;
+                          const width = (block.duration_minutes / SLOT_MINUTES) * SLOT_WIDTH;
+                          return <div key={`block-${block.id}`} className="table-time-block" style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }} title={block.notes || "Table block"}>
+                            <Ban aria-hidden="true" /><span>Blocked</span>{block.notes && <small>{block.notes}</small>}
+                          </div>;
                         })}
                         {draft?.tableIds.includes(table.id) && (
                           <div
@@ -867,11 +916,29 @@ export function ReservationGrid({
             </div>
             <div className="grid-draft-actions">
               <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
+              <button className="secondary-action" type="button" onClick={() => { setBlockScope("turn"); setBlockDialogOpen(true); }}>Block Tables</button>
               <button className="primary-action" type="button" onClick={continueDraftInBookingFlow}>Book Reservation</button>
             </div>
           </>
         )}
       </section>
+
+      {blockDialogOpen && draft && data && (
+        <div className="reservation-confirmation-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setBlockDialogOpen(false)}>
+          <form className="reservation-confirmation-dialog table-block-dialog" onSubmit={(event) => { event.preventDefault(); void createBlock(); }} aria-labelledby="table-block-title">
+            <button className="reservation-confirmation-close" type="button" onClick={() => setBlockDialogOpen(false)} aria-label="Close table block"><X aria-hidden="true" /></button>
+            <p className="reservation-confirmation-eyebrow">Table block</p>
+            <h2 id="table-block-title">Block {draft.tableNames.length > 1 ? "tables" : "table"} {draft.tableNames.join(" + ")}</h2>
+            <p className="reservation-confirmation-readback">Starting {displayTime(draft.time)} during {data.selected_shift.name}.</p>
+            <fieldset className="table-block-scope"><legend>How long?</legend>
+              <label><input type="radio" name="block-scope" checked={blockScope === "turn"} onChange={() => setBlockScope("turn")} /> Next turn · {formatTurnTime(draft.durationMinutes)}</label>
+              <label><input type="radio" name="block-scope" checked={blockScope === "shift"} onChange={() => setBlockScope("shift")} /> Rest of shift · until {displayTime(data.selected_shift.end_time)}</label>
+            </fieldset>
+            <label className="table-block-notes">Block notes<textarea value={blockNotes} onChange={(event) => setBlockNotes(event.target.value)} maxLength={5000} placeholder="Why are these tables blocked?" /></label>
+            <footer><button className="reservation-confirmation-done" type="submit" disabled={saving}>{saving ? "Blocking…" : "Confirm block"}</button></footer>
+          </form>
+        </div>
+      )}
 
       {confirmedReservation && data && (
         <div

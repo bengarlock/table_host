@@ -168,6 +168,8 @@ type ReservationActivity = {
   created_at: string;
 };
 
+type TableBlock = { id: number; table_ids: number[]; table_names: string[]; start_time: string; duration_minutes: number; notes: string };
+
 type ReservationUpdate = {
   table_id?: number;
   table_ids?: number[];
@@ -226,6 +228,7 @@ type GridData = {
   sections: FloorSection[];
   servers: ServerAssignment[];
   reservations: Reservation[];
+  blocks?: TableBlock[];
   summary: { reservations: number; covers: number; seated: number };
 };
 
@@ -267,6 +270,11 @@ const SERVICE_LIFECYCLE_STATUSES: ServiceStatus[] = SERVICE_STEPS.map((step) => 
 function displayTime(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+}
+
+function minutes(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
 }
 
 function turnProgress(
@@ -678,6 +686,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
   const [selectedTableIds, setSelectedTableIds] = useState<number[]>([]);
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [floorBlockOpen, setFloorBlockOpen] = useState(false);
+  const [floorBlockTableIds, setFloorBlockTableIds] = useState<number[]>([]);
+  const [floorBlockStartTime, setFloorBlockStartTime] = useState("");
+  const [floorBlockScope, setFloorBlockScope] = useState<"turn" | "shift">("turn");
+  const [floorBlockNotes, setFloorBlockNotes] = useState("");
   const [walkInPartySize, setWalkInPartySize] = useState(2);
   const [walkInCustomPartySize, setWalkInCustomPartySize] = useState("");
   const [walkInDurationMinutes, setWalkInDurationMinutes] = useState(90);
@@ -2000,6 +2013,32 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setWalkInOpen(false);
   }
 
+  function openFloorBlock(tableId?: number) {
+    setFloorBlockTableIds(tableId ? [tableId] : []);
+    setFloorBlockStartTime(data?.selected_shift.start_time || "");
+    setFloorBlockScope("turn");
+    setFloorBlockNotes("");
+    setFloorBlockOpen(true);
+  }
+
+  async function createFloorBlock(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!data || !floorBlockTableIds.length || !floorBlockStartTime) return;
+    setSaving(true);
+    setError("");
+    try {
+      const remaining = minutes(data.selected_shift.end_time) - minutes(floorBlockStartTime);
+      const duration = floorBlockScope === "shift" ? remaining : Math.min(data.selected_shift.default_turn_minutes, remaining);
+      const response = await fetch(appPath("/api/grid/blocks"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ service_date: serviceDate, shift_slug: data.selected_shift.slug, table_ids: floorBlockTableIds, start_time: floorBlockStartTime, duration_minutes: duration, notes: floorBlockNotes.trim() }) });
+      const payload = await response.json() as TableBlock | Record<string, unknown>;
+      if (!response.ok) throw new Error(readError(payload));
+      setData((current) => current ? { ...current, blocks: [...(current.blocks || []), payload as TableBlock] } : current);
+      setFloorBlockOpen(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to block these tables.");
+    } finally { setSaving(false); }
+  }
+
   async function seatOrFinish() {
     if (!seatingMode) {
       if (!selectedPending) return;
@@ -2252,6 +2291,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 >
                   Walk In
                 </button>
+                <button type="button" onClick={() => openFloorBlock()} disabled={saving || !data?.booking_allowed || Boolean(seatingMode)}>Block Tables</button>
                 {seatingMode && (
                   <button type="button" className="floor-cancel-seating" onClick={cancelSeating}>
                     Cancel
@@ -2605,6 +2645,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           }
                         } else if (reservation) {
                           openTableStatus(event, reservation, table);
+                        } else {
+                          openFloorBlock(table.id);
                         }
                       }}
                       onPointerDown={(event) => beginTableMove(event, table.id)}
@@ -3082,6 +3124,20 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 >
                   Continue to tables
                 </button>
+              </form>
+            </div>
+          )}
+          {floorBlockOpen && data && (
+            <div className="floor-dialog-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setFloorBlockOpen(false)}>
+              <form className="floor-dialog" onSubmit={createFloorBlock} aria-labelledby="floor-block-title">
+                <button type="button" className="floor-dialog-close" onClick={() => setFloorBlockOpen(false)} aria-label="Close table block"><X aria-hidden="true" /></button>
+                <h2 id="floor-block-title">Block tables</h2>
+                <p>Select one or more tables. Blocks never create a guest record.</p>
+                <label>Start time<input type="time" step={900} min={data.selected_shift.start_time} max={data.selected_shift.end_time} value={floorBlockStartTime} onChange={(event) => setFloorBlockStartTime(event.target.value)} required /></label>
+                <fieldset className="table-block-scope"><legend>Duration</legend><label><input type="radio" checked={floorBlockScope === "turn"} onChange={() => setFloorBlockScope("turn")} /> Next turn · {formatTurnTime(data.selected_shift.default_turn_minutes)}</label><label><input type="radio" checked={floorBlockScope === "shift"} onChange={() => setFloorBlockScope("shift")} /> Rest of shift</label></fieldset>
+                <fieldset className="floor-block-tables"><legend>Tables</legend>{data.tables.map((table) => <label key={table.id}><input type="checkbox" checked={floorBlockTableIds.includes(table.id)} onChange={() => setFloorBlockTableIds((current) => current.includes(table.id) ? current.filter((id) => id !== table.id) : [...current, table.id])} /> Table {table.name}</label>)}</fieldset>
+                <label>Block notes<textarea value={floorBlockNotes} onChange={(event) => setFloorBlockNotes(event.target.value)} maxLength={5000} placeholder="Why are these tables blocked?" /></label>
+                <button className="floor-dialog-submit" type="submit" disabled={saving || !floorBlockTableIds.length}>{saving ? "Blocking…" : "Confirm block"}</button>
               </form>
             </div>
           )}
