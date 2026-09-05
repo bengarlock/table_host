@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { PhoneInput } from "@/components/phone-input";
 import {
   ReservationFloorTable,
@@ -108,6 +109,10 @@ type NewGuest = {
 
 type NewGuestFocus = "firstName" | "lastName" | "phone";
 type CarouselSlideDirection = "earlier" | "later";
+type CarouselName = "desired" | "availability";
+type PendingCarouselSelection =
+  | { carousel: "desired"; time: string }
+  | { carousel: "availability"; option: AvailabilityOption };
 
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
@@ -237,7 +242,10 @@ export function BookingWizard({
   const [availabilityWindowStart, setAvailabilityWindowStart] = useState(0);
   const [desiredTimeSlide, setDesiredTimeSlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
   const [availabilitySlide, setAvailabilitySlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
+  const [carouselDrag, setCarouselDrag] = useState<{ carousel: CarouselName; offset: number } | null>(null);
   const availabilityRequestId = useRef(0);
+  const carouselDragStart = useRef<{ carousel: CarouselName; pointerId: number; x: number } | null>(null);
+  const pendingCarouselSelection = useRef<PendingCarouselSelection | null>(null);
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
   const [durationMinutes, setDurationMinutes] = useState(initialTurnTime);
@@ -505,6 +513,50 @@ export function BookingWizard({
     if (next === availabilityWindowStart) return;
     setAvailabilityWindowStart(next);
     setAvailabilitySlide((slide) => ({ direction, sequence: (slide?.sequence || 0) + 1 }));
+  }
+
+  function startCarouselDrag(carousel: CarouselName, event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    carouselDragStart.current = { carousel, pointerId: event.pointerId, x: event.clientX };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setCarouselDrag({ carousel, offset: 0 });
+  }
+
+  function updateCarouselDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = carouselDragStart.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setCarouselDrag({
+      carousel: drag.carousel,
+      offset: Math.max(-56, Math.min(56, event.clientX - drag.x)),
+    });
+  }
+
+  function finishCarouselDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = carouselDragStart.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const offset = event.clientX - drag.x;
+    const pendingSelection = pendingCarouselSelection.current;
+    carouselDragStart.current = null;
+    pendingCarouselSelection.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setCarouselDrag(null);
+    if (Math.abs(offset) < 24 && pendingSelection?.carousel === drag.carousel) {
+      if (pendingSelection.carousel === "desired") chooseDesiredTime(pendingSelection.time);
+      else chooseTime(pendingSelection.option);
+      return;
+    }
+    if (Math.abs(offset) < 24) return;
+    const direction: CarouselSlideDirection = offset > 0 ? "earlier" : "later";
+    if (drag.carousel === "desired") moveDesiredTimeWindow(direction);
+    else moveAvailabilityWindow(direction);
+  }
+
+  function cancelCarouselDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = carouselDragStart.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    carouselDragStart.current = null;
+    pendingCarouselSelection.current = null;
+    setCarouselDrag(null);
   }
 
   function selectTimeShift(shift: ShiftChoice) {
@@ -910,8 +962,13 @@ export function BookingWizard({
                   </button>
                   <div
                     key={desiredTimeSlide?.sequence}
-                    className={`time-carousel-track${desiredTimeSlide ? ` time-carousel-slide-${desiredTimeSlide.direction}` : ""}`}
+                    className={`time-carousel-track time-carousel-draggable${desiredTimeSlide ? ` time-carousel-slide-${desiredTimeSlide.direction}` : ""}${carouselDrag?.carousel === "desired" ? " time-carousel-dragging" : ""}`}
                     aria-label="Desired reservation times"
+                    style={carouselDrag?.carousel === "desired" ? { transform: `translateX(${carouselDrag.offset}px)` } : undefined}
+                    onPointerDown={(event) => startCarouselDrag("desired", event)}
+                    onPointerMove={updateCarouselDrag}
+                    onPointerUp={finishCarouselDrag}
+                    onPointerCancel={cancelCarouselDrag}
                   >
                     {visibleDesiredTimes.map((time) => (
                       <button
@@ -919,7 +976,8 @@ export function BookingWizard({
                         key={time}
                         className={time === desiredTime ? "selected" : ""}
                         aria-pressed={time === desiredTime}
-                        onClick={() => chooseDesiredTime(time)}
+                        onPointerDown={() => { pendingCarouselSelection.current = { carousel: "desired", time }; }}
+                        onClick={(event) => { if (event.detail === 0) chooseDesiredTime(time); }}
                       >
                         <strong>{displayTime(time)}</strong>
                       </button>
@@ -975,8 +1033,13 @@ export function BookingWizard({
                       </button>
                       <div
                         key={availabilitySlide?.sequence}
-                        className={`time-carousel-track${availabilitySlide ? ` time-carousel-slide-${availabilitySlide.direction}` : ""}`}
+                        className={`time-carousel-track time-carousel-draggable${availabilitySlide ? ` time-carousel-slide-${availabilitySlide.direction}` : ""}${carouselDrag?.carousel === "availability" ? " time-carousel-dragging" : ""}`}
                         aria-label="Available reservation times"
+                        style={carouselDrag?.carousel === "availability" ? { transform: `translateX(${carouselDrag.offset}px)` } : undefined}
+                        onPointerDown={(event) => startCarouselDrag("availability", event)}
+                        onPointerMove={updateCarouselDrag}
+                        onPointerUp={finishCarouselDrag}
+                        onPointerCancel={cancelCarouselDrag}
                       >
                         {visibleAvailabilityOptions.map((option) => {
                           const optionKey = `${option.shift_slug}-${option.start_time}`;
@@ -994,7 +1057,8 @@ export function BookingWizard({
                               ].filter(Boolean).join(" ")}
                               aria-pressed={selected}
                               aria-label={`${displayTime(option.start_time)}, ${option.start_time === desiredTime ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
-                              onClick={() => chooseTime(option)}
+                              onPointerDown={() => { pendingCarouselSelection.current = { carousel: "availability", option }; }}
+                              onClick={(event) => { if (event.detail === 0) chooseTime(option); }}
                             >
                               <strong>{displayTime(option.start_time)}</strong>
                               {!option.available && <span>Unavailable</span>}

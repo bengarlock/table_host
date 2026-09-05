@@ -2569,6 +2569,18 @@ textarea {
   background: var(--line);
 }
 
+.time-carousel-draggable {
+  cursor: grab;
+  touch-action: pan-y;
+  transition: transform 160ms ease-out;
+  user-select: none;
+}
+
+.time-carousel-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
 .time-carousel button {
   font: inherit;
 }

@@ -333,12 +333,19 @@ test("booking availability is centered around the guest's desired time", async (
   const availableTimes = page.getByLabel("Available reservation times");
   await expect(availableTimes).toHaveCount(1);
   await expect(availableTimes.locator(".time-carousel-placeholder")).toHaveCount(5);
+  await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
 
-  await page.getByRole("button", { name: "Show earlier desired times" }).click();
+  const desiredTimeBounds = await desiredTimes.boundingBox();
+  expect(desiredTimeBounds).not.toBeNull();
+  await page.mouse.move(desiredTimeBounds!.x + desiredTimeBounds!.width * 0.3, desiredTimeBounds!.y + desiredTimeBounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(desiredTimeBounds!.x + desiredTimeBounds!.width * 0.7, desiredTimeBounds!.y + desiredTimeBounds!.height / 2);
+  await page.mouse.up();
+  await page.waitForTimeout(50);
   await expect(desiredTimes.locator("button strong")).toHaveText([
     "6:45 PM", "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM",
   ]);
-  await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
+  await expect(desiredTimes.getByRole("button", { name: "7:30 PM", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.locator("footer").getByRole("button", { name: "Party size" }).click();
   await page.getByRole("button", { name: "4", exact: true }).click();
   await page.locator("footer").getByRole("button", { name: "Check availability" }).click();
