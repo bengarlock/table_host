@@ -51,6 +51,19 @@ const gridPayload = {
   summary: { reservations: 0, covers: 0, seated: 0 },
 };
 
+const unexpectedPageErrors = new WeakMap<Page, string[]>();
+
+test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  unexpectedPageErrors.set(page, errors);
+  page.on("pageerror", (error) => errors.push(error.message));
+});
+
+test.afterEach(async ({ page }) => {
+  await page.waitForTimeout(20);
+  expect(unexpectedPageErrors.get(page) || []).toEqual([]);
+});
+
 async function mockGrid(page: Page, delayMs = 0) {
   await page.route("**/api/grid?*", async (route) => {
     if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));

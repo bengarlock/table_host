@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
@@ -121,6 +121,7 @@ type BookingDraft = {
 const SLOT_MINUTES = 15;
 const SLOT_WIDTH = 74;
 const TABLE_COLUMNS_WIDTH = 140;
+const subscribeToHydration = () => () => undefined;
 
 function minutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -170,7 +171,9 @@ export function ReservationGrid({
 }: ReservationGridProps) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
-  const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const [selectedServiceDate, setServiceDate] = useState(initialServiceDate || "");
+  const serviceDate = selectedServiceDate || (hydrated ? todayLocal() : "");
   const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,6 +207,7 @@ export function ReservationGrid({
   }, [shouldSyncServiceUrl]);
 
   const loadGrid = useCallback(async () => {
+    if (!serviceDate) return;
     const requestVersion = ++gridRequestVersion.current;
     setLoading(true);
     setError("");
@@ -326,9 +330,9 @@ export function ReservationGrid({
     () => data?.reservations.find((item) => item.id === draggedReservationId) || null,
     [data, draggedReservationId],
   );
-  const bookingAllowed = data?.service_date === serviceDate && typeof data.booking_allowed === "boolean"
-    ? data.booking_allowed
-    : serviceDate >= (data?.current_service_date || todayLocal());
+  const bookingAllowed = Boolean(
+    data?.service_date === serviceDate && data.booking_allowed,
+  );
   const serviceStatusAllowed = Boolean(
     data && data.service_date === serviceDate && serviceDate <= data.current_service_date,
   );
@@ -535,11 +539,11 @@ export function ReservationGrid({
           </div>
         </div>
         <div className="date-control" aria-label="Choose service date">
-          <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
+          <button type="button" disabled={!serviceDate} onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
             <ChevronLeft aria-hidden="true" />
           </button>
           <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
-          <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
+          <button type="button" disabled={!serviceDate} onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
             <ChevronRight aria-hidden="true" />
           </button>
           <button
@@ -561,7 +565,7 @@ export function ReservationGrid({
 
       {error && <div className="grid-alert" role="alert">{error}</div>}
 
-      {!bookingAllowed && (
+      {data && !bookingAllowed && (
         <div className="grid-read-only-notice" role="status">
           <CalendarX2 aria-hidden="true" />
           <span><strong>Past service · view only</strong> New reservations cannot be added to a previous day.</span>

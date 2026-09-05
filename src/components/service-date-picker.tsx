@@ -59,10 +59,26 @@ export function ServiceDatePicker({
   minDate,
 }: ServiceDatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value));
+  const [visibleMonth, setVisibleMonth] = useState(() => parseDate(value || "1970-01-01"));
   const shellRef = useRef<HTMLDivElement>(null);
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const today = hydrated ? todayLocal() : "";
+
+  if (!value) {
+    return (
+      <div className={`date-picker-shell${inline ? " date-picker-inline" : ""}`}>
+        <button
+          type="button"
+          className="date-picker-trigger"
+          disabled
+          aria-label={`Loading ${fieldLabel.toLowerCase()}`}
+        >
+          <CalendarDays aria-hidden="true" />
+          <span>Loading date…</span>
+        </button>
+      </div>
+    );
+  }
 
   function toggleCalendar() {
     if (!open) setVisibleMonth(parseDate(value));

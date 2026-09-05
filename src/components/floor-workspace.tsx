@@ -492,7 +492,9 @@ function polishedAxisCenters(
 }
 
 export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWorkspaceProps) {
-  const [serviceDate, setServiceDate] = useState(initialServiceDate || todayLocal);
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
+  const [selectedServiceDate, setServiceDate] = useState(initialServiceDate || "");
+  const serviceDate = selectedServiceDate || (hydrated ? todayLocal() : "");
   const [shiftSlug, setShiftSlug] = useState(initialServiceDate ? initialShiftSlug || "" : "");
   const [data, setData] = useState<GridData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -545,6 +547,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const suppressEditorClickRef = useRef(false);
 
   const loadFloor = useCallback(async (signal?: AbortSignal) => {
+    if (!serviceDate) return;
     const requestId = ++floorLoadRequestRef.current;
     setLoading(true);
     setError("");
@@ -718,7 +721,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     ? [...RESERVATION_STATUS_OPTIONS, ...SERVICE_STEPS].find((option) => option.value === reservationEditDraft.status)
     : null;
   const FocusedStatusIcon = focusedStatusOption?.icon;
-  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const liveService = hydrated && serviceDate === data?.current_service_date;
   const displayedTables = editingFloor ? editedTables : data?.tables || [];
   const editorSelectedTables = useMemo(
@@ -1707,11 +1709,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
               </div>
             </div>
             <div className="date-control" aria-label="Choose service date">
-              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
+              <button type="button" disabled={!serviceDate} onClick={() => chooseDate(moveServiceDate(serviceDate, -1))} aria-label="Previous day">
                 <ChevronLeft aria-hidden="true" />
               </button>
               <ServiceDatePicker value={serviceDate} onChange={chooseDate} />
-              <button type="button" onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
+              <button type="button" disabled={!serviceDate} onClick={() => chooseDate(moveServiceDate(serviceDate, 1))} aria-label="Next day">
                 <ChevronRight aria-hidden="true" />
               </button>
               <button className="now-button" type="button" onClick={jumpToNow} aria-label="Go to the closest service now">
@@ -1722,7 +1724,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           </header>}
 
           {error && <div className="grid-alert floor-alert" role="alert">{error}</div>}
-          {!editingFloor && !liveService && (
+          {!editingFloor && data && !liveService && (
             <div className="floor-read-only" role="status">
               Viewing another service date. Return to today to seat parties or change table statuses.
             </div>
