@@ -59,6 +59,7 @@ import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
 import { appPath } from "@/lib/app-paths";
 import { connectedSectionOutlines } from "@/lib/section-outline";
+import { tableLabelPresentation } from "@/lib/table-label";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import { formatTurnTime } from "@/lib/turn-time";
 import {
@@ -2248,6 +2249,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
                   const available = !reservation;
+                  const label = tableLabelPresentation(table.width, table.height, floorStageMetrics.scale, table.name);
                   const editorSelected = editorSelectedTableIds.includes(table.id);
                   const duplicateTableNumber = editingFloor && duplicateTableNumberIds.has(table.id);
                   const missingTableNumber = editingFloor && missingTableNumberIds.has(table.id);
@@ -2306,15 +2308,13 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ))}
                       <span className="floor-table-surface" aria-hidden="true" />
                       <span
-                        className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}
-                        style={Math.min(table.width, table.height) < 64 ? {
-                          fontSize: `${Math.min(18, Math.min(table.width, table.height) * 0.65 / Math.max(2, table.name.length))}px`,
-                        } : undefined}
+                        className={`floor-table-label floor-table-label-${label.density}`}
+                        style={{ "--table-number-size": `${label.numberSize}px` } as CSSProperties}
                       >
                         <strong>{table.name}</strong>
                         {reservation ? (
                           <>
-                            <small>{reservation.guest_name}</small>
+                            <small className="floor-table-guest">{reservation.guest_name}</small>
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (

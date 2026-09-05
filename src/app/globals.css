@@ -5875,6 +5875,23 @@ textarea {
   display: none;
 }
 
+.floor-table-label.floor-table-label-reduced,
+.floor-table-label.floor-table-label-numbers {
+  inset: 3px;
+}
+
+.floor-table-label-reduced strong,
+.floor-table-label-numbers strong {
+  font-size: var(--table-number-size);
+}
+
+.floor-table-label-reduced small:not(.floor-table-guest),
+.floor-table-label-reduced em,
+.floor-table-label-numbers small,
+.floor-table-label-numbers em {
+  display: none;
+}
+
 .chair {
   position: absolute;
   z-index: 1;

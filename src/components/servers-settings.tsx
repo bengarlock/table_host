@@ -4,6 +4,7 @@ import { Check, LoaderCircle, Pencil, Plus, Trash2, UsersRound, X } from "lucide
 import { CSSProperties, FormEvent, useEffect, useRef, useState } from "react";
 import { appPath } from "@/lib/app-paths";
 import { connectedSectionOutlines } from "@/lib/section-outline";
+import { tableLabelPresentation } from "@/lib/table-label";
 
 type Server = { id: number; name: string; color: string };
 type Section = { id: number; name: string; color: string; table_ids: number[] };
@@ -356,10 +357,11 @@ export function ServersSettings() {
               })}</svg>}
               {tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);
+              const label = tableLabelPresentation(table.width, table.height, floorScale, table.name);
               return <button key={table.id} type="button" className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
                 {chairPositions(table).map((style, index) => <i key={index} className="chair" style={style} aria-hidden="true" />)}
                 <span className="floor-table-surface" aria-hidden="true" />
-                <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
+                <span className={`floor-table-label floor-table-label-${label.density}`} style={{ "--table-number-size": `${label.numberSize}px` } as CSSProperties}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
             <p className="section-selection-status" role="status">{!sectionActive ? "Choose a saved section or click New section to select tables." : sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Tables are optional. Save now and assign tables later."}</p>
