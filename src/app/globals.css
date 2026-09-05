@@ -6176,7 +6176,14 @@ textarea {
 
 .floor-table.server-assigned .chair { border-color: color-mix(in srgb, var(--server-color) 78%, white); background: var(--server-color); box-shadow: 0 0 0 1px color-mix(in srgb, var(--server-color) 24%, transparent); }
 .floor-table.assigning-server:not(.server-assigned) .chair { border-color: color-mix(in srgb, var(--server-color, var(--accent)) 46%, #586058); }
-.floor-server-controls { display: flex; justify-content: flex-end; margin-top: auto; }
+.floor-server-controls {
+  position: absolute;
+  z-index: 10;
+  right: 38px;
+  bottom: 38px;
+  display: flex;
+  justify-content: flex-end;
+}
 .floor-servers-menu { position: relative; }
 .floor-servers-menu > summary { display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 0 13px; cursor: pointer; border: 1px solid var(--accent-line); border-radius: 9px; background: var(--accent-soft); color: #e5c18a; font-size: 0.63rem; font-weight: 700; list-style: none; }
 .floor-servers-menu > summary::-webkit-details-marker { display: none; }
