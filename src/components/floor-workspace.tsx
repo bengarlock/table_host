@@ -66,6 +66,7 @@ type DiningTable = {
   id: number;
   name: string;
   capacity: number;
+  min_capacity?: number;
   sort_order: number;
   shape: "rectangle" | "round";
   position_x: number;
@@ -700,6 +701,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   );
   const floorHasInvalidTableNumbers = duplicateTableNumberIds.size > 0 || missingTableNumberIds.size > 0;
   const floorHasOverlappingTables = overlappingTableIds.size > 0;
+  const floorHasInvalidCapacity = editedTables.some((table) =>
+    (table.min_capacity ?? 1) < 1 || (table.min_capacity ?? 1) > table.capacity);
   const editorValues = useMemo(() => {
     const first = editorSelectedTables[0];
     if (!first) return null;
@@ -707,6 +710,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       editorSelectedTables.every((table) => table[key] === first[key]) ? first[key] : "";
     return {
       capacity: shared("capacity"),
+      minCapacity: shared("min_capacity") ?? 1,
       shape: shared("shape"),
       width: shared("width"),
       height: shared("height"),
@@ -1239,6 +1243,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   }
 
   async function saveFloorLayout() {
+    if (floorHasInvalidCapacity) {
+      setError("Minimum guests must be between 1 and maximum guests.");
+      return;
+    }
     if (floorHasInvalidTableNumbers) {
       setError("Every table needs a unique table number before the floor can be saved.");
       return;
@@ -1263,6 +1271,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             id: table.id,
             name: table.name.trim(),
             capacity: table.capacity,
+            min_capacity: table.min_capacity ?? 1,
             shape: table.shape,
             position_x: table.position_x,
             position_y: table.position_y,
@@ -1274,6 +1283,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
           creations: editedTables.filter((table) => table.id < 0 && table.is_new).map((table) => ({
             name: table.name,
             capacity: table.capacity,
+            min_capacity: table.min_capacity ?? 1,
             shape: table.shape,
             position_x: table.position_x,
             position_y: table.position_y,
@@ -1286,6 +1296,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
             source_id: table.clone_source_id,
             name: table.name.trim(),
             capacity: table.capacity,
+            min_capacity: table.min_capacity ?? 1,
             shape: table.shape,
             position_x: table.position_x,
             position_y: table.position_y,
@@ -1861,7 +1872,22 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         />
                       </label>
                       <label>
-                        Seats
+                        Min guests
+                        <input
+                          type="number"
+                          min={1}
+                          max={40}
+                          value={editorValues?.minCapacity ?? ""}
+                          placeholder="Mixed"
+                          disabled={!editorValues}
+                          onChange={(event) => {
+                            if (event.target.value) updateEditorSelection({ min_capacity: Number(event.target.value) });
+                          }}
+                          onBlur={(event) => updateEditorSelection({ min_capacity: clamp(Number(event.target.value), 1, 40) })}
+                        />
+                      </label>
+                      <label>
+                        Max guests
                         <input
                           type="number"
                           min={1}
@@ -1933,6 +1959,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     </div>
                   </div>
                   <div className="floor-editor-actions">
+                    {floorHasInvalidCapacity && <small className="floor-editor-validation" role="alert">Minimum guests must be between 1 and maximum guests.</small>}
                     {(floorHasInvalidTableNumbers || floorHasOverlappingTables) && (
                       <small id="floor-table-number-error" className="floor-editor-validation" role="alert">
                         <TriangleAlert aria-hidden="true" />
@@ -1944,7 +1971,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       </small>
                     )}
                     <button type="button" onClick={cancelFloorEditing} disabled={saving}>Cancel</button>
-                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidTableNumbers || floorHasOverlappingTables}>
+                    <button type="button" className="floor-editor-save" onClick={() => void saveFloorLayout()} disabled={saving || floorHasInvalidCapacity || floorHasInvalidTableNumbers || floorHasOverlappingTables}>
                       {saving ? <LoaderCircle className="spin" aria-hidden="true" /> : <Save aria-hidden="true" />}
                       {saving ? "Saving…" : "Save Floor"}
                     </button>
@@ -2047,7 +2074,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             <em>{statusLabel(reservation.status)}</em>
                           </>
                         ) : (
-                          <><small>{table.capacity} seats</small><em>{duplicateTableNumber ? "Duplicate number" : missingTableNumber ? "Number required" : editingFloor ? `${table.rotation}°` : "Available"}</em></>
+                          <><small>{(table.min_capacity ?? 1) > 1 && table.min_capacity !== table.capacity ? `${table.min_capacity}–` : ""}{table.capacity} seats</small><em>{duplicateTableNumber ? "Duplicate number" : missingTableNumber ? "Number required" : editingFloor ? `${table.rotation}°` : "Available"}</em></>
                         )}
                       </span>
                     </button>
