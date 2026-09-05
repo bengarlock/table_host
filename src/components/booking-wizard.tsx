@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Building2,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   LayoutGrid,
   LoaderCircle,
@@ -110,6 +112,7 @@ const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business me
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
 const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_PARTY_SIZE = 32_767;
+const VISIBLE_TIME_COUNT = 5;
 
 function normalizeTurnTime(value: number) {
   return Math.max(60, Math.round(value / 15) * 15);
@@ -132,29 +135,42 @@ function minutesFromTime(time: string) {
   return hour * 60 + minute;
 }
 
-function nearbyAvailabilityOptions(
-  options: AvailabilityOption[],
-  desiredTime: string,
-  limit = 7,
-) {
-  const desiredMinute = minutesFromTime(desiredTime);
-  return [...options]
-    .sort((left, right) => {
-      const leftDifference = minutesFromTime(left.start_time) - desiredMinute;
-      const rightDifference = minutesFromTime(right.start_time) - desiredMinute;
-      return Math.abs(leftDifference) - Math.abs(rightDifference)
-        || Number(leftDifference < 0) - Number(rightDifference < 0)
-        || left.start_time.localeCompare(right.start_time);
-    })
-    .slice(0, limit)
-    .sort((left, right) => left.start_time.localeCompare(right.start_time));
+function timeFromMinutes(minutes: number) {
+  const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
 }
 
-function timeFallsWithinShift(time: string, shift: ShiftChoice) {
-  if (shift.start_time <= shift.end_time) {
-    return time >= shift.start_time && time < shift.end_time;
-  }
-  return time >= shift.start_time || time < shift.end_time;
+function shiftTimeChoices(shift: ShiftChoice | undefined) {
+  if (!shift) return [];
+  const start = minutesFromTime(shift.start_time);
+  let end = minutesFromTime(shift.end_time);
+  if (end <= start) end += 24 * 60;
+  return Array.from(
+    { length: Math.ceil((end - start) / 15) },
+    (_, index) => timeFromMinutes(start + index * 15),
+  );
+}
+
+function centeredWindowStart(times: string[], target: string) {
+  if (!times.length) return 0;
+  const exactIndex = times.indexOf(target);
+  const targetMinute = minutesFromTime(target);
+  const targetIndex = exactIndex >= 0 ? exactIndex : times.reduce((closestIndex, time, index) => (
+    Math.abs(minutesFromTime(time) - targetMinute)
+      < Math.abs(minutesFromTime(times[closestIndex]) - targetMinute)
+      ? index
+      : closestIndex
+  ), 0);
+  return Math.max(0, Math.min(
+    targetIndex - Math.floor(VISIBLE_TIME_COUNT / 2),
+    Math.max(0, times.length - VISIBLE_TIME_COUNT),
+  ));
+}
+
+function availabilityOptionsForShift(options: AvailabilityOption[], shiftSlug: string) {
+  return options
+    .filter((option) => option.shift_slug === shiftSlug)
+    .sort((left, right) => left.start_time.localeCompare(right.start_time));
 }
 
 function displayDateSummary(value: string) {
@@ -207,7 +223,6 @@ export function BookingWizard({
 }: BookingWizardProps) {
   const minimumBookingDate = todayLocal();
   const initialTurnTime = normalizeTurnTime(initialDuration);
-  const initialShift = shifts.find((shift) => shift.slug === initialShiftSlug) || shifts[0];
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [serviceDate, setServiceDate] = useState(
@@ -216,7 +231,9 @@ export function BookingWizard({
   const [selectedShiftSlug, setSelectedShiftSlug] = useState(
     initialShiftSlug || shifts[0]?.slug || "",
   );
-  const [desiredTime, setDesiredTime] = useState(initialShift?.start_time || "18:00");
+  const [desiredTime, setDesiredTime] = useState("");
+  const [desiredTimeWindowStart, setDesiredTimeWindowStart] = useState(0);
+  const [availabilityWindowStart, setAvailabilityWindowStart] = useState(0);
   const availabilityRequestId = useRef(0);
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
@@ -255,6 +272,16 @@ export function BookingWizard({
   const assignedTablesSummary = formatAssignedTables(
     assignmentGrid?.tables || [],
     selectedTableIds,
+  );
+  const selectedShift = shifts.find((shift) => shift.slug === selectedShiftSlug) || shifts[0];
+  const desiredTimeChoices = shiftTimeChoices(selectedShift);
+  const visibleDesiredTimes = desiredTimeChoices.slice(
+    desiredTimeWindowStart,
+    desiredTimeWindowStart + VISIBLE_TIME_COUNT,
+  );
+  const visibleAvailabilityOptions = options.slice(
+    availabilityWindowStart,
+    availabilityWindowStart + VISIBLE_TIME_COUNT,
   );
 
   useEffect(() => {
@@ -323,6 +350,7 @@ export function BookingWizard({
 
   function invalidateTimeSelection() {
     setOptions([]);
+    setAvailabilityWindowStart(0);
     setSelectedOption(null);
     setSelectedTableIds([]);
     setAssignmentDraftTableIds([]);
@@ -361,11 +389,9 @@ export function BookingWizard({
       if (!availabilityResponse.ok) throw new Error(readError(availabilityPayload));
       if (!gridResponse.ok) throw new Error(readError(gridPayload));
 
-      const shiftOptions = nearbyAvailabilityOptions(
-        (availabilityPayload as AvailabilityResponse).options.filter(
-          (option) => option.shift_slug === shift.slug,
-        ),
-        desiredTime || shift.start_time,
+      const shiftOptions = availabilityOptionsForShift(
+        (availabilityPayload as AvailabilityResponse).options,
+        shift.slug,
       );
       const preservedOption = preserveSelection && selectedOption?.shift_slug === shift.slug
         ? shiftOptions.find((option) => option.start_time === selectedOption.start_time)
@@ -432,14 +458,16 @@ export function BookingWizard({
       });
       const payload = (await response.json()) as AvailabilityResponse | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      const shiftOptions = nearbyAvailabilityOptions(
-        (payload as AvailabilityResponse).options.filter(
-          (option) => option.shift_slug === shift.slug,
-        ),
-        requestedTime,
+      const shiftOptions = availabilityOptionsForShift(
+        (payload as AvailabilityResponse).options,
+        shift.slug,
       );
       if (requestId !== availabilityRequestId.current) return;
       setOptions(shiftOptions);
+      setAvailabilityWindowStart(centeredWindowStart(
+        shiftOptions.map((option) => option.start_time),
+        requestedTime,
+      ));
       advanceTo(3);
     } catch (reason) {
       if (requestId !== availabilityRequestId.current) return;
@@ -449,12 +477,28 @@ export function BookingWizard({
     }
   }
 
-  function updateDesiredTime(value: string) {
+  function chooseDesiredTime(value: string) {
     setDesiredTime(value);
     invalidateTimeSelection();
-    if (!value) return;
-    const matchingShift = shifts.find((shift) => timeFallsWithinShift(value, shift));
-    void findTimes(matchingShift?.slug || selectedShiftSlug, value);
+    void findTimes(selectedShiftSlug, value);
+  }
+
+  function selectTimeShift(shift: ShiftChoice) {
+    const timeChoices = shiftTimeChoices(shift);
+    const medianTime = timeChoices[Math.floor(timeChoices.length / 2)] || shift.start_time;
+    setSelectedShiftSlug(shift.slug);
+    setDesiredTime("");
+    setDesiredTimeWindowStart(centeredWindowStart(timeChoices, medianTime));
+    invalidateTimeSelection();
+    advanceTo(3);
+  }
+
+  function openTimeStep() {
+    if (selectedOption && desiredTime) {
+      advanceTo(3);
+      return;
+    }
+    if (selectedShift) selectTimeShift(selectedShift);
   }
 
   function updatePartySize(nextSize: number) {
@@ -809,75 +853,130 @@ export function BookingWizard({
 
           {step === 3 && (
             <div className="wizard-step">
-              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Enter the guest&apos;s desired time to see the closest options, then optionally assign tables.</p></div></div>
+              <div className="wizard-step-heading"><Clock3 aria-hidden="true" /><div><h3>Choose an available time</h3><p>Choose the guest&apos;s desired time to see nearby availability, then optionally assign tables.</p></div></div>
               {partyExceedsFloorCapacity && (
                 <div className="booking-capacity-warning" role="status">
                   <AlertTriangle aria-hidden="true" />
                   <div><strong>Overbooking warning</strong><span>This party has {partySize} guests and the floor has {floorCoverCapacity} covers. Select any time to continue.</span></div>
                 </div>
               )}
-              <div className="simple-time-toolbar">
-                <div className="simple-shift-picker" aria-label="Reservation shift">
-                  {shifts.map((shift) => (
-                    <button
-                      type="button"
-                      key={shift.id}
-                      className={shift.slug === selectedShiftSlug ? "selected" : ""}
-                      aria-pressed={shift.slug === selectedShiftSlug}
-                      onClick={() => void findTimes(
-                        shift.slug,
-                        timeFallsWithinShift(desiredTime, shift) ? desiredTime : shift.start_time,
-                      )}
-                      disabled={assignmentLoading}
-                    >
-                      {shift.name}
-                    </button>
-                  ))}
-                </div>
-                <label htmlFor="desired-reservation-time">
-                  Desired time
-                  <input
-                    id="desired-reservation-time"
-                    type="time"
-                    step={900}
-                    value={desiredTime}
-                    onChange={(event) => updateDesiredTime(event.currentTarget.value)}
-                  />
-                </label>
+              <div className="simple-shift-picker" aria-label="Reservation shift">
+                {shifts.map((shift) => (
+                  <button
+                    type="button"
+                    key={shift.id}
+                    className={shift.slug === selectedShiftSlug ? "selected" : ""}
+                    aria-pressed={shift.slug === selectedShiftSlug}
+                    onClick={() => selectTimeShift(shift)}
+                    disabled={assignmentLoading}
+                  >
+                    {shift.name}
+                  </button>
+                ))}
               </div>
-              {options.length ? (
-                <div className="simple-time-grid" aria-label="Nearby reservation times">
-                  {options.map((option) => {
-                    const optionKey = `${option.shift_slug}-${option.start_time}`;
-                    const selected = selectedOption?.shift_slug === option.shift_slug
-                      && selectedOption.start_time === option.start_time;
-                    const requested = option.start_time === desiredTime;
-                    return (
+              <section className="time-choice-section" aria-labelledby="desired-time-heading">
+                <header>
+                  <strong id="desired-time-heading">Desired time</strong>
+                  <span>{selectedShift?.name}</span>
+                </header>
+                <div className="time-carousel">
+                  <button
+                    type="button"
+                    className="time-carousel-arrow"
+                    aria-label="Show earlier desired times"
+                    onClick={() => setDesiredTimeWindowStart((current) => Math.max(0, current - 1))}
+                    disabled={desiredTimeWindowStart === 0}
+                  >
+                    <ChevronLeft aria-hidden="true" />
+                  </button>
+                  <div className="time-carousel-track" aria-label="Desired reservation times">
+                    {visibleDesiredTimes.map((time) => (
                       <button
                         type="button"
-                        key={optionKey}
-                        className={[
-                          option.available ? "" : "is-unavailable",
-                          requested ? "requested-time" : "",
-                          selected ? "selected" : "",
-                          selected && !option.available ? "confirm-overbook" : "",
-                        ].filter(Boolean).join(" ")}
-                        aria-pressed={selected}
-                        aria-label={`${displayTime(option.start_time)}, ${requested ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
-                        onClick={() => chooseTime(option)}
+                        key={time}
+                        className={time === desiredTime ? "selected" : ""}
+                        aria-pressed={time === desiredTime}
+                        onClick={() => chooseDesiredTime(time)}
                       >
-                        <strong>{displayTime(option.start_time)}</strong>
-                        {(requested || !option.available) && (
-                          <span>{requested ? "Requested" : "Unavailable"}</span>
-                        )}
+                        <strong>{displayTime(time)}</strong>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="time-carousel-arrow"
+                    aria-label="Show later desired times"
+                    onClick={() => setDesiredTimeWindowStart((current) => Math.min(
+                      Math.max(0, desiredTimeChoices.length - VISIBLE_TIME_COUNT),
+                      current + 1,
+                    ))}
+                    disabled={desiredTimeWindowStart + VISIBLE_TIME_COUNT >= desiredTimeChoices.length}
+                  >
+                    <ChevronRight aria-hidden="true" />
+                  </button>
                 </div>
-              ) : assignmentLoading ? (
-                <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking this shift…</div>
-              ) : (
-                <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
+              </section>
+              {desiredTime && (
+                <section className="time-choice-section" aria-labelledby="available-time-heading">
+                  <header>
+                    <strong id="available-time-heading">Available times</strong>
+                    <span>Near {displayTime(desiredTime)}</span>
+                  </header>
+                  {options.length ? (
+                    <div className="time-carousel">
+                      <button
+                        type="button"
+                        className="time-carousel-arrow"
+                        aria-label="Show earlier available times"
+                        onClick={() => setAvailabilityWindowStart((current) => Math.max(0, current - 1))}
+                        disabled={availabilityWindowStart === 0}
+                      >
+                        <ChevronLeft aria-hidden="true" />
+                      </button>
+                      <div className="time-carousel-track" aria-label="Available reservation times">
+                        {visibleAvailabilityOptions.map((option) => {
+                          const optionKey = `${option.shift_slug}-${option.start_time}`;
+                          const selected = selectedOption?.shift_slug === option.shift_slug
+                            && selectedOption.start_time === option.start_time;
+                          return (
+                            <button
+                              type="button"
+                              key={optionKey}
+                              className={[
+                                option.available ? "" : "is-unavailable",
+                                option.start_time === desiredTime ? "requested-time" : "",
+                                selected ? "selected" : "",
+                                selected && !option.available ? "confirm-overbook" : "",
+                              ].filter(Boolean).join(" ")}
+                              aria-pressed={selected}
+                              aria-label={`${displayTime(option.start_time)}, ${option.start_time === desiredTime ? "requested time, " : ""}${option.available ? `seats up to ${option.table_capacity}` : option.unavailable_reason}`}
+                              onClick={() => chooseTime(option)}
+                            >
+                              <strong>{displayTime(option.start_time)}</strong>
+                              {!option.available && <span>Unavailable</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        className="time-carousel-arrow"
+                        aria-label="Show later available times"
+                        onClick={() => setAvailabilityWindowStart((current) => Math.min(
+                          Math.max(0, options.length - VISIBLE_TIME_COUNT),
+                          current + 1,
+                        ))}
+                        disabled={availabilityWindowStart + VISIBLE_TIME_COUNT >= options.length}
+                      >
+                        <ChevronRight aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : assignmentLoading ? (
+                    <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking nearby times…</div>
+                  ) : (
+                    <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
+                  )}
+                </section>
               )}
               <div className="time-and-tables-selection">
                 <div>
@@ -1042,7 +1141,7 @@ export function BookingWizard({
         <footer className="wizard-footer">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
           {step === 1 && <button type="button" className="wizard-next" onClick={() => advanceTo(2)} disabled={!serviceDate}>Party size <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || !stageIsFilled(2)}>{assignmentLoading ? <LoaderCircle className="spin" aria-hidden="true" /> : null} Time <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={openTimeStep} disabled={!stageIsFilled(2)}>Time <ArrowRight aria-hidden="true" /></button>}
           {step === 3 && <button type="button" className="wizard-next" onClick={() => advanceTo(4)} disabled={!selectedOption}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(5)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 5 && <button type="submit" form="booking-details-form" className="wizard-next" disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}

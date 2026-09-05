@@ -275,6 +275,17 @@ async function mockAvailability(page: Page) {
             service_date: serviceDate,
             shift_slug: shift.slug,
             shift_name: shift.name,
+            start_time: "19:30",
+            table_id: 2,
+            table_name: "2",
+            table_capacity: 2,
+            available: !exceedsFloorCapacity,
+            unavailable_reason: exceedsFloorCapacity ? "Party exceeds table capacity" : "",
+          },
+          {
+            service_date: serviceDate,
+            shift_slug: shift.slug,
+            shift_name: shift.name,
             start_time: "17:30",
             table_id: 2,
             table_name: "2",
@@ -294,7 +305,7 @@ test("booking availability is centered around the guest's desired time", async (
   await page.route("**/api/grid/availability?*", async (route) => {
     const query = new URL(route.request().url()).searchParams;
     requestedTimes.push(query.get("desired_time") || "");
-    const options = Array.from({ length: 9 }, (_, index) => {
+    const options = Array.from({ length: 20 }, (_, index) => {
       const minutes = 17 * 60 + index * 15;
       const startTime = `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
       return {
@@ -317,17 +328,28 @@ test("booking availability is centered around the guest's desired time", async (
   await page.getByRole("button", { name: "4", exact: true }).click();
   await page.locator("footer").getByRole("button", { name: "Time" }).click();
 
-  const desiredTime = page.getByLabel("Desired time");
-  await expect(desiredTime).toHaveValue("17:00");
-  await desiredTime.fill("18:00");
-
-  await expect.poll(() => requestedTimes.at(-1)).toBe("18:00");
-  await expect(page.getByRole("button", { name: "Show availability" })).toHaveCount(0);
-  await expect(page.locator(".simple-time-grid button")).toHaveCount(7);
-  await expect(page.locator(".simple-time-grid button strong")).toHaveText([
-    "5:15 PM", "5:30 PM", "5:45 PM", "6:00 PM", "6:15 PM", "6:30 PM", "6:45 PM",
+  const desiredTimes = page.getByLabel("Desired reservation times");
+  await expect(desiredTimes.locator("button strong")).toHaveText([
+    "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
-  await expect(page.getByRole("button", { name: "6:00 PM, requested time, seats up to 4" })).toBeVisible();
+  await expect(page.getByLabel("Available reservation times")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Show earlier desired times" }).click();
+  await expect(desiredTimes.locator("button strong")).toHaveText([
+    "6:45 PM", "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM",
+  ]);
+  await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
+
+  await expect.poll(() => requestedTimes.at(-1)).toBe("19:30");
+  const availableTimes = page.getByLabel("Available reservation times");
+  await expect(availableTimes.locator("button strong")).toHaveText([
+    "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
+  ]);
+  await expect(page.getByRole("button", { name: "7:30 PM, requested time, seats up to 4" })).toBeVisible();
+  await page.getByRole("button", { name: "Show later available times" }).click();
+  await expect(availableTimes.locator("button strong")).toHaveText([
+    "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM", "8:15 PM",
+  ]);
 });
 
 test("reservation navigation is not overwritten by a late grid response", async ({ page }) => {
@@ -665,10 +687,11 @@ test("booking restores time selection before optional table assignment", async (
   const assignTables = page.getByRole("button", { name: "Assign Tables" });
   await expect(assignTables).toBeDisabled();
 
-  const selectedTime = page.getByRole("button", { name: /^5:30 PM,/ });
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  const selectedTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await selectedTime.click();
   await expect(selectedTime).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".time-and-tables-selection strong")).toHaveText("5:30 PM");
+  await expect(page.locator(".time-and-tables-selection strong")).toHaveText("7:30 PM");
   await expect(assignTables).toBeEnabled();
   await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
 
@@ -679,7 +702,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
-  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("5:30 PM · Tables 1, 2");
+  await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("7:30 PM · Tables 1, 2");
 
   await page.locator("footer").getByRole("button", { name: "Guest" }).click();
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
@@ -720,8 +743,8 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await timeButton.click();
 
   await expect(page.getByText("Overbooking warning")).toBeVisible();
-  await expect(page.getByText("Party exceeds table capacity").first()).toBeVisible();
-  const unavailableTime = page.getByRole("button", { name: /^5:00 PM,/ });
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  const unavailableTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await expect(unavailableTime).toBeEnabled();
   await unavailableTime.click();
   await expect(unavailableTime).toHaveAttribute("aria-pressed", "true");
