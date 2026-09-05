@@ -738,13 +738,22 @@ test("booking restores time selection before optional table assignment", async (
   await page.locator("footer").getByRole("button", { name: "Details" }).click();
   await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
-  const [reservationNotes, guestNotes] = await Promise.all([
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const [reservationNotes, guestNotes, reservationSection, guestSection] = await Promise.all([
     page.getByLabel("Reservation notes").boundingBox(),
     page.getByLabel("Guest notes").boundingBox(),
+    page.locator(".reservation-detail-section").boundingBox(),
+    page.locator(".guest-detail-section").boundingBox(),
   ]);
   expect(reservationNotes).not.toBeNull();
   expect(guestNotes).not.toBeNull();
+  expect(reservationSection).not.toBeNull();
+  expect(guestSection).not.toBeNull();
   expect(Math.abs(reservationNotes!.y - guestNotes!.y)).toBeLessThan(2);
+  expect(Math.abs(reservationNotes!.height - guestNotes!.height)).toBeLessThan(2);
+  expect(reservationNotes!.height).toBeGreaterThan(120);
+  expect(Math.abs((reservationNotes!.y + reservationNotes!.height) - (reservationSection!.y + reservationSection!.height - 14))).toBeLessThan(2);
+  expect(Math.abs((guestNotes!.y + guestNotes!.height) - (guestSection!.y + guestSection!.height - 14))).toBeLessThan(2);
 });
 
 test("oversized parties warn but can continue to time selection", async ({ page }) => {

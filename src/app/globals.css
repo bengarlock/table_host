@@ -3228,19 +3228,43 @@ textarea {
 
 .booking-detail-sections {
   display: grid;
+  min-height: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
+#booking-details-form {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .booking-detail-section {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
   align-content: stretch;
   gap: 14px;
   padding: 14px;
   border: 1px solid var(--line-strong);
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.012);
+}
+
+.booking-detail-section .wizard-fields,
+.booking-detail-section .wizard-fields label {
+  min-height: 0;
+  height: 100%;
+}
+
+.booking-detail-section .wizard-fields label {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.booking-detail-section .wizard-fields textarea {
+  height: 100%;
+  min-height: 96px;
+  resize: none;
 }
 
 .reservation-detail-section {
@@ -3348,6 +3372,21 @@ textarea {
 @media (max-width: 720px) {
   .booking-detail-sections {
     grid-template-columns: 1fr;
+  }
+
+  #booking-details-form,
+  .booking-detail-section .wizard-fields,
+  .booking-detail-section .wizard-fields label {
+    height: auto;
+  }
+
+  #booking-details-form {
+    grid-template-rows: auto;
+  }
+
+  .booking-detail-section .wizard-fields textarea {
+    min-height: 150px;
+    resize: vertical;
   }
 }
 
