@@ -98,6 +98,7 @@ type DiningTable = {
 type FloorSection = {
   id: number;
   name: string;
+  color: string;
   table_ids: number[];
 };
 
@@ -801,7 +802,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const sectionOverlays = useMemo(
     () => (data?.sections || []).map((section, index) => ({
       section,
-      color: ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5],
+      color: section.color || ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5],
       shape: sectionOverlay(section, displayedTables, floorStageMetrics),
     })).filter((overlay) => overlay.shape),
     [data?.sections, displayedTables, floorStageMetrics],

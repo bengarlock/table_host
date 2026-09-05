@@ -1,11 +1,11 @@
 "use client";
 
-import { Check, LoaderCircle, Plus, Trash2, UsersRound } from "lucide-react";
+import { Check, LoaderCircle, Pencil, Plus, Trash2, UsersRound, X } from "lucide-react";
 import { CSSProperties, FormEvent, useEffect, useState } from "react";
 import { appPath } from "@/lib/app-paths";
 
 type Server = { id: number; name: string; color: string };
-type Section = { id: number; name: string; table_ids: number[] };
+type Section = { id: number; name: string; color: string; table_ids: number[] };
 type Table = {
   id: number;
   name: string;
@@ -21,6 +21,7 @@ type Table = {
 };
 
 const SERVER_COLORS = ["#D95763", "#DB8A35", "#D3AD35", "#5B9C69", "#3C8FA8", "#6475C4", "#9960BC", "#B65A94"];
+const SECTION_COLORS = ["#D9AA62", "#5FA8D3", "#B174B8", "#65A97B", "#D3835E"];
 
 function readError(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
@@ -127,7 +128,9 @@ export function ServersSettings() {
   const [serverName, setServerName] = useState("");
   const [serverColor, setServerColor] = useState(SERVER_COLORS[0]);
   const [sectionName, setSectionName] = useState("");
+  const [sectionColor, setSectionColor] = useState(SECTION_COLORS[0]);
   const [sectionTableIds, setSectionTableIds] = useState<number[]>([]);
+  const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,15 +173,31 @@ export function ServersSettings() {
     finally { setSaving(false); }
   }
 
-  async function addSection(event: FormEvent<HTMLFormElement>) {
+  function clearSectionForm() {
+    setSectionName("");
+    setSectionColor(SECTION_COLORS[0]);
+    setSectionTableIds([]);
+    setEditingSectionId(null);
+  }
+
+  function editSection(section: Section) {
+    setSectionName(section.name);
+    setSectionColor(section.color || SECTION_COLORS[0]);
+    setSectionTableIds(section.table_ids);
+    setEditingSectionId(section.id);
+    setDeleteTarget(null);
+  }
+
+  async function saveSection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!sectionName.trim() || saving) return;
     setSaving(true); setError("");
     try {
-      const section = await request("/api/settings/sections", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: sectionName, table_ids: sectionTableIds }) }) as Section;
-      setSections((current) => [...current, section].sort((a, b) => a.name.localeCompare(b.name)));
-      setSectionName(""); setSectionTableIds([]);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add this section."); }
+      const path = editingSectionId ? `/api/settings/sections/${editingSectionId}` : "/api/settings/sections";
+      const section = await request(path, { method: editingSectionId ? "PATCH" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: sectionName, color: sectionColor, table_ids: sectionTableIds }) }) as Section;
+      setSections((current) => [...current.filter((item) => item.id !== section.id), section].sort((a, b) => a.name.localeCompare(b.name)));
+      clearSectionForm();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to save this section."); }
     finally { setSaving(false); }
   }
 
@@ -221,12 +240,13 @@ export function ServersSettings() {
 
         <article className="servers-card">
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
-          <form className="server-form" onSubmit={(event) => void addSection(event)}>
+          <form className="server-form" onSubmit={(event) => void saveSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
+            <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
             <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables);
-                const color = ["#d9aa62", "#5fa8d3", "#b174b8", "#65a97b", "#d3835e"][index % 5];
+                const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
                 return shape && <g key={section.id} className="floor-section-overlay" style={{ "--section-color": color } as CSSProperties}><path d={shape.path} /><rect x={shape.labelX - 9} y={shape.labelY - 18} width={shape.labelWidth} height="24" rx="12" /><text x={shape.labelX} y={shape.labelY}>{section.name}</text></g>;
               })}</svg>}
               {tables.map((table) => {
@@ -238,9 +258,9 @@ export function ServersSettings() {
               </button>;
               })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
             <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
-            <button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}><Plus aria-hidden="true" /> Save section</button>
+            <div className="section-form-actions"><button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button>{editingSectionId && <button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button>}</div>
           </form>
-          <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></li>)}</ul>
+          <ul className="section-list" aria-label="Floor sections">{sections.map((section) => <li key={section.id}><span className="section-swatch" style={{ backgroundColor: section.color || SECTION_COLORS[0] }} aria-hidden="true" /><div><strong>{section.name}</strong><span>{section.table_ids.length ? `${section.table_ids.length} ${section.table_ids.length === 1 ? "table" : "tables"}` : "No tables selected"}</span></div><div className="section-list-actions"><button type="button" onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button><button type="button" className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>{deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div></li>)}</ul>
           {!sections.length && <p className="servers-empty">No sections yet. Select one or more tables on the floor plan to define one.</p>}
         </article>
       </div>}

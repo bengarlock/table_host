@@ -705,6 +705,61 @@ textarea {
   font-size: 0.66rem;
 }
 
+.section-color-field {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-color-field > span {
+  width: 100%;
+}
+
+.section-color-field input[type="color"] {
+  width: 42px;
+  height: 30px;
+  flex: 0 0 42px;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--canvas);
+  cursor: pointer;
+}
+
+.section-color-field output {
+  min-width: 58px;
+  color: var(--section-color);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.section-form-actions,
+.section-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-cancel-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+}
+
+.section-cancel-button svg,
+.section-list-actions svg {
+  width: 14px;
+  height: 14px;
+}
+
 .servers-add-button {
   display: inline-flex;
   width: max-content;
@@ -776,6 +831,21 @@ textarea {
   cursor: pointer;
   font: inherit;
   font-size: 0.64rem;
+}
+
+.section-list-actions {
+  margin-left: auto;
+}
+
+.section-list-actions button {
+  margin-left: 0;
+}
+
+.section-swatch {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 3px;
 }
 
 .server-list button.confirming,
