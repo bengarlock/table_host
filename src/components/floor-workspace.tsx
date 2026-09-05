@@ -339,12 +339,21 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
   });
   const hull = convexHull(points);
   if (hull.length < 3) return null;
-  const midpoint = (first: Point, second: Point) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
-  const start = midpoint(hull.at(-1)!, hull[0]);
-  const path = hull.reduce((result, point, index) => {
-    const next = midpoint(point, hull[(index + 1) % hull.length]);
-    return `${result} Q ${point.x} ${point.y} ${next.x} ${next.y}`;
-  }, `M ${start.x} ${start.y}`) + " Z";
+  const distance = (first: Point, second: Point) => Math.hypot(second.x - first.x, second.y - first.y);
+  const toward = (from: Point, to: Point, amount: number) => {
+    const length = distance(from, to);
+    return { x: from.x + (to.x - from.x) * amount / length, y: from.y + (to.y - from.y) * amount / length };
+  };
+  const corners = hull.map((point, index) => {
+    const previous = hull[(index - 1 + hull.length) % hull.length];
+    const next = hull[(index + 1) % hull.length];
+    const radius = Math.min(28, distance(point, previous) / 4, distance(point, next) / 4);
+    return { point, entry: toward(point, previous, radius), exit: toward(point, next, radius) };
+  });
+  const path = corners.reduce(
+    (result, corner) => `${result} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`,
+    `M ${corners[0].entry.x} ${corners[0].entry.y}`,
+  ) + " Z";
   const left = Math.min(...hull.map((point) => point.x));
   const top = Math.min(...hull.map((point) => point.y));
   return {
