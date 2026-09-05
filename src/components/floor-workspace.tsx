@@ -404,7 +404,12 @@ function polishedAxisCenters(
     const currentCenter = current
       ? current.reduce((total, member) => total + centerOf(member), 0) / current.length
       : 0;
-    if (!current || Math.abs(centerOf(item) - currentCenter) > alignmentTolerance) {
+    // Tables sharing the perpendicular span cannot share this alignment line.
+    // In particular, adjacent stools in one column must remain separate rows.
+    const sharesPerpendicularSpan = current?.some((member) => axis === "x"
+      ? item.bounds.top < member.bounds.bottom && item.bounds.bottom > member.bounds.top
+      : item.bounds.left < member.bounds.right && item.bounds.right > member.bounds.left);
+    if (!current || sharesPerpendicularSpan || Math.abs(centerOf(item) - currentCenter) > alignmentTolerance) {
       clusters.push([item]);
     } else {
       current.push(item);
@@ -968,6 +973,26 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         position_y: Math.round(clamp(table.position_y + yDelta, 0, 100) * 100) / 100,
       };
     });
+    const proposedBounds = nextTables.flatMap((table) => {
+      const original = measuredById.get(table.id);
+      if (!original) return [];
+      const dx = (table.position_x - original.table.position_x) * stageBounds.width / 100;
+      const dy = (table.position_y - original.table.position_y) * stageBounds.height / 100;
+      return [{
+        left: original.bounds.left + dx,
+        right: original.bounds.right + dx,
+        top: original.bounds.top + dy,
+        bottom: original.bounds.bottom + dy,
+      }];
+    });
+    const invalidLayout = proposedBounds.some((bounds, index) =>
+      bounds.left < stageBounds.left || bounds.right > stageBounds.right
+      || bounds.top < stageBounds.top || bounds.bottom > stageBounds.bottom
+      || proposedBounds.slice(index + 1).some((other) => floorTableBoundsOverlap(bounds, other)));
+    if (invalidLayout) {
+      setError("Auto polish could not find a layout without overlaps within the floor. Your layout has been kept; try aligning or spacing smaller groups.");
+      return;
+    }
     setError("");
     commitFloorEditorSnapshot(captureFloorEditorSnapshot(nextTables));
   }

@@ -530,6 +530,32 @@ test("auto polish aligns and evenly spaces floor rows and columns", async ({ pag
   await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
 });
 
+test("auto polish keeps small bar stools separate beside larger tables", async ({ page }) => {
+  const tables = [
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ...gridPayload.tables[0], id: index + 1, name: String(index + 1),
+      position_x: 12 + (index % 4) * 17, position_y: 20 + Math.floor(index / 4) * 28,
+    })),
+    ...Array.from({ length: 8 }, (_, index) => ({
+      ...gridPayload.tables[0], id: index + 20, name: `B${index + 1}`,
+      capacity: 1, shape: "round", width: 36, height: 36, rotation: 270,
+      position_x: 86, position_y: 15 + index * 9,
+    })),
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({ json: { ...gridPayload, tables } }));
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+  await expect(page.locator(".floor-table.overlapping-table")).toHaveCount(0);
+  await page.getByRole("button", { name: "Auto polish" }).click();
+  await expect(page.getByRole("button", { name: "Undo last floor change" })).toBeEnabled();
+  await expect(page.locator(".floor-table.overlapping-table")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
+  const stools = await page.locator('[data-floor-table-id]').evaluateAll((elements) =>
+    elements.filter((element) => Number(element.getAttribute("data-floor-table-id")) >= 20)
+      .map((element) => element.getBoundingClientRect().y));
+  expect(new Set(stools).size).toBe(8);
+});
+
 test("booking restores time selection before optional table assignment", async ({ page }) => {
   await mockGrid(page);
   await mockAvailability(page);
