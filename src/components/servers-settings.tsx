@@ -6,8 +6,9 @@ import { appPath } from "@/lib/app-paths";
 import { connectedSectionOutlines } from "@/lib/section-outline";
 import { tableLabelPresentation } from "@/lib/table-label";
 
-type Server = { id: number; name: string; color: string };
+type Server = { id: number; name: string; color: string; shift_ids: number[] };
 type Section = { id: number; name: string; color: string; table_ids: number[] };
+type Shift = { id: number; name: string; start_time: string; end_time: string };
 type Table = {
   id: number;
   name: string;
@@ -146,6 +147,7 @@ export function ServersSettings() {
   const [servers, setServers] = useState<Server[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [serverName, setServerName] = useState("");
   const [serverColor, setServerColor] = useState(SERVER_COLORS[0]);
   const [sectionName, setSectionName] = useState("");
@@ -196,7 +198,8 @@ export function ServersSettings() {
       ]);
       setServers(serverData as Server[]);
       setSections(sectionData as Section[]);
-      setTables((gridData as { tables: Table[] }).tables);
+      setTables((gridData as { tables: Table[]; shifts: Shift[] }).tables);
+      setShifts((gridData as { shifts: Shift[] }).shifts);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load server settings.");
     } finally {
@@ -219,6 +222,23 @@ export function ServersSettings() {
       setServerName("");
       setServerColor(SERVER_COLORS.find((color) => ![...servers, server].some((item) => item.color === color)) || SERVER_COLORS[0]);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add this server."); }
+    finally { setSaving(false); }
+  }
+
+  async function toggleServerShift(server: Server, shiftId: number) {
+    if (saving) return;
+    setSaving(true); setError("");
+    const shift_ids = server.shift_ids.includes(shiftId)
+      ? server.shift_ids.filter((id) => id !== shiftId)
+      : [...server.shift_ids, shiftId];
+    try {
+      const updated = await request(`/api/settings/servers/${server.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shift_ids }),
+      }) as Server;
+      setServers((current) => current.map((item) => item.id === updated.id ? updated : item));
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to update server shifts."); }
     finally { setSaving(false); }
   }
 
@@ -306,7 +326,7 @@ export function ServersSettings() {
             <fieldset className="server-color-picker"><legend>Color</legend><div>{SERVER_COLORS.map((color) => <button key={color} type="button" className={serverColor === color ? "selected" : ""} style={{ "--server-color": color } as CSSProperties} aria-label={`Choose ${color}`} aria-pressed={serverColor === color} onClick={() => setServerColor(color)}><Check aria-hidden="true" /></button>)}</div></fieldset>
             <button className="servers-add-button" type="submit" disabled={saving}><Plus aria-hidden="true" /> Add server</button>
           </form>
-          <ul className="server-list" aria-label="Servers">{servers.map((server) => <li key={server.id}><span className="server-swatch" style={{ backgroundColor: server.color }} aria-hidden="true" /><span>{server.name}</span><button type="button" className={deleteTarget?.kind === "server" && deleteTarget.id === server.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "server" && deleteTarget.id === server.id ? void removeTarget() : setDeleteTarget({ kind: "server", id: server.id })}>{deleteTarget?.kind === "server" && deleteTarget.id === server.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></li>)}</ul>
+          <ul className="server-list" aria-label="Servers">{servers.map((server) => <li key={server.id} className="server-list-item"><div className="server-list-row"><span className="server-swatch" style={{ backgroundColor: server.color }} aria-hidden="true" /><span>{server.name}</span><button type="button" className={deleteTarget?.kind === "server" && deleteTarget.id === server.id ? "confirming" : ""} onClick={() => deleteTarget?.kind === "server" && deleteTarget.id === server.id ? void removeTarget() : setDeleteTarget({ kind: "server", id: server.id })}>{deleteTarget?.kind === "server" && deleteTarget.id === server.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></div><fieldset className="server-shift-picker"><legend>Works which shifts?</legend>{shifts.map((shift) => <label key={shift.id}><input type="checkbox" checked={server.shift_ids.includes(shift.id)} disabled={saving} onChange={() => void toggleServerShift(server, shift.id)} /> {shift.name}</label>)}</fieldset></li>)}</ul>
           {!servers.length && <p className="servers-empty">No servers yet. Add the first person on your team.</p>}
         </article>
 
