@@ -542,6 +542,38 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await expect(details).toHaveCount(0);
 });
 
+test("floor reservation table badges turn red for overlapping turns", async ({ page }) => {
+  const reservations = [
+    {
+      id: 103, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "First overlap", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 104, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Second overlap", party_size: 2, start_time: "17:30", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 105, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
+      guest_name: "Separate turn", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations, summary: { reservations: 3, covers: 6, seated: 0 } },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  const firstBadge = page.locator(".floor-reservation-card", { hasText: "First overlap" }).locator(".floor-reservation-table");
+  const secondBadge = page.locator(".floor-reservation-card", { hasText: "Second overlap" }).locator(".floor-reservation-table");
+  const separateBadge = page.locator(".floor-reservation-card", { hasText: "Separate turn" }).locator(".floor-reservation-table");
+  await expect(firstBadge).toHaveClass(/has-turn-conflict/);
+  await expect(secondBadge).toHaveClass(/has-turn-conflict/);
+  await expect(firstBadge.locator("strong")).toHaveCSS("color", "rgb(255, 148, 125)");
+  await expect(separateBadge).not.toHaveClass(/has-turn-conflict/);
+});
+
 test("seated reservations only offer touch-friendly service statuses", async ({ page }) => {
   const reservation = {
     id: 103, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],

@@ -5644,6 +5644,19 @@ textarea {
   line-height: 1;
 }
 
+.floor-reservation-table.has-turn-conflict {
+  border-color: rgba(255, 119, 95, 0.78);
+  background: rgba(125, 42, 31, 0.28);
+}
+
+.floor-reservation-table.has-turn-conflict small {
+  color: #ffc0b2;
+}
+
+.floor-reservation-table.has-turn-conflict strong {
+  color: #ff947d;
+}
+
 .floor-reservation-unassigned {
   display: grid;
   min-width: 68px;

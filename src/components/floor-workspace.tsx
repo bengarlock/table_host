@@ -279,6 +279,13 @@ function minutes(time: string) {
   return hour * 60 + minute;
 }
 
+function reservationTurnsOverlap(left: Reservation, right: Reservation) {
+  const leftStart = minutes(left.start_time);
+  const rightStart = minutes(right.start_time);
+  return leftStart < rightStart + right.duration_minutes
+    && rightStart < leftStart + left.duration_minutes;
+}
+
 function turnProgress(
   reservation: Reservation,
   now: number,
@@ -992,6 +999,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       });
     return reservationsByTable;
   }, [data?.reservations]);
+  const overlappingReservationIds = useMemo(() => {
+    const ids = new Set<number>();
+    scheduledReservationsByTable.forEach((reservations) => {
+      reservations.forEach((reservation, index) => {
+        reservations.slice(index + 1).forEach((otherReservation) => {
+          if (!reservationTurnsOverlap(reservation, otherReservation)) return;
+          ids.add(reservation.id);
+          ids.add(otherReservation.id);
+        });
+      });
+    });
+    return ids;
+  }, [scheduledReservationsByTable]);
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
@@ -2227,7 +2247,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ) : (
                         <button
                           type="button"
-                          className="floor-reservation-table"
+                          className={`floor-reservation-table${overlappingReservationIds.has(reservation.id) ? " has-turn-conflict" : ""}`}
                           onClick={() => beginTableReassignment(reservation)}
                           aria-label={`Reassign ${reservation.guest_name} from ${reservation.table_names.length > 1 ? "Tables" : "Table"} ${(reservation.table_names.length ? reservation.table_names : [reservation.table_name]).join(", ")}`}
                         >
