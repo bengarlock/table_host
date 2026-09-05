@@ -2021,6 +2021,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         if (!editingFloor) dropReservation(event, table);
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
+                      title={`Table ${table.name}, ${table.capacity} ${table.capacity === 1 ? "seat" : "seats"}${reservation ? `, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : ""}`}
                       aria-label={editingFloor
                           ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}${overlappingTableIds.has(table.id) ? ", overlaps another table" : ""}`
                         : seatingMode === "reassignment" && reservation
@@ -2033,7 +2034,12 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         <i key={index} className="chair" style={style} aria-hidden="true" />
                       ))}
                       <span className="floor-table-surface" aria-hidden="true" />
-                      <span className="floor-table-label">
+                      <span
+                        className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}
+                        style={Math.min(table.width, table.height) < 64 ? {
+                          fontSize: `${Math.min(18, Math.min(table.width, table.height) * 0.65 / Math.max(2, table.name.length))}px`,
+                        } : undefined}
+                      >
                         <strong>{table.name}</strong>
                         {reservation ? (
                           <>

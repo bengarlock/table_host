@@ -4849,6 +4849,20 @@ textarea {
   text-transform: uppercase;
 }
 
+.floor-table-label.floor-table-label-compact {
+  inset: 2px;
+  gap: 0;
+}
+
+.floor-table-label-compact strong {
+  font-size: inherit;
+}
+
+.floor-table-label-compact small,
+.floor-table-label-compact em {
+  display: none;
+}
+
 .chair {
   position: absolute;
   z-index: 1;
