@@ -5868,6 +5868,12 @@ textarea {
   }
 }
 
+@keyframes floor-table-turn-overdue {
+  to {
+    stroke-dasharray: 100 0;
+  }
+}
+
 .floor-table-turn-timer circle {
   transform: rotate(-90deg) scaleX(-1);
   transform-origin: center;
@@ -5882,6 +5888,11 @@ textarea {
 .floor-table-turn-timer.expired path {
   stroke: #ef754c;
   filter: drop-shadow(0 0 4px rgba(239, 117, 76, 0.56));
+  animation: floor-table-turn-overdue var(--turn-overdue-duration) linear forwards;
+}
+
+.floor-table-turn-timer.expired circle {
+  transform: rotate(-90deg);
 }
 
 .floor-table.available .floor-table-surface {
