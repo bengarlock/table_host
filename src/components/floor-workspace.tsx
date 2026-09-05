@@ -282,6 +282,7 @@ function turnProgress(
   return {
     expired: elapsedMilliseconds >= durationMilliseconds,
     remainingMinutes: Math.ceil(remainingMilliseconds / 60_000),
+    overdueMinutes: Math.ceil(overdueMilliseconds / 60_000),
     remainingMilliseconds,
     remainingPercent: clamp(remainingMilliseconds / durationMilliseconds, 0, 1) * 100,
     overduePercent: clamp(overdueMilliseconds / durationMilliseconds, 0, 1) * 100,
@@ -2706,7 +2707,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(popoverReservation.seated_at))
                   : "Not recorded";
                 const remaining = turn?.expired
-                  ? "Time is up"
+                  ? `${formatTurnTime(turn.overdueMinutes)} over`
                   : turn ? `${formatTurnTime(turn.remainingMinutes)} left` : "—";
                 return (
                   <div
