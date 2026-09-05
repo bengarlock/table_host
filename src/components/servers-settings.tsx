@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, LoaderCircle, Pencil, Plus, Trash2, UsersRound, X } from "lucide-react";
-import { CSSProperties, FormEvent, useEffect, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useRef, useState } from "react";
 import { appPath } from "@/lib/app-paths";
 import { connectedSectionOutlines } from "@/lib/section-outline";
 
@@ -152,6 +152,25 @@ export function ServersSettings() {
   const [editingSectionId, setEditingSectionId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const floorRef = useRef<HTMLDivElement>(null);
+  const [floorWidth, setFloorWidth] = useState(0);
+  useEffect(() => {
+    const element = floorRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => setFloorWidth(entry.contentRect.width));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [loading, tables.length]);
+  const floorBounds = tables.reduce((bounds, table) => {
+    const radians = table.rotation * Math.PI / 180;
+    const halfWidth = (Math.abs(Math.cos(radians)) * table.width + Math.abs(Math.sin(radians)) * table.height) / 2 + 40;
+    const halfHeight = (Math.abs(Math.sin(radians)) * table.width + Math.abs(Math.cos(radians)) * table.height) / 2 + 40;
+    const x = 1200 * table.position_x / 100;
+    const y = 660 * table.position_y / 100;
+    return { left: Math.min(bounds.left, x - halfWidth), right: Math.max(bounds.right, x + halfWidth),
+      top: Math.min(bounds.top, y - halfHeight), bottom: Math.max(bounds.bottom, y + halfHeight) };
+  }, { left: 0, right: 1200, top: 0, bottom: 660 });
+  const floorScale = floorWidth > 24 ? (floorWidth - 24) / (floorBounds.right - floorBounds.left) : 0;
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "server" | "section"; id: number } | null>(null);
 
@@ -262,7 +281,7 @@ export function ServersSettings() {
           <form className="server-form" onSubmit={(event) => void saveSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
             <label className="section-color-field"><span>Section color</span><input type="color" value={sectionColor} onChange={(event) => setSectionColor(event.target.value.toUpperCase())} aria-label="Section color" /><output style={{ "--section-color": sectionColor } as CSSProperties}>{sectionColor}</output></label>
-            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">
+            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div ref={floorRef} className="section-floor-plan" style={{ height: Math.max(320, (floorBounds.bottom - floorBounds.top) * floorScale + 24) }} aria-label="Floor plan table selection"><div className="section-floor-stage" style={{ transform: `translate(${12 - floorBounds.left * floorScale}px, ${12 - floorBounds.top * floorScale}px) scale(${floorScale})` }}>
               {sections.length > 0 && <svg className="floor-section-overlays" viewBox="0 0 1200 660" aria-label="Saved floor sections">{sections.map((section, index) => {
                 const shape = sectionOverlay(section, tables, sections);
                 const color = section.color || SECTION_COLORS[index % SECTION_COLORS.length];
