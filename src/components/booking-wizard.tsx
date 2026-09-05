@@ -756,7 +756,7 @@ export function BookingWizard({
       if (presentation === "modal" && event.target === event.currentTarget) onClose();
     }}>
       <section
-        className={`booking-wizard${step === 1 ? " date-step" : ""}`}
+        className={`booking-wizard${step === 1 ? " date-step" : ""}${step === 2 ? " time-party-step" : ""}`}
         role={presentation === "modal" ? "dialog" : "region"}
         aria-modal={presentation === "modal" ? true : undefined}
         aria-labelledby="booking-wizard-title"
@@ -822,7 +822,7 @@ export function BookingWizard({
           )}
 
           {step === 2 && (
-            <div className="wizard-step">
+            <div className="wizard-step booking-time-party-step">
               <div className="simple-shift-picker" aria-label="Reservation shift">
                 {shifts.map((shift) => (
                   <button
@@ -837,107 +837,46 @@ export function BookingWizard({
                   </button>
                 ))}
               </div>
-              <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3>How large is the party?</h3><p>We’ll match them with the smallest comfortable table.</p></div></div>
-              <div className="party-size-fields">
-                <fieldset className="party-size-picker">
-                  <legend>Quick select</legend>
-                  <div className="party-size-options">
-                    {PARTY_SIZE_PRESETS.map((size) => (
-                      <button
-                        type="button"
-                        key={size}
-                        className={partySize === size ? "selected" : ""}
-                        aria-pressed={partySize === size}
-                        onClick={() => updatePartySize(size)}
-                      >
-                        {size}
-                      </button>
-                    ))}
+              <section className="booking-party-panel" aria-labelledby="party-size-heading">
+                <div className="wizard-step-heading"><Users aria-hidden="true" /><div><h3 id="party-size-heading">Party size</h3><p>We’ll match the smallest comfortable table.</p></div></div>
+                <div className="party-size-fields">
+                  <fieldset className="party-size-picker">
+                    <legend>Quick select</legend>
+                    <div className="party-size-options">
+                      {PARTY_SIZE_PRESETS.map((size) => (
+                        <button
+                          type="button"
+                          key={size}
+                          className={partySize === size ? "selected" : ""}
+                          aria-pressed={partySize === size}
+                          onClick={() => updatePartySize(size)}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <div className="party-size-manual">
+                    <span id="manual-party-size-label">Enter party size</span>
+                    <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
+                      <button type="button" aria-label="Decrease party size" onClick={() => adjustManualPartySize(-1)} disabled={Number(partySizeInput) <= 9}><Minus aria-hidden="true" /></button>
+                      <input {...IGNORE_AUTOFILL} type="number" min={9} max={MAX_PARTY_SIZE} inputMode="numeric" placeholder="9" value={partySizeInput} aria-labelledby="manual-party-size-label" aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > MAX_PARTY_SIZE} onFocus={() => updateManualPartySize("")} onChange={(event) => updateManualPartySize(event.currentTarget.value)} />
+                      <button type="button" aria-label="Increase party size" onClick={() => adjustManualPartySize(1)} disabled={Number(partySizeInput) >= MAX_PARTY_SIZE}><Plus aria-hidden="true" /></button>
+                    </div>
+                    <span className="party-size-manual-hint">9 or more guests</span>
                   </div>
-                </fieldset>
-                <div className="party-size-manual">
-                  <span id="manual-party-size-label">Enter party size</span>
-                  <div className={`party-size-manual-control${partySize >= 9 ? " selected" : ""}`}>
-                    <button
-                      type="button"
-                      aria-label="Decrease party size"
-                      onClick={() => adjustManualPartySize(-1)}
-                      disabled={Number(partySizeInput) <= 9}
-                    >
-                      <Minus aria-hidden="true" />
-                    </button>
-                    <input
-                      {...IGNORE_AUTOFILL}
-                      type="number"
-                      min={9}
-                      max={MAX_PARTY_SIZE}
-                      inputMode="numeric"
-                      placeholder="9"
-                      value={partySizeInput}
-                      aria-labelledby="manual-party-size-label"
-                      aria-invalid={!Number.isInteger(Number(partySizeInput)) || Number(partySizeInput) < 9 || Number(partySizeInput) > MAX_PARTY_SIZE}
-                      onFocus={() => updateManualPartySize("")}
-                      onChange={(event) => updateManualPartySize(event.currentTarget.value)}
-                    />
-                    <button
-                      type="button"
-                      aria-label="Increase party size"
-                      onClick={() => adjustManualPartySize(1)}
-                      disabled={Number(partySizeInput) >= MAX_PARTY_SIZE}
-                    >
-                      <Plus aria-hidden="true" />
-                    </button>
+                </div>
+                <div className="turn-time-field">
+                  <span id="expected-turn-time-label">Expected turn</span>
+                  <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
+                    <button type="button" aria-label="Decrease expected turn time by 15 minutes" onClick={() => adjustTurnTime(-15)} disabled={durationMinutes <= 60}><Minus aria-hidden="true" /></button>
+                    <input {...IGNORE_AUTOFILL} type="text" inputMode="text" pattern="\d+:[0-5]\d" placeholder="1:00" value={turnTimeInput} aria-labelledby="expected-turn-time-label" aria-describedby="expected-turn-time-hint" aria-invalid={durationMinutes === 0} onChange={(event) => updateTurnTime(event.currentTarget.value)} onBlur={() => { if (durationMinutes >= 60) setTurnTimeInput(formatTurnTime(durationMinutes)); }} />
+                    <button type="button" aria-label="Increase expected turn time by 15 minutes" onClick={() => adjustTurnTime(15)}><Plus aria-hidden="true" /></button>
                   </div>
-                  <span className="party-size-manual-hint">9 or more guests</span>
+                  <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
                 </div>
-              </div>
-              <div className="turn-time-field">
-                <span id="expected-turn-time-label">Expected turn</span>
-                <div className={`turn-time-control${durationMinutes >= 60 ? " selected" : ""}`}>
-                  <button
-                    type="button"
-                    aria-label="Decrease expected turn time by 15 minutes"
-                    onClick={() => adjustTurnTime(-15)}
-                    disabled={durationMinutes <= 60}
-                  >
-                    <Minus aria-hidden="true" />
-                  </button>
-                  <input
-                    {...IGNORE_AUTOFILL}
-                    type="text"
-                    inputMode="text"
-                    pattern="\d+:[0-5]\d"
-                    placeholder="1:00"
-                    value={turnTimeInput}
-                    aria-labelledby="expected-turn-time-label"
-                    aria-describedby="expected-turn-time-hint"
-                    aria-invalid={durationMinutes === 0}
-                    onChange={(event) => updateTurnTime(event.currentTarget.value)}
-                    onBlur={() => {
-                      if (durationMinutes >= 60) setTurnTimeInput(formatTurnTime(durationMinutes));
-                    }}
-                  />
-                  <button
-                    type="button"
-                    aria-label="Increase expected turn time by 15 minutes"
-                    onClick={() => adjustTurnTime(15)}
-                  >
-                    <Plus aria-hidden="true" />
-                  </button>
-                </div>
-                <span id="expected-turn-time-hint" className="turn-time-hint">1:00 or longer, in 0:15 increments</span>
-              </div>
-              {partyExceedsFloorCapacity && (
-                <div className="booking-capacity-warning" role="status">
-                  <AlertTriangle aria-hidden="true" />
-                  <div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="wizard-step">
+                {partyExceedsFloorCapacity && <div className="booking-capacity-warning" role="status"><AlertTriangle aria-hidden="true" /><div><strong>This party exceeds the floor capacity</strong><span>{partySize} guests requested · {floorCoverCapacity} covers available. You can continue and overbook.</span></div></div>}
+              </section>
               <section className="time-choice-section" aria-labelledby="desired-time-heading">
                 <header>
                   <strong id="desired-time-heading">Desired time</strong>
@@ -987,7 +926,7 @@ export function BookingWizard({
                   </button>
                 </div>
               </section>
-              <section className="time-choice-section" aria-labelledby="available-time-heading">
+              <section className="time-choice-section available-time-choice" aria-labelledby="available-time-heading">
                 <header>
                   <strong id="available-time-heading">Available times</strong>
                   <span>{desiredTime ? `Near ${displayTime(desiredTime)}` : "Select a desired time"}</span>

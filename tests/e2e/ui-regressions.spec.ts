@@ -326,6 +326,12 @@ test("booking availability is centered around the guest's desired time", async (
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
   await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
 
+  const compactTimePartyLayout = await page.locator(".wizard-body").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  expect(compactTimePartyLayout.scrollHeight).toBeLessThanOrEqual(compactTimePartyLayout.clientHeight);
+
   const desiredTimes = page.getByLabel("Desired reservation times");
   await expect(desiredTimes.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
@@ -708,7 +714,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.getByRole("button", { name: /^Table 1, 2 seats/ }).click();
   await page.getByRole("button", { name: /^Table 2, 2 seats/ }).click();
   await page.getByRole("button", { name: "Assign selected tables" }).click();
-  await expect(page.getByRole("heading", { name: "How large is the party?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Party size" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 4 guests · Tables 1, 2");
 
