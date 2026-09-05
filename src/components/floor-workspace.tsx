@@ -305,6 +305,21 @@ function roundedRectPath(left: number, top: number, right: number, bottom: numbe
   return `M ${left + radius} ${top} H ${right - radius} Q ${right} ${top} ${right} ${top + radius} V ${bottom - radius} Q ${right} ${bottom} ${right - radius} ${bottom} H ${left + radius} Q ${left} ${bottom} ${left} ${bottom - radius} V ${top + radius} Q ${left} ${top} ${left + radius} ${top} Z`;
 }
 
+function roundedOutlinePath(points: Array<{ x: number; y: number }>) {
+  const distance = (first: { x: number; y: number }, second: { x: number; y: number }) => Math.hypot(second.x - first.x, second.y - first.y);
+  const toward = (from: { x: number; y: number }, to: { x: number; y: number }, amount: number) => {
+    const length = distance(from, to);
+    return { x: from.x + (to.x - from.x) * amount / length, y: from.y + (to.y - from.y) * amount / length };
+  };
+  const corners = points.map((point, index) => {
+    const previous = points[(index + points.length - 1) % points.length];
+    const next = points[(index + 1) % points.length];
+    const radius = Math.min(24, distance(point, previous) / 3, distance(point, next) / 3);
+    return { point, entry: toward(point, previous, radius), exit: toward(point, next, radius) };
+  });
+  return corners.reduce((path, corner) => `${path} L ${corner.entry.x} ${corner.entry.y} Q ${corner.point.x} ${corner.point.y} ${corner.exit.x} ${corner.exit.y}`, `M ${corners[0].entry.x} ${corners[0].entry.y}`) + " Z";
+}
+
 function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: FloorStageMetrics) {
   const selected = tables.filter((table) => section.table_ids.includes(table.id));
   if (!selected.length) return null;
@@ -329,9 +344,16 @@ function sectionOverlay(section: FloorSection, tables: DiningTable[], stage: Flo
     if (right <= left || bound.top <= previous.bottom) return [];
     return [`M ${left} ${previous.bottom - 1} H ${right} V ${bound.top + 1} H ${left} Z`];
   });
+  const joinedPaths = bounds.length === 2 && connectors.length ? [roundedOutlinePath([
+    { x: bounds[0].left, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].top }, { x: bounds[0].right, y: bounds[0].bottom },
+    { x: Math.min(bounds[0].right - 18, bounds[1].right - 18), y: bounds[0].bottom }, { x: Math.min(bounds[0].right - 18, bounds[1].right - 18), y: bounds[1].top },
+    { x: bounds[1].right, y: bounds[1].top }, { x: bounds[1].right, y: bounds[1].bottom }, { x: bounds[1].left, y: bounds[1].bottom },
+    { x: bounds[1].left, y: bounds[1].top }, { x: Math.max(bounds[0].left + 18, bounds[1].left + 18), y: bounds[1].top },
+    { x: Math.max(bounds[0].left + 18, bounds[1].left + 18), y: bounds[0].bottom }, { x: bounds[0].left, y: bounds[0].bottom },
+  ])] : bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom));
   return {
-    paths: bounds.map((bound) => roundedRectPath(bound.left, bound.top, bound.right, bound.bottom)),
-    connectors,
+    paths: joinedPaths,
+    connectors: bounds.length === 2 && connectors.length ? [] : connectors,
     labelX: Math.max(14, first.left + 16),
     labelY: Math.max(26, first.top + 24),
     labelWidth: Math.max(74, section.name.length * 9 + 20),
