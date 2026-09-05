@@ -242,6 +242,22 @@ function displayTime(time: string) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
+function turnProgress(
+  reservation: Reservation,
+  serviceDate: string,
+  now: number,
+) {
+  const startedAt = new Date(`${serviceDate}T${reservation.start_time}:00`).getTime();
+  const durationMilliseconds = reservation.duration_minutes * 60_000;
+  const elapsedMilliseconds = Math.max(0, now - startedAt);
+  const remainingMilliseconds = Math.max(0, durationMilliseconds - elapsedMilliseconds);
+  return {
+    expired: elapsedMilliseconds >= durationMilliseconds,
+    remainingMinutes: Math.ceil(remainingMilliseconds / 60_000),
+    remainingPercent: clamp(remainingMilliseconds / durationMilliseconds, 0, 1) * 100,
+  };
+}
+
 function displayTableAssignment(tableNames: string[]) {
   if (tableNames.length <= 3) return tableNames.join("+");
   const lowestTableNumber = [...tableNames].sort((left, right) => (
@@ -596,6 +612,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [error, setError] = useState("");
   const [showReservationTimes, setShowReservationTimes] = useState(false);
   const [showSectionOutlines, setShowSectionOutlines] = useState(true);
+  const [showFloorTimes, setShowFloorTimes] = useState(false);
+  const [floorClock, setFloorClock] = useState(() => Date.now());
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
@@ -836,6 +854,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     : null;
   const FocusedStatusIcon = focusedStatusOption?.icon;
   const liveService = hydrated && serviceDate === data?.current_service_date;
+  useEffect(() => {
+    if (!showFloorTimes || !liveService) return;
+    const timer = window.setInterval(() => setFloorClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [liveService, showFloorTimes]);
   const displayedTables = useMemo(
     () => editingFloor ? editedTables : data?.tables || [],
     [data?.tables, editedTables, editingFloor],
@@ -2030,6 +2053,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       <label>
                         <input
                           type="checkbox"
+                          checked={showFloorTimes}
+                          onChange={(event) => {
+                            if (event.currentTarget.checked) setFloorClock(Date.now());
+                            setShowFloorTimes(event.currentTarget.checked);
+                          }}
+                        />
+                        Floor times
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
                           checked={showSectionOutlines}
                           onChange={(event) => setShowSectionOutlines(event.currentTarget.checked)}
                         />
@@ -2043,6 +2077,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     onClick={() => {
                       setShowReservationTimes(false);
                       setShowSectionOutlines(true);
+                      setShowFloorTimes(false);
                       beginFloorEditing();
                     }}
                     disabled={saving || editingFloor}
@@ -2297,6 +2332,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
                   const scheduledReservations = scheduledReservationsByTable.get(table.id) || [];
+                  const floorTurn = showFloorTimes && liveService && reservation
+                    ? turnProgress(reservation, serviceDate, floorClock)
+                    : null;
+                  const floorTurnState = floorTurn?.expired
+                    ? "expired"
+                    : floorTurn && floorTurn.remainingPercent <= 25
+                      ? "warning"
+                      : "on-track";
+                  const floorTurnDash = floorTurn?.expired ? 100 : floorTurn?.remainingPercent;
                   const available = !reservation;
                   const editorSelected = editorSelectedTableIds.includes(table.id);
                   const duplicateTableNumber = editingFloor && duplicateTableNumberIds.has(table.id);
@@ -2342,21 +2386,28 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         if (!editingFloor) dropReservation(event, table);
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
-                      title={`Table ${table.name}, ${table.capacity} ${table.capacity === 1 ? "seat" : "seats"}${showReservationTimes && scheduledReservations.length ? `, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}` : reservation ? `, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : ""}`}
+                      title={`Table ${table.name}, ${table.capacity} ${table.capacity === 1 ? "seat" : "seats"}${showReservationTimes && scheduledReservations.length ? `, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}` : reservation ? `, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : ""}${floorTurn ? floorTurn.expired ? ", expected turn time reached" : `, ${floorTurn.remainingMinutes} minutes remaining in expected turn` : ""}`}
                       aria-label={editingFloor
                           ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}${overlappingTableIds.has(table.id) ? ", overlaps another table" : ""}`
                         : seatingMode === "reassignment" && reservation
                           ? `Table ${table.name}, currently assigned to ${reservation.guest_name}${selectedTableIds.includes(table.id) ? ", selected for reassignment" : ", not selected for reassignment"}`
                           : showReservationTimes && scheduledReservations.length
-                            ? `Table ${table.name}, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`
+                            ? `Table ${table.name}, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}${floorTurn ? floorTurn.expired ? ", expected turn time reached" : `, ${floorTurn.remainingMinutes} minutes remaining in expected turn` : ""}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`
                           : reservation
-                          ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
+                          ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}${floorTurn ? floorTurn.expired ? ", expected turn time reached" : `, ${floorTurn.remainingMinutes} minutes remaining in expected turn` : ""}`
                           : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
                     >
                       {chairPositions(table).map((style, index) => (
                         <i key={index} className="chair" style={style} aria-hidden="true" />
                       ))}
                       <span className="floor-table-surface" aria-hidden="true" />
+                      {floorTurn && floorTurnDash !== undefined && (
+                        <svg className={`floor-table-turn-timer ${floorTurnState}`} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                          {table.shape === "round"
+                            ? <circle cx="50" cy="50" r="47" pathLength="100" strokeDasharray={`${floorTurnDash} ${100 - floorTurnDash}`} />
+                            : <rect x="3" y="3" width="94" height="94" rx="9" pathLength="100" strokeDasharray={`${floorTurnDash} ${100 - floorTurnDash}`} />}
+                        </svg>
+                      )}
                       <span
                         className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}
                         style={Math.min(table.width, table.height) < 64 ? {

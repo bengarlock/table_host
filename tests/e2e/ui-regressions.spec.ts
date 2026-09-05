@@ -351,6 +351,7 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
 });
 
 test("floor plan can toggle stacked reservation times for each table", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-04T17:45:00") });
   const reservations = [
     {
       id: 104, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
@@ -362,13 +363,18 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
       guest_name: "Late party", party_size: 2, start_time: "19:30", duration_minutes: 90,
       status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
     },
+    {
+      id: 106, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
+      guest_name: "Seated party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "seated", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
   ];
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: {
       ...gridPayload,
       sections: [{ id: 1, name: "Patio", color: "#d9aa62", table_ids: [1] }],
       reservations,
-      summary: { reservations: 2, covers: 4, seated: 0 },
+      summary: { reservations: 3, covers: 6, seated: 2 },
     },
   }));
 
@@ -379,18 +385,31 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
 
   await view.click();
   const reservationTimes = page.getByRole("checkbox", { name: "Reservation times" });
+  const floorTimes = page.getByRole("checkbox", { name: "Floor times" });
   const sectionOutlines = page.getByRole("checkbox", { name: "Section outlines" });
   await expect(reservationTimes).not.toBeChecked();
+  await expect(floorTimes).not.toBeChecked();
   await expect(sectionOutlines).toBeChecked();
 
   await reservationTimes.check();
   await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times time')).toHaveText(["5:00 PM", "7:30 PM"]);
+
+  await floorTimes.check();
+  const floorTimer = page.locator('[data-floor-table-id="2"] .floor-table-turn-timer');
+  await expect(floorTimer).toHaveClass(/on-track/);
+  await expect(floorTimer).toBeVisible();
+  const turnDash = await floorTimer.locator("rect").getAttribute("stroke-dasharray");
+  expect(turnDash).not.toBeNull();
+  expect(Number(turnDash!.split(" ")[0])).toBeCloseTo(50, 1);
 
   await sectionOutlines.uncheck();
   await expect(page.locator(".floor-section-overlays")).toHaveCount(0);
 
   await reservationTimes.uncheck();
   await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
+
+  await floorTimes.uncheck();
+  await expect(floorTimer).toHaveCount(0);
 });
 
 async function mockAvailability(page: Page) {

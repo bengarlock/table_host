@@ -5841,6 +5841,41 @@ textarea {
   transform: rotate(var(--table-label-rotation, 0deg));
 }
 
+.floor-table-turn-timer {
+  position: absolute;
+  inset: 9px;
+  z-index: 4;
+  width: calc(100% - 18px);
+  height: calc(100% - 18px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.floor-table-turn-timer circle,
+.floor-table-turn-timer rect {
+  fill: none;
+  stroke: #72c995;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 30s linear, stroke 220ms ease;
+}
+
+.floor-table-turn-timer circle {
+  transform: rotate(-90deg);
+  transform-origin: center;
+}
+
+.floor-table-turn-timer.warning circle,
+.floor-table-turn-timer.warning rect {
+  stroke: #e5bb6f;
+}
+
+.floor-table-turn-timer.expired circle,
+.floor-table-turn-timer.expired rect {
+  stroke: #ef754c;
+  filter: drop-shadow(0 0 4px rgba(239, 117, 76, 0.56));
+}
+
 .floor-table.available .floor-table-surface {
   border-color: #d8dcda;
   background: #b8bdb9;
