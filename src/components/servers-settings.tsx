@@ -16,6 +16,8 @@ type Table = {
   width: number;
   height: number;
   rotation: number;
+  chair_layout: "wrap" | "across" | "across_horizontal";
+  min_capacity: number;
 };
 
 const SERVER_COLORS = ["#D95763", "#DB8A35", "#D3AD35", "#5B9C69", "#3C8FA8", "#6475C4", "#9960BC", "#B65A94"];
@@ -24,6 +26,31 @@ function readError(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") return fallback;
   const first = Object.values(payload as Record<string, unknown>)[0];
   return Array.isArray(first) ? String(first[0]) : typeof first === "string" ? first : fallback;
+}
+
+function chairPositions(table: Table): CSSProperties[] {
+  if (table.shape === "round" && table.chair_layout === "wrap") {
+    return Array.from({ length: table.capacity }, (_, index) => {
+      const angle = -90 + (index * 360) / table.capacity;
+      const radians = (angle * Math.PI) / 180;
+      return { left: `${50 + Math.cos(radians) * 50}%`, top: `${50 + Math.sin(radians) * 50}%`, transform: `translate(-50%, -50%) rotate(${angle + 90}deg)` };
+    });
+  }
+  const sides = table.chair_layout === "across"
+    ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 0 : 2)
+    : table.chair_layout === "across_horizontal"
+      ? Array.from({ length: table.capacity }, (_, index) => index % 2 === 0 ? 1 : 3)
+      : Array.from({ length: table.capacity }, (_, index) => index % 4);
+  const totals = sides.reduce((counts, side) => { counts[side] += 1; return counts; }, [0, 0, 0, 0]);
+  const placed = [0, 0, 0, 0];
+  return sides.map((side) => {
+    placed[side] += 1;
+    const offset = `${(placed[side] / (totals[side] + 1)) * 100}%`;
+    if (side === 0) return { left: offset, top: 0, transform: "translate(-50%, -50%)" };
+    if (side === 1) return { left: "100%", top: offset, transform: "translate(-50%, -50%) rotate(90deg)" };
+    if (side === 2) return { left: offset, top: "100%", transform: "translate(-50%, -50%) rotate(180deg)" };
+    return { left: 0, top: offset, transform: "translate(-50%, -50%) rotate(270deg)" };
+  });
 }
 
 async function request(path: string, options?: RequestInit) {
@@ -136,10 +163,14 @@ export function ServersSettings() {
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
           <form className="server-form" onSubmit={(event) => void addSection(event)}>
             <label><span>Section name</span><input value={sectionName} onChange={(event) => setSectionName(event.target.value)} maxLength={80} placeholder="e.g. Section 1" required /></label>
-            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection">{tables.map((table) => {
+            <fieldset className="section-floor-picker"><legend>Choose tables on the floor plan</legend>{tables.length ? <div className="section-floor-plan" aria-label="Floor plan table selection"><div className="section-floor-stage">{tables.map((table) => {
               const selected = sectionTableIds.includes(table.id);
-              return <button key={table.id} type="button" className={`section-floor-table ${table.shape}${selected ? " selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, transform: `translate(-50%, -50%) rotate(${table.rotation}deg)` }} aria-pressed={selected} aria-label={`Table ${table.name}${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}><span>{table.name}</span><small>{table.capacity}</small></button>;
-            })}</div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
+              return <button key={table.id} type="button" className={`floor-table floor-table-${table.shape} available${selected ? " seat-selected" : ""}`} style={{ left: `${table.position_x}%`, top: `${table.position_y}%`, width: `${table.width}px`, height: `${table.height}px`, "--table-rotation": `${table.rotation}deg`, "--table-label-rotation": `${-table.rotation}deg` } as CSSProperties} aria-pressed={selected} aria-label={`Table ${table.name}, ${table.capacity} seats${selected ? ", selected" : ""}`} onClick={() => toggleTable(table.id)}>
+                {chairPositions(table).map((style, index) => <i key={index} className="chair" style={style} aria-hidden="true" />)}
+                <span className="floor-table-surface" aria-hidden="true" />
+                <span className={`floor-table-label${Math.min(table.width, table.height) < 64 ? " floor-table-label-compact" : ""}`}><strong>{table.name}</strong><small>{table.capacity} seats</small><em>Available</em></span>
+              </button>;
+            })}</div></div> : <p>Add tables to the floor plan before making a section.</p>}</fieldset>
             <p className="section-selection-status" role="status">{sectionTableIds.length ? `${sectionTableIds.length} ${sectionTableIds.length === 1 ? "table selected" : "tables selected"}` : "Select one or more tables to create a section."}</p>
             <button className="servers-add-button" type="submit" disabled={saving || !sectionTableIds.length}><Plus aria-hidden="true" /> Save section</button>
           </form>
