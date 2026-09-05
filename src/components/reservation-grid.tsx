@@ -1,28 +1,30 @@
 "use client";
 
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CalendarX2,
   Ban,
+  Check,
   CircleCheck,
   Clock3,
   LoaderCircle,
   Lock,
   Mail,
+  Minus,
   Plus,
-  Unlock,
   Users,
   X,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { DragEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
+import { PhoneInput } from "@/components/phone-input";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { formatTurnTime } from "@/lib/turn-time";
+import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
 import {
   closestServiceOccurrence,
   moveServiceDate,
@@ -84,14 +86,6 @@ type Reservation = {
   notes: string;
 };
 
-type ReservationActivity = {
-  id: number;
-  action: string;
-  summary: string;
-  changes: Record<string, unknown>;
-  created_at: string;
-};
-
 type TableBlock = {
   id: number;
   table_ids: number[];
@@ -101,8 +95,20 @@ type TableBlock = {
   notes: string;
 };
 
-const WAITING_RESERVATION_STATUSES: Reservation["status"][] = ["booked", "confirmed", "late", "not_confirmed"];
-const ACTIVE_SERVICE_STATUSES: Reservation["status"][] = ["seated", "entree", "dessert", "check_dropped", "paid"];
+const RESERVATION_STATUS_OPTIONS: Array<{ value: Reservation["status"]; label: string }> = [
+  { value: "booked", label: "Booked" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "late", label: "Late" },
+  { value: "not_confirmed", label: "Not confirmed" },
+  { value: "seated", label: "Seated" },
+  { value: "entree", label: "Entree" },
+  { value: "dessert", label: "Dessert" },
+  { value: "check_dropped", label: "Check dropped" },
+  { value: "paid", label: "Paid" },
+  { value: "complete", label: "Complete" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "no_show", label: "No-show" },
+];
 
 type GridData = {
   restaurant: { id: number; name: string };
@@ -125,6 +131,17 @@ type BookingDraft = {
   capacity: number;
   time: string;
   durationMinutes: number;
+};
+
+type ReservationEditDraft = {
+  partySize: string;
+  durationMinutes: string;
+  status: Reservation["status"];
+  phone: string;
+  reservationNotes: string;
+  reservationTags: string[];
+  guestNotes: string;
+  guestTags: string[];
 };
 
 const SLOT_MINUTES = 15;
@@ -190,17 +207,14 @@ export function ReservationGrid({
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [selected, setSelected] = useState<Reservation | null>(null);
+  const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
-  const [activityEvents, setActivityEvents] = useState<ReservationActivity[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [activityHistoryOpen, setActivityHistoryOpen] = useState(false);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [blockNotes, setBlockNotes] = useState("");
   const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
-  const [unlocking, setUnlocking] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const resolveCurrentService = useRef(!initialServiceDate);
@@ -455,21 +469,64 @@ export function ReservationGrid({
     }
   }
 
-  async function updateStatus(status: Reservation["status"]) {
-    if (!selected) return;
-    if (!serviceStatusAllowed && (status === "seated" || status === "complete")) return;
+  function toggleReservationEditTag(field: "reservationTags" | "guestTags", tag: string) {
+    setReservationEditDraft((current) => {
+      if (!current) return current;
+      const tags = current[field];
+      return {
+        ...current,
+        [field]: tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag],
+      };
+    });
+  }
+
+  function changeTurnTime(delta: number) {
+    setReservationEditDraft((current) => {
+      if (!current) return current;
+      const durationMinutes = Math.min(360, Math.max(15, Number(current.durationMinutes) + delta));
+      return { ...current, durationMinutes: String(durationMinutes) };
+    });
+  }
+
+  async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected || !reservationEditDraft) return;
+    const partySize = Number(reservationEditDraft.partySize);
+    const durationMinutes = Number(reservationEditDraft.durationMinutes);
+    if (!Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
+      setError("Enter a party size from 1 to 40.");
+      return;
+    }
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
+      setError("Expected turn time must be between 15 minutes and 6 hours.");
+      return;
+    }
+    if (!serviceStatusAllowed && ["seated", "entree", "dessert", "check_dropped", "paid", "complete"].includes(reservationEditDraft.status)) {
+      setError("Reservations cannot be seated or marked as served on future dates.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          party_size: partySize,
+          duration_minutes: durationMinutes,
+          status: reservationEditDraft.status,
+          guest_phone: reservationEditDraft.phone.trim(),
+          notes: reservationEditDraft.reservationNotes.trim(),
+          tags: reservationEditDraft.reservationTags,
+          guest_notes: reservationEditDraft.guestNotes.trim(),
+          guest_tags: reservationEditDraft.guestTags,
+        }),
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      setSelected(payload as Reservation);
       await loadGrid();
+      setSelected(null);
+      setReservationEditDraft(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
     } finally {
@@ -491,38 +548,12 @@ export function ReservationGrid({
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      if (selected?.id === reservation.id) {
-        setSelected(payload as Reservation);
-        await loadActivityHistory(reservation.id);
-      }
+      if (selected?.id === reservation.id) setSelected(payload as Reservation);
       await loadGrid();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to move the reservation.");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function unlockAssignment() {
-    if (!selected || selected.assignment_type !== "hard") return;
-    setUnlocking(true);
-    setSaving(true);
-    setError("");
-    try {
-      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ assignment_type: "soft" }),
-      });
-      const payload = (await response.json()) as Reservation | Record<string, unknown>;
-      if (!response.ok) throw new Error(readError(payload));
-      setSelected(payload as Reservation);
-      await Promise.all([loadGrid(), loadActivityHistory(selected.id)]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to unlock the reservation.");
-    } finally {
-      setSaving(false);
-      setUnlocking(false);
     }
   }
 
@@ -534,46 +565,19 @@ export function ReservationGrid({
     setDraggedReservationId(reservation.id);
   }
 
-  async function loadActivityHistory(reservationId: number) {
-    setHistoryLoading(true);
-    try {
-      const response = await fetch(appPath(`/api/grid/reservations/${reservationId}/history`), {
-        cache: "no-store",
-      });
-      const payload = (await response.json()) as ReservationActivity[] | Record<string, unknown>;
-      if (!response.ok) throw new Error(readError(payload));
-      setActivityEvents(payload as ReservationActivity[]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load reservation activity.");
-      setActivityEvents([]);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }
-
   async function openReservation(reservation: Reservation) {
     clearDraft();
-    setUnlocking(false);
-    setActivityHistoryOpen(false);
     setSelected(reservation);
-    setActivityEvents([]);
-    await loadActivityHistory(reservation.id);
-  }
-
-  async function cancelReservation() {
-    if (!selected) return;
-    setSaving(true);
-    setError("");
-    try {
-      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), { method: "DELETE" });
-      if (!response.ok) throw new Error("Unable to cancel the reservation.");
-      setSelected(null);
-      await loadGrid();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to cancel the reservation.");
-    } finally {
-      setSaving(false);
-    }
+    setReservationEditDraft({
+      partySize: String(reservation.party_size),
+      durationMinutes: String(reservation.duration_minutes),
+      status: reservation.status,
+      phone: reservation.guest_phone || "",
+      reservationNotes: reservation.notes || "",
+      reservationTags: reservation.tags || [],
+      guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
+      guestTags: reservation.guest_tags || [],
+    });
   }
 
   return (
@@ -629,7 +633,7 @@ export function ReservationGrid({
         </div>
       )}
 
-      <div className={`grid-and-panel ${selected ? "has-panel" : ""}`}>
+      <div className="grid-and-panel">
         <section className="grid-card" aria-label="Table reservation timeline">
           {loading && !data ? (
             <div className="grid-loading"><LoaderCircle aria-hidden="true" /> Loading the book…</div>
@@ -790,116 +794,37 @@ export function ReservationGrid({
           )}
         </section>
 
-        {selected && (
-          <aside className="booking-panel" aria-label="Reservation details">
-            <button className="panel-close" type="button" onClick={() => setSelected(null)} aria-label="Close panel">
-              <X aria-hidden="true" />
-            </button>
-            <div>
-                <p className="panel-eyebrow">Reservation</p>
-                <h2>{selected.guest_name}</h2>
-                <div className="booking-meta"><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</div>
-                <button
-                  type="button"
-                  className={`assignment-lock-button assignment-${selected.assignment_type}${unlocking ? " unlocking" : ""}`}
-                  onClick={() => void unlockAssignment()}
-                  disabled={saving || selected.assignment_type === "soft"}
-                  aria-label={
-                    selected.assignment_type === "hard"
-                      ? "Unlock hard assignment and reflow reservation"
-                      : "Reservation is soft assigned and unlocked"
-                  }
-                >
-                  {selected.assignment_type === "hard" && !unlocking ? (
-                    <Lock aria-hidden="true" />
-                  ) : (
-                    <Unlock className="unlock-icon" aria-hidden="true" />
-                  )}
-                  <span>
-                    {unlocking
-                      ? "Reflowing…"
-                      : selected.assignment_type === "hard"
-                        ? "Hard assigned"
-                        : "Soft assigned"}
-                  </span>
-                </button>
-                <dl className="reservation-details">
-                  <div><dt>Party</dt><dd>{selected.party_size} guests</dd></div>
-                  <div><dt>Turn</dt><dd>{formatTurnTime(selected.duration_minutes)}</dd></div>
-                  <div><dt>Status</dt><dd>{selected.status}</dd></div>
-                  {selected.guest_phone && <div><dt>Phone</dt><dd>{selected.guest_phone}</dd></div>}
-                  {selected.guest_email && <div><dt>Email</dt><dd>{selected.guest_email}</dd></div>}
-                  {selected.notes && <div><dt>Reservation notes</dt><dd>{selected.notes}</dd></div>}
-                  {(selected.guest_profile_notes || selected.guest_notes) && <div><dt>Guest notes</dt><dd>{selected.guest_profile_notes || selected.guest_notes}</dd></div>}
-                </dl>
-                {selected.tags.length > 0 && <div className="reservation-tags" aria-label="Reservation tags">{selected.tags.map((tag) => <span key={tag}><TagIcon tag={tag} />{tag}</span>)}</div>}
-                {selected.guest_tags.length > 0 && <div className="reservation-tags guest-profile-tags" aria-label="Guest tags">{selected.guest_tags.map((tag) => <span key={tag}><TagIcon tag={tag} />{tag}</span>)}</div>}
-                <label className="table-assignment">
-                  Assigned table
-                  <select
-                    {...IGNORE_AUTOFILL}
-                    value={selected.table_id}
-                    disabled={saving}
-                    onChange={(event) => {
-                      const table = data?.tables.find((item) => item.id === Number(event.target.value));
-                      if (table) void moveReservation(selected, table);
-                    }}
-                  >
-                    {data?.tables.map((table) => (
-                      <option key={table.id} value={table.id}>
-                        Table {table.name} · {table.capacity} seats
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <section className="move-history" aria-label="Reservation activity">
-                  <button
-                    type="button"
-                    className="move-history-toggle"
-                    onClick={() => setActivityHistoryOpen((open) => !open)}
-                    aria-expanded={activityHistoryOpen}
-                    aria-controls="reservation-activity-history-content"
-                  >
-                    <span>Activity history</span>
-                    <span className="move-history-summary">
-                      {!historyLoading && activityEvents.length > 0 && activityEvents.length}
-                      <ChevronDown aria-hidden="true" />
-                    </span>
-                  </button>
-                  {activityHistoryOpen && (
-                    <div id="reservation-activity-history-content" className="move-history-content">
-                      {historyLoading ? (
-                        <p>Loading history…</p>
-                      ) : activityEvents.length ? (
-                        <ol>
-                          {activityEvents.map((activity) => (
-                            <li key={activity.id}>
-                              <span>{activity.summary}</span>
-                              <time dateTime={activity.created_at}>
-                                {new Intl.DateTimeFormat("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                }).format(new Date(activity.created_at))}
-                              </time>
-                            </li>
-                          ))}
-                        </ol>
-                      ) : (
-                        <p>No activity recorded yet.</p>
-                      )}
-                    </div>
-                  )}
-                </section>
-                <div className="status-actions">
-                  {WAITING_RESERVATION_STATUSES.includes(selected.status) && <button type="button" onClick={() => void updateStatus("seated")} disabled={saving || !serviceStatusAllowed}>Mark seated</button>}
-                  {ACTIVE_SERVICE_STATUSES.includes(selected.status) && <button type="button" onClick={() => void updateStatus("complete")} disabled={saving || !serviceStatusAllowed}>Complete</button>}
+        {selected && reservationEditDraft && (
+          <div className="reservation-editor-backdrop" role="presentation" onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setSelected(null);
+              setReservationEditDraft(null);
+            }
+          }}>
+            <form className="reservation-editor-dialog" onSubmit={saveReservationDetails} role="dialog" aria-modal="true" aria-labelledby="reservation-editor-title">
+              <header>
+                <div>
+                  <p>Reservation details</p>
+                  <h2 id="reservation-editor-title">{selected.guest_name}</h2>
+                  <span><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
                 </div>
-                {!serviceStatusAllowed && <p role="status">Reservations cannot be seated or marked as served on future dates.</p>}
-                <button className="danger-action" type="button" onClick={() => void cancelReservation()} disabled={saving}>Cancel reservation</button>
-            </div>
-          </aside>
+                <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
+              </header>
+              <div className="reservation-editor-body">
+                <div className="reservation-editor-fields">
+                  <label>Party size<input type="number" min={1} max={40} inputMode="numeric" value={reservationEditDraft.partySize} onChange={(event) => { const partySize = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, partySize })); }} required /></label>
+                  <label>Status<select {...IGNORE_AUTOFILL} value={reservationEditDraft.status} onChange={(event) => { const status = event.currentTarget.value as Reservation["status"]; setReservationEditDraft((current) => current && ({ ...current, status })); }}>
+                    {RESERVATION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value} disabled={!serviceStatusAllowed && ["seated", "entree", "dessert", "check_dropped", "paid", "complete"].includes(option.value) && option.value !== selected.status}>{option.label}</option>)}
+                  </select></label>
+                  <div className="reservation-editor-turn"><span>Turn time</span><div><button type="button" aria-label="Decrease turn time" onClick={() => changeTurnTime(-15)} disabled={saving || Number(reservationEditDraft.durationMinutes) <= 15}><Minus aria-hidden="true" /></button><output aria-label="Turn time">{formatTurnTime(Number(reservationEditDraft.durationMinutes))}</output><button type="button" aria-label="Increase turn time" onClick={() => changeTurnTime(15)} disabled={saving || Number(reservationEditDraft.durationMinutes) >= 360}><Plus aria-hidden="true" /></button></div></div>
+                  <label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label>
+                </div>
+                <section className="reservation-editor-section reservation-detail-section"><div className="booking-detail-section-heading"><TagIcon tag="Birthday" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div><fieldset className="tag-picker"><legend>Reservation tags</legend><div className="tag-options">{[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.reservationTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Reservation notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.reservationNotes} onChange={(event) => { const reservationNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, reservationNotes })); }} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label></section>
+                <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
+              </div>
+              <footer><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></footer>
+            </form>
+          </div>
         )}
       </div>
 

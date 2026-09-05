@@ -178,6 +178,53 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
   await expect(dialog).toBeHidden();
 });
 
+test("grid reservation editor saves details in a centered dialog", async ({ page }) => {
+  const reservation = {
+    id: 111, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Taylor Brooks", party_size: 4, start_time: "17:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_phone: "555-0101", guest_email: "", guest_notes: "Likes a quiet table.", guest_profile_notes: "Likes a quiet table.",
+    guest_tags: ["Regular"], tags: ["Birthday"], notes: "Window if available.",
+  };
+  let savedUpdate: Record<string, unknown> | null = null;
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 4, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/111", async (route) => {
+    savedUpdate = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { ...reservation, ...savedUpdate } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Taylor Brooks, party of 4/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Taylor Brooks" });
+  await expect(dialog).toBeVisible();
+  expect(await page.locator(".reservation-editor-backdrop").evaluate((element) => getComputedStyle(element).backdropFilter)).not.toBe("none");
+  const [dialogBox, viewport] = await Promise.all([dialog.boundingBox(), page.evaluate(() => ({ width: innerWidth, height: innerHeight }))]);
+  expect(dialogBox).not.toBeNull();
+  expect(Math.abs(dialogBox!.x + dialogBox!.width / 2 - viewport.width / 2)).toBeLessThan(2);
+  await dialog.getByLabel("Party size").fill("6");
+  await dialog.getByRole("button", { name: "Increase turn time" }).click();
+  await dialog.getByLabel("Status").selectOption("late");
+  await dialog.getByLabel("Phone number").fill("555-0199");
+  await dialog.getByLabel("Reservation notes").fill("Updated reservation note.");
+  await dialog.getByLabel("Guest notes").fill("Updated guest note.");
+  await dialog.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Anniversary" }).click();
+  await dialog.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "VIP" }).click();
+  await dialog.getByRole("button", { name: "Save changes" }).click();
+  expect(savedUpdate).toEqual({
+    party_size: 6,
+    duration_minutes: 105,
+    status: "late",
+    guest_phone: "+1 5550199",
+    notes: "Updated reservation note.",
+    tags: ["Birthday", "Anniversary"],
+    guest_notes: "Updated guest note.",
+    guest_tags: ["Regular", "VIP"],
+  });
+  await expect(dialog).toHaveCount(0);
+});
+
 test("reservation grid permits dropping onto an overlapping active table", async ({ page }) => {
   const movingReservation = {
     id: 201, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
@@ -260,12 +307,10 @@ for (const futureDate of [true, false]) {
     });
     await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
     await page.getByRole("button", { name: /Future Guest, party of 2/ }).click();
-    const seat = page.getByRole("button", { name: "Mark seated", exact: true });
+    const dialog = page.getByRole("dialog", { name: "Future Guest" });
+    const seatedOption = dialog.getByRole("option", { name: "Seated" });
     if (futureDate) {
-      await expect(seat).toBeDisabled();
-      await expect(page.getByRole("button", { name: "Complete", exact: true })).toHaveCount(0);
-      await expect(page.getByText("Reservations cannot be seated or marked as served on future dates.")).toBeVisible();
-      await expect(page.getByRole("button", { name: "Cancel reservation", exact: true })).toBeEnabled();
+      await expect(seatedOption).toHaveAttribute("disabled", "");
       expect(updates).toBe(0);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
       await expect(page.getByText("Viewing another service date. Return to today to seat parties or change table statuses.")).toHaveCount(0);
@@ -280,9 +325,10 @@ for (const futureDate of [true, false]) {
       expect(updates).toBe(1);
       expect(lastUpdate).toEqual({ table_ids: [2] });
     } else {
-      await expect(seat).toBeEnabled();
-      await seat.click();
-      await expect(seat).toHaveCount(0);
+      await expect(seatedOption).toBeEnabled();
+      await dialog.getByLabel("Status").selectOption("seated");
+      await dialog.getByRole("button", { name: "Save changes" }).click();
+      await expect(dialog).toHaveCount(0);
       expect(updates).toBe(1);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
       await expect(page.getByRole("button", { name: "Reassign Future Guest from Table 1" })).toBeVisible();
