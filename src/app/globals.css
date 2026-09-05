@@ -1383,6 +1383,69 @@ textarea {
   color: var(--text-soft);
 }
 
+.grid-draft-bar {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(211, 164, 92, 0.42);
+  background: linear-gradient(90deg, rgba(110, 78, 35, 0.34), rgba(29, 32, 28, 0.96));
+}
+
+.grid-draft-bar p {
+  margin: 0 0 3px;
+  color: var(--accent);
+  font-size: 0.58rem;
+  font-weight: 780;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.grid-draft-bar strong {
+  margin-right: 9px;
+  color: var(--text);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.grid-draft-bar span {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.grid-draft-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 9px;
+}
+
+.grid-draft-actions .primary-action,
+.grid-draft-actions .secondary-action {
+  width: auto;
+  margin-top: 0;
+}
+
+.secondary-action {
+  padding: 11px 13px;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 720;
+}
+
+.secondary-action:hover,
+.secondary-action:focus-visible {
+  border-color: var(--text-muted);
+  color: var(--text);
+  outline: none;
+}
+
 .grid-and-panel {
   display: grid;
   min-height: 0;
@@ -1743,6 +1806,40 @@ textarea {
 
 .reservation-block.time-conflict small {
   color: #ffc0b2;
+}
+
+.grid-hold-block {
+  position: absolute;
+  top: 7px;
+  z-index: 4;
+  display: grid;
+  height: 51px;
+  min-width: 54px;
+  align-content: center;
+  gap: 3px;
+  overflow: hidden;
+  padding: 7px 10px;
+  pointer-events: none;
+  border: 1px dashed rgba(241, 199, 118, 0.94);
+  border-radius: 7px;
+  background: repeating-linear-gradient(-45deg, rgba(143, 103, 45, 0.76), rgba(143, 103, 45, 0.76) 8px, rgba(111, 79, 39, 0.76) 8px, rgba(111, 79, 39, 0.76) 16px);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.3);
+  color: #fff2dc;
+  white-space: nowrap;
+}
+
+.grid-hold-block span {
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 720;
+  text-overflow: ellipsis;
+}
+
+.grid-hold-block small {
+  overflow: hidden;
+  color: rgba(255, 242, 220, 0.72);
+  font-size: 0.58rem;
+  text-overflow: ellipsis;
 }
 
 .grid-loading {
@@ -6884,6 +6981,15 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .grid-draft-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .grid-draft-actions {
+    justify-content: flex-end;
+  }
+
   .grid-toolbar {
     grid-template-areas:
       "toolbar-leading"

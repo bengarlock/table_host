@@ -71,6 +71,44 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+test("grid holds selected tables before opening a prefilled reservation", async ({ page }) => {
+  await mockGrid(page);
+  let submittedReservation: Record<string, unknown> | null = null;
+  await page.route("**/api/grid", async (route) => {
+    submittedReservation = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { id: 301 } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Book table 1 at 5:00 PM", exact: true }).click();
+
+  await expect(page.getByLabel("New reservation", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("New reservation selection")).toContainText("Table 1");
+  await expect(page.locator(".grid-hold-block")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Book table 2 at 5:00 PM", exact: true }).click();
+  await expect(page.getByLabel("New reservation selection")).toContainText("Tables 1 + 2");
+  await expect(page.getByLabel("New reservation selection")).toContainText("seats 4");
+  await expect(page.locator(".grid-hold-block")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
+  const panel = page.getByLabel("New reservation", { exact: true });
+  await expect(panel.getByRole("heading", { name: "Tables 1 + 2" })).toBeVisible();
+  await expect(panel.getByLabel("Party size")).toHaveValue("4");
+  await expect(panel.getByLabel("Turn time")).toHaveValue("90");
+
+  await panel.getByLabel("Guest name").fill("Jordan Lee");
+  await panel.getByRole("button", { name: "Book Reservation", exact: true }).click();
+  await expect.poll(() => submittedReservation).not.toBeNull();
+  expect(submittedReservation).toMatchObject({
+    table_ids: [1, 2],
+    assignment_type: "hard",
+    party_size: 4,
+    start_time: "17:00",
+    duration_minutes: 90,
+  });
+});
+
 test("new reservation confirmation is readable from the grid", async ({ page }) => {
   const reservation = {
     id: 101,
