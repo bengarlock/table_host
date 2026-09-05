@@ -582,6 +582,21 @@ test("auto polish keeps small bar stools separate beside larger tables", async (
 test("booking restores time selection before optional table assignment", async ({ page }) => {
   await mockGrid(page);
   await mockAvailability(page);
+  await page.route("**/api/guests?q=*", (route) => route.fulfill({
+    json: {
+      results: [{
+        id: 1,
+        first_name: "Alyssa",
+        last_name: "Garcia",
+        full_name: "Alyssa Garcia",
+        phone_number: "",
+        email: "",
+        company: "",
+        guest_notes: "Enjoys special occasions.",
+        tags: [],
+      }],
+    },
+  }));
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
   await page.getByRole("button", { name: "Party size" }).click();
@@ -623,6 +638,18 @@ test("booking restores time selection before optional table assignment", async (
   await expect(page.getByRole("heading", { name: "Choose an available time" })).toBeVisible();
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
   await expect(page.locator(".wizard-progress-value").nth(2)).toHaveText("5:30 PM · Tables 1, 2");
+
+  await page.locator("footer").getByRole("button", { name: "Guest" }).click();
+  await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
+  await page.getByRole("button", { name: /Alyssa Garcia/ }).click();
+  await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
+  const [reservationNotes, guestNotes] = await Promise.all([
+    page.getByLabel("Reservation notes").boundingBox(),
+    page.getByLabel("Guest notes").boundingBox(),
+  ]);
+  expect(reservationNotes).not.toBeNull();
+  expect(guestNotes).not.toBeNull();
+  expect(Math.abs(reservationNotes!.y - guestNotes!.y)).toBeLessThan(2);
 });
 
 test("oversized parties warn but can continue to time selection", async ({ page }) => {

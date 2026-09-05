@@ -2997,7 +2997,8 @@ textarea {
 
 .booking-detail-section {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  align-content: stretch;
   gap: 14px;
   padding: 14px;
   border: 1px solid var(--line-strong);
