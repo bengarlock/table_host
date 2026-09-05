@@ -262,7 +262,11 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await expect(dialog.getByRole("listbox", { name: "Reservation status options" })).toBeVisible();
   await dialog.getByRole("heading", { name: "Taylor Brooks" }).click();
   await expect(dialog.getByRole("listbox", { name: "Reservation status options" })).toBeHidden();
-  await dialog.getByLabel("Party size").fill("6");
+  const partySize = dialog.getByRole("status", { name: "Party size" });
+  await expect(partySize).toHaveText("4");
+  await dialog.getByRole("button", { name: "Increase party size" }).click();
+  await dialog.getByRole("button", { name: "Increase party size" }).click();
+  await expect(partySize).toHaveText("6");
   await dialog.getByRole("button", { name: "Increase turn time" }).click();
   await statusMenu.click();
   await dialog.getByRole("option", { name: "Late" }).click();

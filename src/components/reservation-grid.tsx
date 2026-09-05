@@ -536,6 +536,14 @@ export function ReservationGrid({
     });
   }
 
+  function changePartySize(delta: number) {
+    setReservationEditDraft((current) => {
+      if (!current) return current;
+      const partySize = Math.min(40, Math.max(1, Number(current.partySize) + delta));
+      return { ...current, partySize: String(partySize) };
+    });
+  }
+
   async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !reservationEditDraft) return;
@@ -892,7 +900,7 @@ export function ReservationGrid({
               </header>
               <div className="reservation-editor-body">
                 <div className="reservation-editor-fields">
-                  <label>Party size<input type="number" min={1} max={40} inputMode="numeric" value={reservationEditDraft.partySize} onChange={(event) => { const partySize = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, partySize })); }} required /></label>
+                  <div className="reservation-editor-party-size"><span>Party size</span><div><button type="button" aria-label="Decrease party size" onClick={() => changePartySize(-1)} disabled={saving || Number(reservationEditDraft.partySize) <= 1}><Minus aria-hidden="true" /></button><output aria-label="Party size">{reservationEditDraft.partySize}</output><button type="button" aria-label="Increase party size" onClick={() => changePartySize(1)} disabled={saving || Number(reservationEditDraft.partySize) >= 40}><Plus aria-hidden="true" /></button></div></div>
                   <div className="reservation-editor-status-field">
                     <span>Status</span>
                     <details ref={reservationStatusMenuRef} className="reservation-editor-status-menu">
