@@ -301,7 +301,6 @@ export function ServersSettings() {
         <article className="servers-card" role="tabpanel" id="servers-panel-sections" aria-labelledby="servers-tab-sections" hidden={activeTab !== "sections"}>
           <div className="section-panel-heading">
           <div className="servers-card-heading"><UsersRound aria-hidden="true" /><div><h3>Floor sections</h3><p>Name a section, select its tables on the floor plan, then save it.</p></div></div>
-            <div className="section-form-actions" style={{ visibility: sectionActive ? "visible" : "hidden" }}><button className="servers-add-button" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}>{editingSectionId ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}{editingSectionId ? "Save changes" : "Save section"}</button><button className="section-cancel-button" type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></div>
           </div>
           <div className="section-editor-layout">
             <aside className="saved-sections-sidebar" aria-label="Saved sections">
@@ -327,7 +326,7 @@ export function ServersSettings() {
                         onChange={(event) => setSectionColor(event.target.value.toUpperCase())} /></label>
                     </div>
                     <div className="section-list-actions">
-                      {section.id !== -1 && <><button type="button" disabled={saving || active} onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button>
+                      {active ? <><button className="section-row-save" type="submit" form="section-editor-form" disabled={saving || !sectionName.trim() || !sectionTableIds.length}><Check aria-hidden="true" /> Save</button><button type="button" onClick={clearSectionForm} disabled={saving}><X aria-hidden="true" /> Cancel</button></> : <><button type="button" disabled={saving} onClick={() => editSection(section)}><Pencil aria-hidden="true" /> Edit</button>
                       <button type="button" disabled={saving} className={deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "confirming" : ""}
                         onClick={() => deleteTarget?.kind === "section" && deleteTarget.id === section.id ? void removeTarget() : setDeleteTarget({ kind: "section", id: section.id })}>
                         {deleteTarget?.kind === "section" && deleteTarget.id === section.id ? "Confirm" : <><Trash2 aria-hidden="true" /> Remove</>}</button></>}

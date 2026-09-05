@@ -799,6 +799,11 @@ textarea {
   gap: 12px;
 }
 
+.saved-sections-sidebar .section-list-actions .section-row-save {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .section-editor-layout {
     grid-template-columns: minmax(0, 1fr);
