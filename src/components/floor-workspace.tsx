@@ -1891,7 +1891,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         Width
                         <input
                           type="number"
-                          min={72}
+                          min={20}
                           max={220}
                           value={editorValues?.width ?? ""}
                           placeholder="Mixed"
@@ -1899,14 +1899,14 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           onChange={(event) => {
                             if (event.target.value) updateEditorSelection({ width: Number(event.target.value) });
                           }}
-                          onBlur={(event) => updateEditorSelection({ width: clamp(Number(event.target.value), 72, 220) })}
+                          onBlur={(event) => updateEditorSelection({ width: clamp(Number(event.target.value), 20, 220) })}
                         />
                       </label>
                       <label>
                         Height
                         <input
                           type="number"
-                          min={64}
+                          min={20}
                           max={180}
                           value={editorValues?.height ?? ""}
                           placeholder="Mixed"
@@ -1914,7 +1914,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                           onChange={(event) => {
                             if (event.target.value) updateEditorSelection({ height: Number(event.target.value) });
                           }}
-                          onBlur={(event) => updateEditorSelection({ height: clamp(Number(event.target.value), 64, 180) })}
+                          onBlur={(event) => updateEditorSelection({ height: clamp(Number(event.target.value), 20, 180) })}
                         />
                       </label>
                       <label>
