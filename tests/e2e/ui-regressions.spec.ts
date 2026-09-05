@@ -350,6 +350,37 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
   await expect(page.getByRole("option", { name: "Confirmed" })).toHaveCount(0);
 });
 
+test("floor plan can toggle stacked reservation times for each table", async ({ page }) => {
+  const reservations = [
+    {
+      id: 104, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Early party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 105, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+      guest_name: "Late party", party_size: 2, start_time: "19:30", duration_minutes: 90,
+      status: "confirmed", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+  ];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations, summary: { reservations: 2, covers: 4, seated: 0 } },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  const toggle = page.getByRole("button", { name: "Show reservation times" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
+
+  await toggle.click();
+  await expect(page.getByRole("button", { name: "Hide reservation times" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times time')).toHaveText(["5:00 PM", "7:30 PM"]);
+
+  await page.getByRole("button", { name: "Hide reservation times" }).click();
+  await expect(page.getByRole("button", { name: "Show reservation times" })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator('[data-floor-table-id="1"] .floor-table-reservation-times')).toHaveCount(0);
+});
+
 async function mockAvailability(page: Page) {
   await page.route("**/api/grid/availability?*", async (route) => {
     const requestedPartySize = Number(new URL(route.request().url()).searchParams.get("party_size"));

@@ -5407,6 +5407,12 @@ textarea {
   color: #fff8eb;
 }
 
+.floor-plan-actions > .floor-reservation-times-toggle[aria-pressed="true"] {
+  border-color: #d2a35c;
+  background: #5a4629;
+  color: #fff8eb;
+}
+
 .floor-service-layout.editing-floor {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -5858,6 +5864,28 @@ textarea {
   font-weight: 760;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.floor-table-reservation-times {
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.floor-table-reservation-times time {
+  color: inherit;
+  font-size: 0.46rem;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.floor-table.available .floor-table-reservation-times time {
+  color: #404641;
+}
+
+.floor-table:not(.available) .floor-table-reservation-times time {
+  color: #d4d7cf;
 }
 
 .floor-table-label.floor-table-label-compact {

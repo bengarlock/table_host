@@ -593,6 +593,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showReservationTimes, setShowReservationTimes] = useState(false);
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
@@ -807,6 +808,24 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     ),
     [activeReservations],
   );
+  const scheduledReservationsByTable = useMemo(() => {
+    const reservationsByTable = new Map<number, Reservation[]>();
+    [...(data?.reservations || [])]
+      .filter((reservation) => (
+        !reservation.is_unassigned
+        && [...WAITING_STATUSES, ...ACTIVE_STATUSES].includes(reservation.status)
+      ))
+      .sort((left, right) => left.start_time.localeCompare(right.start_time))
+      .forEach((reservation) => {
+        const tableIds = reservation.table_ids.length
+          ? reservation.table_ids
+          : reservation.table_id === null ? [] : [reservation.table_id];
+        tableIds.forEach((tableId) => {
+          reservationsByTable.set(tableId, [...(reservationsByTable.get(tableId) || []), reservation]);
+        });
+      });
+    return reservationsByTable;
+  }, [data?.reservations]);
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
@@ -1994,8 +2013,19 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                   <span><strong>{activeByTable.size}</strong> of {data?.tables.length || 0} occupied</span>
                   <button
                     type="button"
+                    className="floor-reservation-times-toggle"
+                    aria-pressed={showReservationTimes}
+                    onClick={() => setShowReservationTimes((visible) => !visible)}
+                  >
+                    <Clock3 aria-hidden="true" /> {showReservationTimes ? "Hide reservation times" : "Show reservation times"}
+                  </button>
+                  <button
+                    type="button"
                     className="floor-edit-trigger"
-                    onClick={beginFloorEditing}
+                    onClick={() => {
+                      setShowReservationTimes(false);
+                      beginFloorEditing();
+                    }}
                     disabled={saving || editingFloor}
                   >
                     <PencilRuler aria-hidden="true" /> {editingFloor ? "Editing Floor" : "Edit Floor"}
@@ -2209,7 +2239,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
               <div
                 ref={floorCanvasRef}
-                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
+                className={`floor-canvas${seatingMode ? " assigning seating" : ""}${editingFloor ? " editing" : ""}${showReservationTimes ? " show-reservation-times" : ""}${movingEditorTables ? " moving-tables" : ""}${floorMarqueeBounds ? " selecting-tables" : ""}`}
                 style={editingFloor ? {
                   minHeight: `${floorStageMetrics.height * floorStageMetrics.scale}px`,
                 } : undefined}
@@ -2247,6 +2277,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <div className="floor-canvas-loading"><LoaderCircle className="spin" aria-hidden="true" /> Loading tables…</div>
                   ) : displayedTables.map((table) => {
                   const reservation = activeByTable.get(table.id);
+                  const scheduledReservations = scheduledReservationsByTable.get(table.id) || [];
                   const available = !reservation;
                   const editorSelected = editorSelectedTableIds.includes(table.id);
                   const duplicateTableNumber = editingFloor && duplicateTableNumberIds.has(table.id);
@@ -2292,11 +2323,13 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         if (!editingFloor) dropReservation(event, table);
                       }}
                       aria-pressed={editingFloor ? editorSelected : seatingMode ? selectedTableIds.includes(table.id) : undefined}
-                      title={`Table ${table.name}, ${table.capacity} ${table.capacity === 1 ? "seat" : "seats"}${reservation ? `, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : ""}`}
+                      title={`Table ${table.name}, ${table.capacity} ${table.capacity === 1 ? "seat" : "seats"}${showReservationTimes && scheduledReservations.length ? `, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}` : reservation ? `, ${reservation.guest_name}, ${statusLabel(reservation.status)}` : ""}`}
                       aria-label={editingFloor
                           ? `Table ${table.name || "without a number"}, ${table.capacity} seats, ${table.shape}, ${editorSelected ? "selected" : "not selected"}${duplicateTableNumber ? ", duplicate table number" : ""}${overlappingTableIds.has(table.id) ? ", overlaps another table" : ""}`
                         : seatingMode === "reassignment" && reservation
                           ? `Table ${table.name}, currently assigned to ${reservation.guest_name}${selectedTableIds.includes(table.id) ? ", selected for reassignment" : ", not selected for reassignment"}`
+                          : showReservationTimes && scheduledReservations.length
+                            ? `Table ${table.name}, reservations at ${scheduledReservations.map((item) => displayTime(item.start_time)).join(", ")}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`
                           : reservation
                           ? `Table ${table.name}, ${reservation.guest_name}, ${statusLabel(reservation.status)}`
                           : `Table ${table.name}, available, seats ${table.capacity}${selectedTableIds.includes(table.id) ? ", selected for seating" : ""}`}
@@ -2312,7 +2345,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         } : undefined}
                       >
                         <strong>{table.name}</strong>
-                        {reservation ? (
+                        {showReservationTimes && scheduledReservations.length ? (
+                          <span className="floor-table-reservation-times">
+                            {scheduledReservations.map((item) => <time key={item.id} dateTime={item.start_time}>{displayTime(item.start_time)}</time>)}
+                          </span>
+                        ) : reservation ? (
                           <>
                             <small>{reservation.guest_name}</small>
                             <em>{statusLabel(reservation.status)}</em>
