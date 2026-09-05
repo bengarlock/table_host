@@ -332,7 +332,9 @@ test("booking availability is centered around the guest's desired time", async (
   await expect(desiredTimes.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
-  await expect(page.getByLabel("Available reservation times")).toHaveCount(0);
+  const availableTimes = page.getByLabel("Available reservation times");
+  await expect(availableTimes).toHaveCount(1);
+  await expect(availableTimes.locator(".time-carousel-placeholder")).toHaveCount(5);
 
   await page.getByRole("button", { name: "Show earlier desired times" }).click();
   await expect(desiredTimes.locator("button strong")).toHaveText([
@@ -341,12 +343,12 @@ test("booking availability is centered around the guest's desired time", async (
   await desiredTimes.getByRole("button", { name: "7:30 PM", exact: true }).click();
 
   await expect.poll(() => requestedTimes.at(-1)).toBe("19:30");
-  const availableTimes = page.getByLabel("Available reservation times");
   await expect(availableTimes.locator("button strong")).toHaveText([
     "7:00 PM", "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM",
   ]);
   await expect(page.getByRole("button", { name: "7:30 PM, requested time, seats up to 4" })).toBeVisible();
   await page.getByRole("button", { name: "Show later available times" }).click();
+  await expect(page.locator(".time-carousel-track.time-carousel-slide-later")).toBeVisible();
   await expect(availableTimes.locator("button strong")).toHaveText([
     "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM", "8:15 PM",
   ]);

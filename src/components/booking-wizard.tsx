@@ -107,6 +107,7 @@ type NewGuest = {
 };
 
 type NewGuestFocus = "firstName" | "lastName" | "phone";
+type CarouselSlideDirection = "earlier" | "later";
 
 const RESERVATION_TAGS = ["Birthday", "Anniversary", "First visit", "Business meal", "Special occasion", "Accessibility"];
 const GUEST_TAGS = ["VIP", "Regular", "Local", "Hotel guest", "Concierge", "Accessibility"];
@@ -234,6 +235,8 @@ export function BookingWizard({
   const [desiredTime, setDesiredTime] = useState("");
   const [desiredTimeWindowStart, setDesiredTimeWindowStart] = useState(0);
   const [availabilityWindowStart, setAvailabilityWindowStart] = useState(0);
+  const [desiredTimeSlide, setDesiredTimeSlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
+  const [availabilitySlide, setAvailabilitySlide] = useState<{ direction: CarouselSlideDirection; sequence: number } | null>(null);
   const availabilityRequestId = useRef(0);
   const [partySize, setPartySize] = useState(2);
   const [partySizeInput, setPartySizeInput] = useState("9");
@@ -481,6 +484,26 @@ export function BookingWizard({
     setDesiredTime(value);
     invalidateTimeSelection();
     void findTimes(selectedShiftSlug, value);
+  }
+
+  function moveDesiredTimeWindow(direction: CarouselSlideDirection) {
+    const limit = Math.max(0, desiredTimeChoices.length - VISIBLE_TIME_COUNT);
+    const next = direction === "earlier"
+      ? Math.max(0, desiredTimeWindowStart - 1)
+      : Math.min(limit, desiredTimeWindowStart + 1);
+    if (next === desiredTimeWindowStart) return;
+    setDesiredTimeWindowStart(next);
+    setDesiredTimeSlide((slide) => ({ direction, sequence: (slide?.sequence || 0) + 1 }));
+  }
+
+  function moveAvailabilityWindow(direction: CarouselSlideDirection) {
+    const limit = Math.max(0, options.length - VISIBLE_TIME_COUNT);
+    const next = direction === "earlier"
+      ? Math.max(0, availabilityWindowStart - 1)
+      : Math.min(limit, availabilityWindowStart + 1);
+    if (next === availabilityWindowStart) return;
+    setAvailabilityWindowStart(next);
+    setAvailabilitySlide((slide) => ({ direction, sequence: (slide?.sequence || 0) + 1 }));
   }
 
   function selectTimeShift(shift: ShiftChoice) {
@@ -884,12 +907,16 @@ export function BookingWizard({
                     type="button"
                     className="time-carousel-arrow"
                     aria-label="Show earlier desired times"
-                    onClick={() => setDesiredTimeWindowStart((current) => Math.max(0, current - 1))}
+                    onClick={() => moveDesiredTimeWindow("earlier")}
                     disabled={desiredTimeWindowStart === 0}
                   >
                     <ChevronLeft aria-hidden="true" />
                   </button>
-                  <div className="time-carousel-track" aria-label="Desired reservation times">
+                  <div
+                    key={desiredTimeSlide?.sequence}
+                    className={`time-carousel-track${desiredTimeSlide ? ` time-carousel-slide-${desiredTimeSlide.direction}` : ""}`}
+                    aria-label="Desired reservation times"
+                  >
                     {visibleDesiredTimes.map((time) => (
                       <button
                         type="button"
@@ -906,34 +933,34 @@ export function BookingWizard({
                     type="button"
                     className="time-carousel-arrow"
                     aria-label="Show later desired times"
-                    onClick={() => setDesiredTimeWindowStart((current) => Math.min(
-                      Math.max(0, desiredTimeChoices.length - VISIBLE_TIME_COUNT),
-                      current + 1,
-                    ))}
+                    onClick={() => moveDesiredTimeWindow("later")}
                     disabled={desiredTimeWindowStart + VISIBLE_TIME_COUNT >= desiredTimeChoices.length}
                   >
                     <ChevronRight aria-hidden="true" />
                   </button>
                 </div>
               </section>
-              {desiredTime && (
-                <section className="time-choice-section" aria-labelledby="available-time-heading">
-                  <header>
-                    <strong id="available-time-heading">Available times</strong>
-                    <span>Near {displayTime(desiredTime)}</span>
-                  </header>
-                  {options.length ? (
-                    <div className="time-carousel">
+              <section className="time-choice-section" aria-labelledby="available-time-heading">
+                <header>
+                  <strong id="available-time-heading">Available times</strong>
+                  <span>{desiredTime ? `Near ${displayTime(desiredTime)}` : "Select a desired time"}</span>
+                </header>
+                {options.length ? (
+                  <div className="time-carousel">
                       <button
                         type="button"
                         className="time-carousel-arrow"
                         aria-label="Show earlier available times"
-                        onClick={() => setAvailabilityWindowStart((current) => Math.max(0, current - 1))}
+                        onClick={() => moveAvailabilityWindow("earlier")}
                         disabled={availabilityWindowStart === 0}
                       >
                         <ChevronLeft aria-hidden="true" />
                       </button>
-                      <div className="time-carousel-track" aria-label="Available reservation times">
+                      <div
+                        key={availabilitySlide?.sequence}
+                        className={`time-carousel-track${availabilitySlide ? ` time-carousel-slide-${availabilitySlide.direction}` : ""}`}
+                        aria-label="Available reservation times"
+                      >
                         {visibleAvailabilityOptions.map((option) => {
                           const optionKey = `${option.shift_slug}-${option.start_time}`;
                           const selected = selectedOption?.shift_slug === option.shift_slug
@@ -962,22 +989,30 @@ export function BookingWizard({
                         type="button"
                         className="time-carousel-arrow"
                         aria-label="Show later available times"
-                        onClick={() => setAvailabilityWindowStart((current) => Math.min(
-                          Math.max(0, options.length - VISIBLE_TIME_COUNT),
-                          current + 1,
-                        ))}
+                        onClick={() => moveAvailabilityWindow("later")}
                         disabled={availabilityWindowStart + VISIBLE_TIME_COUNT >= options.length}
                       >
                         <ChevronRight aria-hidden="true" />
                       </button>
                     </div>
-                  ) : assignmentLoading ? (
-                    <div className="availability-loading"><LoaderCircle className="spin" aria-hidden="true" /> Checking nearby times…</div>
-                  ) : (
-                    <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
-                  )}
-                </section>
-              )}
+                ) : desiredTime && !assignmentLoading ? (
+                  <div className="no-availability"><Search aria-hidden="true" /><h4>No reservation times found</h4><p>Try another shift, day, party size, or a shorter turn.</p></div>
+                ) : (
+                  <div className="time-carousel" aria-label="Available reservation times" aria-busy={assignmentLoading}>
+                    <button type="button" className="time-carousel-arrow" aria-label="Show earlier available times" disabled>
+                      <ChevronLeft aria-hidden="true" />
+                    </button>
+                    <div className="time-carousel-track" aria-hidden="true">
+                      {Array.from({ length: VISIBLE_TIME_COUNT }, (_, index) => (
+                        <span className="time-carousel-placeholder" key={index} />
+                      ))}
+                    </div>
+                    <button type="button" className="time-carousel-arrow" aria-label="Show later available times" disabled>
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+              </section>
               <div className="time-and-tables-selection">
                 <div>
                   <strong>{selectedOption ? displayTime(selectedOption.start_time) : "Select a reservation time"}</strong>

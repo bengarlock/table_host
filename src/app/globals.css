@@ -2616,6 +2616,36 @@ textarea {
   font-size: 0.57rem;
 }
 
+.time-carousel-placeholder {
+  min-height: 56px;
+  background: #141714;
+}
+
+.time-carousel-slide-earlier > *,
+.time-carousel-slide-later > * {
+  animation-duration: 180ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: both;
+}
+
+.time-carousel-slide-earlier > * {
+  animation-name: time-carousel-slide-from-left;
+}
+
+.time-carousel-slide-later > * {
+  animation-name: time-carousel-slide-from-right;
+}
+
+@keyframes time-carousel-slide-from-left {
+  from { opacity: 0.45; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes time-carousel-slide-from-right {
+  from { opacity: 0.45; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .time-carousel-track button.is-unavailable {
   cursor: pointer;
   background: #101210;
@@ -5769,6 +5799,11 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .time-carousel-slide-earlier > *,
+  .time-carousel-slide-later > * {
+    animation: none;
+  }
+
   .floor-reservation-detail-card {
     animation: none;
   }
