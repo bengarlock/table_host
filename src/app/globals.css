@@ -5287,6 +5287,16 @@ textarea {
   line-height: 1.4;
 }
 
+.floor-seating-prompt.is-capacity-warning {
+  border-color: rgba(229, 187, 111, 0.58);
+  background: rgba(132, 89, 35, 0.2);
+}
+
+.floor-seating-prompt .floor-seating-capacity-warning {
+  color: #ffd18b;
+  font-weight: 700;
+}
+
 .floor-reservation-actions {
   display: grid;
   flex: 0 0 auto;

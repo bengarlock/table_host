@@ -876,6 +876,21 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const selectedPending = pendingReservations.find((item) => item.id === selectedPendingId) || null;
   const draggedReservation = pendingReservations.find((item) => item.id === draggedReservationId) || null;
   const focusedReservation = data?.reservations.find((item) => item.id === focusedReservationId) || null;
+  const selectedSeatingCapacity = useMemo(
+    () => (data?.tables || [])
+      .filter((table) => selectedTableIds.includes(table.id))
+      .reduce((total, table) => total + table.capacity, 0),
+    [data?.tables, selectedTableIds],
+  );
+  const seatingPartySize = seatingMode === "walk-in"
+    ? walkInDraft?.partySize
+    : selectedPending?.party_size;
+  const seatingCapacityWarning = Boolean(
+    seatingMode !== "reassignment"
+    && seatingPartySize
+    && selectedTableIds.length
+    && selectedSeatingCapacity < seatingPartySize,
+  );
   const focusedStatusOption = reservationEditDraft
     ? [...RESERVATION_STATUS_OPTIONS, ...SERVICE_STEPS].find((option) => option.value === reservationEditDraft.status)
     : null;
@@ -2014,7 +2029,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                 )}
               </div>
               {seatingMode && (
-                <div className="floor-seating-prompt" role="status">
+                <div className={`floor-seating-prompt${seatingCapacityWarning ? " is-capacity-warning" : ""}`} role="status">
                   <strong>
                     {seatingMode === "walk-in"
                       ? `${walkInDraft?.guestName || "Walk-in"} · Party of ${walkInDraft?.partySize} · ${formatTurnTime(walkInDraft?.durationMinutes ?? walkInDurationMinutes)} turn`
@@ -2033,6 +2048,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       ? "Select one or more available tables, then save the assignment."
                       : "Select one or more available tables, then finish seating."}
                   </span>
+                  {seatingCapacityWarning && (
+                    <span className="floor-seating-capacity-warning" role="alert">
+                      Capacity warning: {selectedSeatingCapacity} seats selected for a party of {seatingPartySize}. You can still finish seating.
+                    </span>
+                  )}
                 </div>
               )}
               <div className="floor-reservation-actions">
