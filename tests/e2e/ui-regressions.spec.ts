@@ -72,6 +72,16 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+test("booking calendar uses an integrated date surface and tiles", async ({ page }) => {
+  await mockGrid(page);
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+
+  const calendar = page.locator(".wizard-date-field .calendar-inline");
+  const dateTile = page.locator(".wizard-date-field .calendar-days button:not(:disabled):not(.outside-month)").first();
+  await expect(calendar).toHaveCSS("background-image", /radial-gradient/);
+  await expect(dateTile).toHaveCSS("background-image", /linear-gradient/);
+});
+
 test("grid holds selected tables before opening a prefilled reservation", async ({ page }) => {
   await mockGrid(page);
   await page.route("**/api/grid/availability?*", async (route) => {
