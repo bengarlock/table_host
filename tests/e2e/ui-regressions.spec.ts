@@ -1000,6 +1000,26 @@ test("booking availability is centered around the guest's desired time", async (
   ]);
 });
 
+test("booking time and party controls stay in one column on short desktops", async ({ page }) => {
+  await page.setViewportSize({ width: 2048, height: 800 });
+  await mockGrid(page);
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+
+  const [partyBounds, desiredBounds, availableBounds] = await Promise.all([
+    page.locator(".booking-party-panel").boundingBox(),
+    page.locator(".time-choice-section").first().boundingBox(),
+    page.locator(".available-time-choice").boundingBox(),
+  ]);
+  expect(partyBounds).not.toBeNull();
+  expect(desiredBounds).not.toBeNull();
+  expect(availableBounds).not.toBeNull();
+  expect(Math.abs(partyBounds!.x - desiredBounds!.x)).toBeLessThan(2);
+  expect(Math.abs(desiredBounds!.x - availableBounds!.x)).toBeLessThan(2);
+  expect(partyBounds!.y).toBeLessThan(desiredBounds!.y);
+  expect(desiredBounds!.y).toBeLessThan(availableBounds!.y);
+});
+
 test("reservation navigation is not overwritten by a late grid response", async ({ page }) => {
   await mockGrid(page, 600);
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
