@@ -167,6 +167,48 @@ test("grid blocks selected tables for the remainder of a shift with notes", asyn
   await expect(page.locator(".table-time-block")).toContainText("Private event setup");
 });
 
+test("table blocks render behind reservation records", async ({ page }) => {
+  const reservation = {
+    id: 102,
+    table_id: 1,
+    table_name: "1",
+    table_ids: [1],
+    table_names: ["1"],
+    guest_name: "Jordan Lee",
+    party_size: 2,
+    start_time: "17:00",
+    duration_minutes: 90,
+    status: "confirmed",
+    assignment_type: "soft",
+    is_unassigned: false,
+    guest_phone: "",
+    guest_email: "",
+    guest_notes: "",
+    guest_profile_notes: "",
+    guest_tags: [],
+    tags: [],
+    notes: "",
+  };
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      reservations: [reservation],
+      blocks: [{ id: 44, table_ids: [1], table_names: ["1"], start_time: "17:00", duration_minutes: 90, notes: "Private event" }],
+      summary: { reservations: 1, covers: 2, seated: 0 },
+    },
+  }));
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  const [blockLayer, reservationLayer, blockPointerEvents] = await Promise.all([
+    page.locator(".table-time-block").evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    page.locator(".reservation-block").evaluate((element) => Number(getComputedStyle(element).zIndex)),
+    page.locator(".table-time-block").evaluate((element) => getComputedStyle(element).pointerEvents),
+  ]);
+
+  expect(blockLayer).toBeLessThan(reservationLayer);
+  expect(blockPointerEvents).toBe("none");
+});
+
 test("new reservation confirmation is readable from the grid", async ({ page }) => {
   const reservation = {
     id: 101,

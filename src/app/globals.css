@@ -1443,7 +1443,8 @@ textarea {
 
 .table-time-block {
   position: absolute;
-  z-index: 3;
+  z-index: 1;
+  pointer-events: none;
   top: 7px;
   bottom: 7px;
   display: flex;
