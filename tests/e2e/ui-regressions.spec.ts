@@ -1374,6 +1374,50 @@ test("floor tables can cross each other but overlapping drops block saving", asy
   await expect(page.getByRole("button", { name: "Save Floor" })).toBeDisabled();
 });
 
+test("rotated tables with intersecting screen bounds remain clear when their surfaces are apart", async ({ page }) => {
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      tables: [
+        { ...gridPayload.tables[0], position_x: 50, position_y: 60, rotation: 45 },
+        { ...gridPayload.tables[1], position_x: 65, position_y: 60, rotation: 45 },
+      ],
+    },
+  }));
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Edit Floor" }).click();
+
+  const first = page.locator('[data-floor-table-id="1"]');
+  const second = page.locator('[data-floor-table-id="2"]');
+  const [firstBounds, secondBounds] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+  expect(firstBounds).not.toBeNull();
+  expect(secondBounds).not.toBeNull();
+
+  await page.mouse.move(secondBounds!.x + secondBounds!.width / 2, secondBounds!.y + secondBounds!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    firstBounds!.x + firstBounds!.width / 2 + 60,
+    firstBounds!.y + firstBounds!.height / 2 - 60,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+
+  const [firstSurface, secondSurface] = await Promise.all([
+    first.locator(".floor-table-surface").boundingBox(),
+    second.locator(".floor-table-surface").boundingBox(),
+  ]);
+  expect(firstSurface).not.toBeNull();
+  expect(secondSurface).not.toBeNull();
+  expect(Math.max(firstSurface!.x, secondSurface!.x)).toBeLessThan(
+    Math.min(firstSurface!.x + firstSurface!.width, secondSurface!.x + secondSurface!.width),
+  );
+  expect(Math.max(firstSurface!.y, secondSurface!.y)).toBeLessThan(
+    Math.min(firstSurface!.y + firstSurface!.height, secondSurface!.y + secondSurface!.height),
+  );
+  await expect(page.locator(".floor-table.overlapping-table")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save Floor" })).toBeEnabled();
+});
+
 test("auto polish aligns and evenly spaces floor rows and columns", async ({ page }) => {
   const coordinates = [
     [24.5, 24], [35.5, 25.5], [45, 24.5],
