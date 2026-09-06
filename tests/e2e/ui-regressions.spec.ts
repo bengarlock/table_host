@@ -368,6 +368,16 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     savedUpdate = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ json: { ...reservation, ...savedUpdate } });
   });
+  await page.route("**/api/grid/reservations/111/history", (route) => route.fulfill({ json: [{
+    id: 1,
+    action: "updated",
+    summary: "Updated reservation time, party size",
+    changes: {
+      start_time: { from: "20:15", to: "20:30" },
+      party_size: { from: 4, to: 6 },
+    },
+    created_at: "2026-09-04T20:30:00Z",
+  }] }));
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
   await page.getByRole("button", { name: /Taylor Brooks, party of 4/ }).click();
@@ -409,6 +419,14 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(emailField).not.toBeNull();
   expect(Math.abs(phoneField!.y - emailField!.y)).toBeLessThan(2);
   expect(emailField!.x).toBeGreaterThan(phoneField!.x + phoneField!.width);
+  await dialog.getByRole("button", { name: "Change history" }).click();
+  const historyDialog = page.locator(".reservation-history-dialog");
+  await expect(historyDialog).toBeVisible();
+  await expect(historyDialog).toContainText("Updated reservation time, party size");
+  await expect(historyDialog).toContainText("8:15 PM");
+  await expect(historyDialog).toContainText("8:30 PM");
+  await historyDialog.getByRole("button", { name: "Close change history" }).click();
+  await expect(historyDialog).toHaveCount(0);
   const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
   await statusMenu.click();
   await expect(dialog.getByRole("listbox", { name: "Reservation status options" })).toBeVisible();
