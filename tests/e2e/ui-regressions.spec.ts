@@ -76,8 +76,10 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
   await mockGrid(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
+  const bookingPage = page.locator(".booking-page-shell");
   const calendar = page.locator(".wizard-date-field .calendar-inline");
   const dateTile = page.locator(".wizard-date-field .calendar-days button:not(:disabled):not(.outside-month)").first();
+  await expect(bookingPage).toHaveCSS("background-image", /radial-gradient/);
   await expect(calendar).toHaveCSS("background-image", /radial-gradient/);
   await expect(dateTile).toHaveCSS("background-image", /linear-gradient/);
 });

@@ -2506,10 +2506,36 @@ textarea {
 }
 
 .booking-page-shell {
+  position: relative;
+  isolation: isolate;
   display: grid;
   width: 100%;
   min-height: calc(100vh - 56px);
   place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 72% 58% at 50% 52%, rgba(53, 79, 58, 0.22), transparent 72%),
+    radial-gradient(circle at 12% 18%, rgba(201, 151, 73, 0.13), transparent 24%),
+    radial-gradient(circle at 86% 82%, rgba(42, 103, 83, 0.14), transparent 28%),
+    #0b0e0b;
+}
+
+.booking-page-shell::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(183, 166, 118, 0.042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(183, 166, 118, 0.042) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 82% 76% at 50% 50%, #000 18%, transparent 78%);
+}
+
+.booking-page-shell > * {
+  position: relative;
+  z-index: 1;
 }
 
 .booking-page-state {
