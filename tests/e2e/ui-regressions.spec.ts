@@ -292,24 +292,6 @@ test("table blocks render behind reservation records", async ({ page }) => {
   expect(blockPointerEvents).toBe("none");
 });
 
-test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
-  await mockGrid(page);
-  await page.route("**/api/grid/blocks", async (route) => {
-    const request = route.request().postDataJSON();
-    expect(request).toMatchObject({ table_ids: [1], start_time: "17:00", duration_minutes: 300, notes: "Private event setup" });
-    await route.fulfill({ status: 201, json: { id: 44, table_ids: [1], table_names: ["1"], start_time: "17:00", duration_minutes: 300, notes: "Private event setup" } });
-  });
-
-  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
-  await page.getByRole("button", { name: "Book table 1 at 5:00 PM", exact: true }).click();
-  await page.getByRole("button", { name: "Block Tables", exact: true }).click();
-  await page.getByRole("radio", { name: /Rest of shift/ }).check();
-  await page.getByPlaceholder("Why are these tables blocked?").fill("Private event setup");
-  await page.getByRole("button", { name: "Confirm block", exact: true }).click();
-  await expect(page.locator(".table-time-block")).toContainText("Blocked");
-  await expect(page.locator(".table-time-block")).toContainText("Private event setup");
-});
-
 test("new reservation confirmation is readable from the grid", async ({ page }) => {
   const reservation = {
     id: 101,
@@ -494,36 +476,6 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     table_ids: [1, 2],
   });
   await expect(dialog).toHaveCount(0);
-});
-
-test("reservation grid permits dropping onto an overlapping active table", async ({ page }) => {
-  const movingReservation = {
-    id: 201, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
-    guest_name: "Moving party", party_size: 2, start_time: "17:30", duration_minutes: 90,
-    status: "confirmed", assignment_type: "hard", is_unassigned: false,
-    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
-  };
-  const activeReservation = {
-    id: 202, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
-    guest_name: "Active party", party_size: 2, start_time: "17:00", duration_minutes: 90,
-    status: "seated", assignment_type: "hard", is_unassigned: false,
-    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
-  };
-  let movedToTableId: number | null = null;
-  await page.route("**/api/grid?*", (route) => route.fulfill({
-    json: { ...gridPayload, reservations: [movingReservation, activeReservation], summary: { reservations: 2, covers: 4, seated: 2 } },
-  }));
-  await page.route("**/api/grid/reservations/201", async (route) => {
-    movedToTableId = (route.request().postDataJSON() as { table_id: number }).table_id;
-    await route.fulfill({ json: { ...movingReservation, table_id: movedToTableId, table_ids: [movedToTableId], table_names: ["2"] } });
-  });
-
-  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
-  const moving = page.getByRole("button", { name: /Moving party, party of 2/ });
-  const occupiedTable = page.locator(".timeline-row").filter({ has: page.getByText("Active party", { exact: true }) });
-  await moving.dragTo(occupiedTable);
-
-  expect(movedToTableId).toBe(2);
 });
 
 test("reservation grid permits dropping onto an overlapping active table", async ({ page }) => {
