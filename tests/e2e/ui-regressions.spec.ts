@@ -292,6 +292,24 @@ test("table blocks render behind reservation records", async ({ page }) => {
   expect(blockPointerEvents).toBe("none");
 });
 
+test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
+  await mockGrid(page);
+  await page.route("**/api/grid/blocks", async (route) => {
+    const request = route.request().postDataJSON();
+    expect(request).toMatchObject({ table_ids: [1], start_time: "17:00", duration_minutes: 300, notes: "Private event setup" });
+    await route.fulfill({ status: 201, json: { id: 44, table_ids: [1], table_names: ["1"], start_time: "17:00", duration_minutes: 300, notes: "Private event setup" } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: "Book table 1 at 5:00 PM", exact: true }).click();
+  await page.getByRole("button", { name: "Block Tables", exact: true }).click();
+  await page.getByRole("radio", { name: /Rest of shift/ }).check();
+  await page.getByPlaceholder("Why are these tables blocked?").fill("Private event setup");
+  await page.getByRole("button", { name: "Confirm block", exact: true }).click();
+  await expect(page.locator(".table-time-block")).toContainText("Blocked");
+  await expect(page.locator(".table-time-block")).toContainText("Private event setup");
+});
+
 test("new reservation confirmation is readable from the grid", async ({ page }) => {
   const reservation = {
     id: 101,

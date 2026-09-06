@@ -285,7 +285,6 @@ function reservationTurnsOverlap(left: Reservation, right: Reservation) {
   return leftStart < rightStart + right.duration_minutes
     && rightStart < leftStart + left.duration_minutes;
 }
-
 function turnProgress(
   reservation: Reservation,
   now: number,
