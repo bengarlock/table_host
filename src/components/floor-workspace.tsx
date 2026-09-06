@@ -351,15 +351,43 @@ function turnProgress(
   };
 }
 
-function floorTimerPath(shape: DiningTable["shape"], expired: boolean) {
+type FloorTimerStartSide = "top" | "right" | "bottom" | "left";
+
+function floorTimerStartSide(rotation: number): FloorTimerStartSide {
+  const quarterTurn = Math.round((((rotation % 360) + 360) % 360) / 90) % 4;
+  return (["top", "left", "bottom", "right"] as const)[quarterTurn];
+}
+
+function floorRectangleTimerPath(start: FloorTimerStartSide, clockwise: boolean) {
+  const paths = clockwise ? {
+    top: "M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50",
+    right: "M97 50V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V50",
+    bottom: "M50 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H50",
+    left: "M3 50V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V50",
+  } : {
+    top: "M50 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H50",
+    right: "M97 50V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V50",
+    bottom: "M50 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H50",
+    left: "M3 50V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V50",
+  };
+  return paths[start];
+}
+
+function formatFloorTimerCoordinate(value: number) {
+  return Number(value.toFixed(3));
+}
+
+function floorTimerPath(shape: DiningTable["shape"], expired: boolean, rotation: number) {
   if (shape === "round") {
-    return expired
-      ? "M50 3A47 47 0 1 1 50 97A47 47 0 1 1 50 3"
-      : "M50 3A47 47 0 1 0 50 97A47 47 0 1 0 50 3";
+    const radians = (-90 - rotation) * Math.PI / 180;
+    const startX = formatFloorTimerCoordinate(50 + Math.cos(radians) * 47);
+    const startY = formatFloorTimerCoordinate(50 + Math.sin(radians) * 47);
+    const oppositeX = formatFloorTimerCoordinate(100 - startX);
+    const oppositeY = formatFloorTimerCoordinate(100 - startY);
+    const sweep = expired ? 1 : 0;
+    return `M${startX} ${startY}A47 47 0 1 ${sweep} ${oppositeX} ${oppositeY}A47 47 0 1 ${sweep} ${startX} ${startY}`;
   }
-  return expired
-    ? "M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50"
-    : "M50 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H50";
+  return floorRectangleTimerPath(floorTimerStartSide(rotation), expired);
 }
 
 function displayTableAssignment(tableNames: string[]) {
@@ -2936,7 +2964,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             "--turn-overdue-duration": `${floorTurn.overdueRemainingMilliseconds}ms`,
                           } as CSSProperties}
                         >
-                          <path d={floorTimerPath(table.shape, floorTurn.expired)} pathLength="100" />
+                          <path d={floorTimerPath(table.shape, floorTurn.expired, table.rotation)} pathLength="100" />
                         </svg>
                       )}
                       <span
