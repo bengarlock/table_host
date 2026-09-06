@@ -306,6 +306,17 @@ function turnProgress(
   };
 }
 
+function floorTimerPath(shape: DiningTable["shape"], expired: boolean) {
+  if (shape === "round") {
+    return expired
+      ? "M50 3A47 47 0 1 1 50 97A47 47 0 1 1 50 3"
+      : "M50 3A47 47 0 1 0 50 97A47 47 0 1 0 50 3";
+  }
+  return expired
+    ? "M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50"
+    : "M50 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H50";
+}
+
 function displayTableAssignment(tableNames: string[]) {
   if (tableNames.length <= 3) return tableNames.join("+");
   const lowestTableNumber = [...tableNames].sort((left, right) => (
@@ -2728,9 +2739,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             "--turn-overdue-duration": `${floorTurn.overdueRemainingMilliseconds}ms`,
                           } as CSSProperties}
                         >
-                          {table.shape === "round"
-                            ? <circle cx="50" cy="50" r="47" pathLength="100" />
-                            : <path d={floorTurn.expired ? "M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50" : "M50 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H50"} pathLength="100" />}
+                          <path d={floorTimerPath(table.shape, floorTurn.expired)} pathLength="100" />
                         </svg>
                       )}
                       <span

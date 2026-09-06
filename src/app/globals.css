@@ -6524,7 +6524,6 @@ textarea {
   pointer-events: none;
 }
 
-.floor-table-turn-timer circle,
 .floor-table-turn-timer path {
   fill: none;
   stroke: #72c995;
@@ -6547,25 +6546,14 @@ textarea {
   }
 }
 
-.floor-table-turn-timer circle {
-  transform: rotate(90deg) scaleX(-1);
-  transform-origin: center;
-}
-
-.floor-table-turn-timer.warning circle,
 .floor-table-turn-timer.warning path {
   stroke: #e5bb6f;
 }
 
-.floor-table-turn-timer.expired circle,
 .floor-table-turn-timer.expired path {
   stroke: #ef754c;
   filter: drop-shadow(0 0 4px rgba(239, 117, 76, 0.56));
   animation: floor-table-turn-overdue var(--turn-overdue-duration) linear forwards;
-}
-
-.floor-table-turn-timer.expired circle {
-  transform: rotate(-90deg);
 }
 
 .floor-table.available .floor-table-surface {
