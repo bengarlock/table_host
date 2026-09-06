@@ -19,7 +19,6 @@ import {
   Tag,
   Users,
   UserPlus,
-  X,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -835,7 +834,13 @@ export function BookingWizard({
         aria-label="New reservation"
       >
         <header className="wizard-header">
-          <button type="button" onClick={onClose} aria-label="Close booking wizard"><X aria-hidden="true" /></button>
+          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
+          {step === 1 && <button type="button" className="wizard-next" onClick={openDesiredTimeStep} disabled={!serviceDate}>Time & Party <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && !selectedOption && !options.length && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || !desiredTime || partySize <= 0 || durationMinutes <= 0}>{assignmentLoading ? "Checking availability…" : "Check availability"} <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && !selectedOption && options.length > 0 && <button type="button" className="wizard-next" disabled>Select a reservation time <ArrowRight aria-hidden="true" /></button>}
+          {step === 2 && selectedOption && <button type="button" className="wizard-next" onClick={() => advanceTo(3)}>Guest <ArrowRight aria-hidden="true" /></button>}
+          {step === 3 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(4)}>Details <ArrowRight aria-hidden="true" /></button>}
+          {step === 4 && <button type="submit" form="booking-details-form" className={`wizard-next${selectedOption && !selectedOption.available ? " overbook-warning" : ""}`} disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
         </header>
 
         <ol className="wizard-progress" aria-label="Booking progress">
@@ -1229,16 +1234,6 @@ export function BookingWizard({
 
           {error && <div className="wizard-error" role="alert">{error}</div>}
         </div>
-
-        <footer className="wizard-footer">
-          {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
-          {step === 1 && <button type="button" className="wizard-next" onClick={openDesiredTimeStep} disabled={!serviceDate}>Time & Party <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && !selectedOption && !options.length && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || !desiredTime || partySize <= 0 || durationMinutes <= 0}>{assignmentLoading ? "Checking availability…" : "Check availability"} <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && !selectedOption && options.length > 0 && <button type="button" className="wizard-next" disabled>Select a reservation time <ArrowRight aria-hidden="true" /></button>}
-          {step === 2 && selectedOption && <button type="button" className="wizard-next" onClick={() => advanceTo(3)}>Guest <ArrowRight aria-hidden="true" /></button>}
-          {step === 3 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(4)}>Details <ArrowRight aria-hidden="true" /></button>}
-          {step === 4 && <button type="submit" form="booking-details-form" className={`wizard-next${selectedOption && !selectedOption.available ? " overbook-warning" : ""}`} disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
-        </footer>
       </section>
       {tablePickerOpen && assignmentGrid && selectedOption && (
         <ReservationTablePicker

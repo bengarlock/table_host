@@ -78,16 +78,29 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
 
   const bookingPage = page.locator(".booking-page-shell");
   const bookingMain = page.locator(".booking-main-content");
-  const wizard = page.locator(".booking-wizard.date-step");
+  const wizard = page.locator(".booking-wizard");
+  const wizardHeader = page.locator(".wizard-header");
   const progress = page.locator(".wizard-progress");
   const calendar = page.locator(".wizard-date-field .calendar-inline");
   const dateTile = page.locator(".wizard-date-field .calendar-days button:not(:disabled):not(.outside-month)").first();
   await expect(bookingPage).toHaveCSS("background-image", /radial-gradient/);
   await expect(bookingMain).toHaveCSS("padding-top", "0px");
+  await expect(wizard).toHaveClass(/date-step/);
   await expect(wizard).toHaveCSS("border-top-width", "0px");
+  await expect(wizardHeader.getByRole("button", { name: "Time & Party" })).toBeVisible();
   await expect(progress).toHaveCSS("border-bottom-width", "0px");
   await expect(calendar).toHaveCSS("background-image", /radial-gradient/);
   await expect(dateTile).toHaveCSS("background-image", /linear-gradient/);
+  const progressBox = await progress.boundingBox();
+  expect(progressBox).not.toBeNull();
+
+  await dateTile.click();
+  await expect(wizard).toHaveClass(/time-party-step/);
+  const advancedProgressBox = await progress.boundingBox();
+  expect(advancedProgressBox).not.toBeNull();
+  expect(advancedProgressBox!.y).toBe(progressBox!.y);
+  await expect(page.locator(".wizard-footer")).toHaveCount(0);
+  await expect(page.getByLabel("Close booking wizard")).toHaveCount(0);
 });
 
 test("grid holds selected tables before opening a prefilled reservation", async ({ page }) => {
