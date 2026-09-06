@@ -383,7 +383,7 @@ export function BookingWizard({
   useEffect(() => {
     if (step !== 3) return;
     const query = guestQuery.trim();
-    if (!query) return;
+    if (query.length < 2) return;
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
@@ -707,10 +707,11 @@ export function BookingWizard({
 
   function updateGuestQuery(value: string) {
     setGuestQuery(value);
-    if (value.trim()) return;
-    setGuestResults([]);
-    setGuestSearchLoading(false);
-    setGuestSearchError("");
+    if (value.trim().length < 2) {
+      setGuestResults([]);
+      setGuestSearchLoading(false);
+      setGuestSearchError("");
+    }
   }
 
   function startCreatingGuest() {
@@ -1118,7 +1119,7 @@ export function BookingWizard({
                     </button>
                   )}
 
-                  {guestQuery.trim() && !guestSearchLoading && guestResults.length > 0 && (
+                  {guestQuery.trim().length >= 2 && !guestSearchLoading && guestResults.length > 0 && (
                     <div className="guest-search-results" aria-label="Guest search results">
                       {guestResults.map((guest) => (
                         <button type="button" key={guest.id} onClick={() => chooseGuest(guest)}>
@@ -1137,7 +1138,7 @@ export function BookingWizard({
                     </div>
                   )}
 
-                  {guestQuery.trim() && !guestSearchLoading && !guestSearchError && guestResults.length === 0 && (
+                  {guestQuery.trim().length >= 2 && !guestSearchLoading && !guestSearchError && guestResults.length === 0 && (
                     <div className="guest-empty-state">
                       <UserPlus aria-hidden="true" />
                       <div><h4>No matching guest found</h4><p>Create a guest record and continue with this reservation.</p></div>
@@ -1147,6 +1148,9 @@ export function BookingWizard({
 
                   {!guestQuery.trim() && !selectedGuest && (
                     <div className="guest-search-prompt"><Search aria-hidden="true" /><p>Enter any part of a name, phone number, company, or email address.</p></div>
+                  )}
+                  {guestQuery.trim().length === 1 && !selectedGuest && (
+                    <div className="guest-search-prompt"><Search aria-hidden="true" /><p>Enter at least two characters to search guests.</p></div>
                   )}
                 </>
               ) : (

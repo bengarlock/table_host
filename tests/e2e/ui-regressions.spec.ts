@@ -149,6 +149,25 @@ test("creating a guest continues directly to reservation details", async ({ page
   await expect(page.getByRole("heading", { name: "Find the guest" })).toHaveCount(0);
 });
 
+test("booking guest search waits for two characters", async ({ page }) => {
+  let searchRequests = 0;
+  await mockGrid(page);
+  await page.route("**/api/guests?q=*", async (route) => {
+    searchRequests += 1;
+    await route.fulfill({ json: { count: 0, results: [] } });
+  });
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=2&duration=90&tables=1`);
+  const search = page.getByRole("searchbox", { name: "Guest search" });
+  await search.fill("u");
+  await expect(page.getByText("Enter at least two characters to search guests.")).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(searchRequests).toBe(0);
+
+  await search.fill("al");
+  await expect.poll(() => searchRequests).toBe(1);
+});
+
 test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
   await mockGrid(page);
   await page.route("**/api/grid/blocks", async (route) => {

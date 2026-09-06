@@ -923,7 +923,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   useEffect(() => {
     if (!walkInOpen) return;
     const query = walkInGuestQuery.trim();
-    if (!query) return;
+    if (query.length < 2) return;
 
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
@@ -3059,8 +3059,13 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     <input
                       value={walkInGuestQuery}
                       onChange={(event) => {
-                        setWalkInGuestQuery(event.target.value);
+                        const value = event.target.value;
+                        setWalkInGuestQuery(value);
                         setWalkInSelectedGuest(null);
+                        if (value.trim().length < 2) {
+                          setWalkInGuestResults([]);
+                          setGuestSearchLoading(false);
+                        }
                       }}
                       placeholder="Search the guest database"
                     />
@@ -3092,7 +3097,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                     ))}
                   </div>
                 )}
-                {!walkInSelectedGuest && walkInGuestQuery.trim() && (
+                {!walkInSelectedGuest && walkInGuestQuery.trim().length >= 2 && (
                   <button
                     type="button"
                     className="floor-add-guest"
