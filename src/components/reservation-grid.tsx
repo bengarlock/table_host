@@ -147,6 +147,7 @@ type BookingDraft = {
 
 type ReservationEditDraft = {
   partySize: string;
+  startTime: string;
   durationMinutes: string;
   status: Reservation["status"];
   phone: string;
@@ -544,10 +545,21 @@ export function ReservationGrid({
     });
   }
 
+  function changeReservationTime(delta: number) {
+    setReservationEditDraft((current) => {
+      if (!current || !data) return current;
+      const earliestStart = minutes(data.selected_shift.start_time);
+      const latestStart = minutes(data.selected_shift.end_time) - Number(current.durationMinutes);
+      const startTime = timeFromMinutes(Math.min(latestStart, Math.max(earliestStart, minutes(current.startTime) + delta)));
+      return { ...current, startTime };
+    });
+  }
+
   async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !reservationEditDraft) return;
     const partySize = Number(reservationEditDraft.partySize);
+    const reservationStart = minutes(reservationEditDraft.startTime);
     const durationMinutes = Number(reservationEditDraft.durationMinutes);
     if (!Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
       setError("Enter a party size from 1 to 40.");
@@ -555,6 +567,10 @@ export function ReservationGrid({
     }
     if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
       setError("Expected turn time must be between 15 minutes and 6 hours.");
+      return;
+    }
+    if (!data || reservationStart < minutes(data.selected_shift.start_time) || reservationStart + durationMinutes > minutes(data.selected_shift.end_time)) {
+      setError("The reservation time must fit within the selected service.");
       return;
     }
     if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(reservationEditDraft.status)) {
@@ -569,6 +585,7 @@ export function ReservationGrid({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           party_size: partySize,
+          start_time: reservationEditDraft.startTime,
           duration_minutes: durationMinutes,
           status: reservationEditDraft.status,
           guest_phone: reservationEditDraft.phone.trim(),
@@ -657,6 +674,7 @@ export function ReservationGrid({
     setSelected(reservation);
     setReservationEditDraft({
       partySize: String(reservation.party_size),
+      startTime: reservation.start_time,
       durationMinutes: String(reservation.duration_minutes),
       status: reservation.status,
       phone: reservation.guest_phone || "",
@@ -894,7 +912,7 @@ export function ReservationGrid({
                 <div>
                   <p>Reservation details</p>
                   <h2 id="reservation-editor-title">{selected.guest_name}</h2>
-                  <span><Clock3 aria-hidden="true" /> {displayTime(selected.start_time)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
+                  <span><Clock3 aria-hidden="true" /> {displayTime(reservationEditDraft.startTime)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
                 </div>
                 <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
               </header>
@@ -927,6 +945,7 @@ export function ReservationGrid({
                       </div>
                     </details>
                   </div>
+                  <div className="reservation-editor-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) <= minutes(data.selected_shift.start_time)}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) + Number(reservationEditDraft.durationMinutes) >= minutes(data.selected_shift.end_time)}><ChevronRight aria-hidden="true" /></button></div></div>
                   <div className="reservation-editor-turn"><span>Turn time</span><div><button type="button" aria-label="Decrease turn time" onClick={() => changeTurnTime(-15)} disabled={saving || Number(reservationEditDraft.durationMinutes) <= 15}><Minus aria-hidden="true" /></button><output aria-label="Turn time">{formatTurnTime(Number(reservationEditDraft.durationMinutes))}</output><button type="button" aria-label="Increase turn time" onClick={() => changeTurnTime(15)} disabled={saving || Number(reservationEditDraft.durationMinutes) >= 360}><Plus aria-hidden="true" /></button></div></div>
                   <label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label>
                 </div>

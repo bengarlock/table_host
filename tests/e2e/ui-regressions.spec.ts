@@ -267,6 +267,11 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await dialog.getByRole("button", { name: "Increase party size" }).click();
   await dialog.getByRole("button", { name: "Increase party size" }).click();
   await expect(partySize).toHaveText("6");
+  const reservationTime = dialog.getByRole("status", { name: "Reservation time" });
+  await expect(reservationTime).toHaveText("5:00 PM");
+  await dialog.getByRole("button", { name: "Later reservation time" }).click();
+  await expect(reservationTime).toHaveText("5:15 PM");
+  await expect(dialog.locator("header")).toContainText("5:15 PM");
   await dialog.getByRole("button", { name: "Increase turn time" }).click();
   await statusMenu.click();
   await dialog.getByRole("option", { name: "Late" }).click();
@@ -280,6 +285,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await dialog.getByRole("button", { name: "Save changes" }).click();
   expect(savedUpdate).toEqual({
     party_size: 6,
+    start_time: "17:15",
     duration_minutes: 105,
     status: "late",
     guest_phone: "+1 5550199",
