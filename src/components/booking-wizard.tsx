@@ -832,13 +832,9 @@ export function BookingWizard({
         className={`booking-wizard${step === 1 ? " date-step" : ""}${step === 2 ? " time-party-step" : ""}`}
         role={presentation === "modal" ? "dialog" : "region"}
         aria-modal={presentation === "modal" ? true : undefined}
-        aria-labelledby="booking-wizard-title"
+        aria-label="New reservation"
       >
         <header className="wizard-header">
-          <div>
-            <p>New reservation</p>
-            <h2 id="booking-wizard-title">Find the right table</h2>
-          </div>
           <button type="button" onClick={onClose} aria-label="Close booking wizard"><X aria-hidden="true" /></button>
         </header>
 

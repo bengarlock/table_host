@@ -110,7 +110,7 @@ test("grid holds selected tables before opening a prefilled reservation", async 
 
   await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=4&duration=90&tables=1%2C2$`));
-  await expect(page.getByRole("heading", { name: "Find the right table" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Find the right table" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("5:00 PM · 4 guests · Tables 1, 2");
   await expect(page.locator(".time-and-tables-selection")).toHaveCount(0);
@@ -1045,7 +1045,7 @@ test("reservation navigation is not overwritten by a late grid response", async 
 
   await page.getByRole("link", { name: "Book a reservation" }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner$`));
-  await expect(page.getByRole("heading", { name: "Find the right table" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "New reservation" })).toBeVisible();
 
   await page.getByRole("link", { name: "Reservations" }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations\\?date=${serviceDate}&shift=dinner$`));
