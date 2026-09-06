@@ -2775,33 +2775,6 @@ textarea {
 
 .booking-wizard.date-step {
   position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border: 1px solid rgba(118, 131, 112, 0.32);
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at 12% 9%, rgba(211, 164, 92, 0.17), transparent 23%),
-    radial-gradient(circle at 89% 83%, rgba(67, 112, 91, 0.2), transparent 28%),
-    linear-gradient(135deg, #171c17 0%, #101410 52%, #181d18 100%);
-  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.035);
-}
-
-.booking-wizard.date-step::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  content: "";
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(206, 177, 117, 0.045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(206, 177, 117, 0.045) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 84%);
-}
-
-.booking-wizard.date-step > * {
-  position: relative;
-  z-index: 1;
 }
 
 .booking-wizard.date-step .wizard-header {
