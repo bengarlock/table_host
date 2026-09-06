@@ -508,6 +508,36 @@ test("reservation grid permits dropping onto an overlapping active table", async
   expect(movedToTableId).toBe(2);
 });
 
+test("reservation grid permits dropping onto an overlapping active table", async ({ page }) => {
+  const movingReservation = {
+    id: 201, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Moving party", party_size: 2, start_time: "17:30", duration_minutes: 90,
+    status: "confirmed", assignment_type: "hard", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  const activeReservation = {
+    id: 202, table_id: 2, table_name: "2", table_ids: [2], table_names: ["2"],
+    guest_name: "Active party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+    status: "seated", assignment_type: "hard", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  let movedToTableId: number | null = null;
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [movingReservation, activeReservation], summary: { reservations: 2, covers: 4, seated: 2 } },
+  }));
+  await page.route("**/api/grid/reservations/201", async (route) => {
+    movedToTableId = (route.request().postDataJSON() as { table_id: number }).table_id;
+    await route.fulfill({ json: { ...movingReservation, table_id: movedToTableId, table_ids: [movedToTableId], table_names: ["2"] } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  const moving = page.getByRole("button", { name: /Moving party, party of 2/ });
+  const occupiedTable = page.locator(".timeline-row").filter({ has: page.getByText("Active party", { exact: true }) });
+  await moving.dragTo(occupiedTable);
+
+  expect(movedToTableId).toBe(2);
+});
+
 test("reservation grid date controls do not overlap shift buttons", async ({ page }) => {
   const shifts = [
     { ...shift, id: 1, name: "Breakfast", slug: "breakfast", start_time: "07:00", end_time: "11:00" },
