@@ -479,6 +479,22 @@ test("Floor server tables can be unassigned and switched", async ({ page }) => {
   ]);
 });
 
+test("Floor direct server assignments override overlapping section coverage", async ({ page }) => {
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      sections: [{ id: 1, name: "Section 1", color: "#3C8FA8", table_ids: [1] }],
+      servers: [
+        { id: 2, name: "Kelly", color: "#D95763", table_ids: [1], section_ids: [] },
+        { id: 1, name: "Jordan", color: "#3C8FA8", table_ids: [], section_ids: [1] },
+      ],
+    },
+  }));
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await expect(page.locator('[data-floor-table-id="1"]')).toHaveCSS("--server-color", "#D95763");
+});
+
 for (const futureDate of [true, false]) {
   test(`reservation seating is ${futureDate ? "blocked for future dates" : "available today"}`, async ({ page }) => {
     // The server's restaurant date is authoritative, even when the browser is ahead.

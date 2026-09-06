@@ -1056,13 +1056,15 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const selectedServer = data?.servers.find((server) => server.id === selectedServerId) || null;
   const serverByTable = useMemo(() => {
     const sections = new Map((data?.sections || []).map((section) => [section.id, section]));
-    const assignments = new Map<number, ServerAssignment>();
+    const sectionAssignments = new Map<number, ServerAssignment>();
+    const directAssignments = new Map<number, ServerAssignment>();
     (data?.servers || []).forEach((server) => {
-      const tableIds = new Set(server.table_ids);
-      server.section_ids.forEach((sectionId) => sections.get(sectionId)?.table_ids.forEach((tableId) => tableIds.add(tableId)));
-      tableIds.forEach((tableId) => assignments.set(tableId, server));
+      server.section_ids.forEach((sectionId) => sections.get(sectionId)?.table_ids.forEach((tableId) => sectionAssignments.set(tableId, server)));
+      server.table_ids.forEach((tableId) => directAssignments.set(tableId, server));
     });
-    return assignments;
+    // A host's individual table choice is more specific than a bulk section
+    // assignment and must remain visible even if sections overlap.
+    return new Map([...sectionAssignments, ...directAssignments]);
   }, [data?.sections, data?.servers]);
   const editorSelectedTables = useMemo(
     () => editedTables.filter((table) => editorSelectedTableIds.includes(table.id)),
