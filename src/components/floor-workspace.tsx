@@ -382,53 +382,18 @@ function floorTimerRay(rotation: number, width: number, height: number) {
   return { x: x / magnitude, y: y / magnitude };
 }
 
-function floorRectangleTimerStart(rotation: number, width: number, height: number) {
-  const direction = floorTimerRay(rotation, width, height);
-  const candidates: Array<{ point: FloorTimerPoint; segmentKey: string; distance: number }> = [];
-  const addCandidate = (distance: number, segmentKey: string, matches: (point: FloorTimerPoint) => boolean) => {
-    if (distance <= 0 || !Number.isFinite(distance)) return;
-    const point = { x: 50 + direction.x * distance, y: 50 + direction.y * distance };
-    if (matches(point)) candidates.push({ point, segmentKey, distance });
-  };
-
-  [
-    { value: 3, key: "left" },
-    { value: 97, key: "right" },
-  ].forEach(({ value, key }) => addCandidate(
-    (value - 50) / direction.x,
-    key,
-    (point) => point.y >= 12 && point.y <= 88,
-  ));
-  [
-    { value: 3, key: "top" },
-    { value: 97, key: "bottom" },
-  ].forEach(({ value, key }) => addCandidate(
-    (value - 50) / direction.y,
-    key,
-    (point) => point.x >= 12 && point.x <= 88,
-  ));
-
-  [
-    { center: { x: 12, y: 12 }, key: "top-left", matches: (point: FloorTimerPoint) => point.x <= 12 && point.y <= 12 },
-    { center: { x: 88, y: 12 }, key: "top-right", matches: (point: FloorTimerPoint) => point.x >= 88 && point.y <= 12 },
-    { center: { x: 88, y: 88 }, key: "bottom-right", matches: (point: FloorTimerPoint) => point.x >= 88 && point.y >= 88 },
-    { center: { x: 12, y: 88 }, key: "bottom-left", matches: (point: FloorTimerPoint) => point.x <= 12 && point.y >= 88 },
-  ].forEach(({ center, key, matches }) => {
-    const offsetX = 50 - center.x;
-    const offsetY = 50 - center.y;
-    const projection = offsetX * direction.x + offsetY * direction.y;
-    const discriminant = projection ** 2 - (offsetX ** 2 + offsetY ** 2 - 81);
-    if (discriminant < 0) return;
-    const root = Math.sqrt(discriminant);
-    addCandidate(-projection - root, key, matches);
-    addCandidate(-projection + root, key, matches);
-  });
-
-  return candidates.reduce((nearest, candidate) => candidate.distance < nearest.distance ? candidate : nearest);
+function floorRectangleTimerStart(rotation: number) {
+  const upperFacingEdge = Math.round((((rotation % 360) + 360) % 360) / 90) % 4;
+  return [
+    { point: { x: 50, y: 3 }, segmentKey: "top" },
+    { point: { x: 3, y: 50 }, segmentKey: "left" },
+    { point: { x: 50, y: 97 }, segmentKey: "bottom" },
+    { point: { x: 97, y: 50 }, segmentKey: "right" },
+  ][upperFacingEdge];
 }
 
-function floorRectangleTimerPath(expired: boolean, rotation: number, width: number, height: number) {
-  const start = floorRectangleTimerStart(rotation, width, height);
+function floorRectangleTimerPath(expired: boolean, rotation: number) {
+  const start = floorRectangleTimerStart(rotation);
   const segments = expired
     ? clockwiseFloorTimerSegments
     : clockwiseFloorTimerSegments.toReversed().map((segment) => ({
@@ -458,7 +423,7 @@ function floorTimerPath(shape: DiningTable["shape"], expired: boolean, rotation:
     const sweep = expired ? 1 : 0;
     return `M${startX} ${startY}A47 47 0 1 ${sweep} ${oppositeX} ${oppositeY}A47 47 0 1 ${sweep} ${startX} ${startY}`;
   }
-  return floorRectangleTimerPath(expired, rotation, width, height);
+  return floorRectangleTimerPath(expired, rotation);
 }
 
 function displayTableAssignment(tableNames: string[]) {

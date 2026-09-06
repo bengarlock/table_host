@@ -1057,7 +1057,7 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
     expect.stringMatching(/^M97 50L 97 12/),
     expect.stringMatching(/^M[\d.]+ [\d.]+A47 47 0 1 0/),
     expect.stringMatching(/^M[\d.]+ [\d.]+A47 47 0 1 1/),
-    expect.stringMatching(/^M[\d.]+ [\d.]+/),
+    expect.stringMatching(/^M3 50L 3 12/),
   ]);
   const timerStartOffsets = await Promise.all([2, 3, 4, 5].map(async (tableId) => (
     page.locator(`[data-floor-table-id="${tableId}"] .floor-table-turn-timer path`).evaluate((path) => {
@@ -1067,16 +1067,29 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
       if (!matrix || !table) return null;
       const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
       const tableBounds = table.getBoundingClientRect();
+      if (!table.classList.contains("floor-table-round")) {
+        const edgeMidpoints = [
+          new DOMPoint(50, 3),
+          new DOMPoint(97, 50),
+          new DOMPoint(50, 97),
+          new DOMPoint(3, 50),
+        ].map((edge) => edge.matrixTransform(matrix));
+        const upperFacingEdge = edgeMidpoints.reduce((upper, edge) => edge.y < upper.y ? edge : upper);
+        return {
+          offset: Math.hypot(screenPoint.x - upperFacingEdge.x, screenPoint.y - upperFacingEdge.y),
+          aboveCenter: true,
+        };
+      }
       return {
-        x: screenPoint.x - (tableBounds.left + tableBounds.width / 2),
-        y: screenPoint.y - (tableBounds.top + tableBounds.height / 2),
+        offset: Math.abs(screenPoint.x - (tableBounds.left + tableBounds.width / 2)),
+        aboveCenter: screenPoint.y < tableBounds.top + tableBounds.height / 2 - 20,
       };
     })
   )));
   timerStartOffsets.forEach((offset) => {
     expect(offset).not.toBeNull();
-    expect(Math.abs(offset!.x), JSON.stringify(timerStartOffsets)).toBeLessThan(1);
-    expect(offset!.y, JSON.stringify(timerStartOffsets)).toBeLessThan(-20);
+    expect(offset!.offset, JSON.stringify(timerStartOffsets)).toBeLessThan(1);
+    expect(offset!.aboveCenter, JSON.stringify(timerStartOffsets)).toBe(true);
   });
   await expect(page.locator(".floor-table-turn-timer circle")).toHaveCount(0);
 
