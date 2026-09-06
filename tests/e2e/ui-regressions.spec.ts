@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const serviceDate = "2026-09-04";
+const RESERVATION_AUTO_SAVE_WAIT = 750;
 const shift = {
   id: 1,
   name: "Dinner",
@@ -461,8 +462,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await tableAssignment.getByRole("button", { name: /Table 2, 2 seats/ }).click();
   await tableAssignment.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(dialog.getByText("1 + 2", { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Save changes" }).click();
-  expect(savedUpdate).toEqual({
+  await expect.poll(() => savedUpdate).toEqual({
     party_size: 6,
     start_time: "20:30",
     duration_minutes: 105,
@@ -475,6 +475,66 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     guest_tags: ["Regular", "VIP"],
     table_ids: [1, 2],
   });
+  await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(dialog.getByText("Changes save automatically.")).toBeVisible();
+});
+
+test("reservation editor batches rapid party size changes into one automatic save", async ({ page }) => {
+  const reservation = {
+    id: 112, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Casey Brooks", party_size: 2, start_time: "19:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  const updates: Record<string, unknown>[] = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/112", async (route) => {
+    updates.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({ json: { ...reservation, ...updates.at(-1) } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Casey Brooks, party of 2/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Casey Brooks" });
+  for (let index = 0; index < 7; index += 1) {
+    await dialog.getByRole("button", { name: "Increase party size" }).click();
+  }
+
+  await expect(dialog.getByRole("status", { name: "Party size" })).toHaveText("9");
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ party_size: 9 });
+  await page.waitForTimeout(RESERVATION_AUTO_SAVE_WAIT);
+  expect(updates).toHaveLength(1);
+  await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(dialog.getByText("Changes save automatically.")).toBeVisible();
+});
+
+test("reservation editor saves a pending change when it closes", async ({ page }) => {
+  const reservation = {
+    id: 113, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Jordan Lee", party_size: 2, start_time: "19:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  const updates: Record<string, unknown>[] = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/113", async (route) => {
+    updates.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({ json: { ...reservation, ...updates.at(-1) } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Jordan Lee, party of 2/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Jordan Lee" });
+  await dialog.getByRole("button", { name: "Increase party size" }).click();
+  await dialog.getByRole("button", { name: "Close reservation editor" }).click();
+
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ party_size: 3 });
   await expect(dialog).toHaveCount(0);
 });
 
