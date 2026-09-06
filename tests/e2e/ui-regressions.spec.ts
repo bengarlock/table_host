@@ -971,6 +971,15 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
 
 test("floor plan can toggle stacked reservation times for each table", async ({ page }) => {
   await page.clock.install({ time: new Date("2026-09-04T17:45:00") });
+  const roundTable = {
+    ...gridPayload.tables[1], id: 3, name: "3", shape: "round" as const, position_x: 40, position_y: 45,
+  };
+  const expiredRoundTable = {
+    ...gridPayload.tables[1], id: 4, name: "4", shape: "round" as const, position_x: 55, position_y: 45,
+  };
+  const expiredRectangleTable = {
+    ...gridPayload.tables[1], id: 5, name: "5", position_x: 70, position_y: 45,
+  };
   const reservations = [
     {
       id: 104, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
@@ -987,13 +996,29 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
       guest_name: "Seated party", party_size: 2, start_time: "17:00", duration_minutes: 90,
       status: "seated", seated_at: "2026-09-04T17:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
     },
+    {
+      id: 107, table_id: 3, table_name: "3", table_ids: [3], table_names: ["3"],
+      guest_name: "Round active party", party_size: 2, start_time: "17:00", duration_minutes: 90,
+      status: "seated", seated_at: "2026-09-04T17:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 108, table_id: 4, table_name: "4", table_ids: [4], table_names: ["4"],
+      guest_name: "Round expired party", party_size: 2, start_time: "15:00", duration_minutes: 90,
+      status: "seated", seated_at: "2026-09-04T15:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
+    {
+      id: 109, table_id: 5, table_name: "5", table_ids: [5], table_names: ["5"],
+      guest_name: "Rectangle expired party", party_size: 2, start_time: "15:00", duration_minutes: 90,
+      status: "seated", seated_at: "2026-09-04T15:00:00-04:00", assignment_type: "hard", guest_tags: [], tags: [], notes: "",
+    },
   ];
   await page.route("**/api/grid?*", (route) => route.fulfill({
     json: {
       ...gridPayload,
+      tables: [...gridPayload.tables, roundTable, expiredRoundTable, expiredRectangleTable],
       sections: [{ id: 1, name: "Patio", color: "#d9aa62", table_ids: [1] }],
       reservations,
-      summary: { reservations: 3, covers: 6, seated: 2 },
+      summary: { reservations: 6, covers: 12, seated: 8 },
     },
   }));
 
@@ -1022,6 +1047,23 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
   ));
   expect(timerDuration).toBeGreaterThan(2_650_000);
   expect(timerDuration).toBeLessThanOrEqual(2_700_000);
+  const timerPaths = await Promise.all([2, 3, 4, 5].map(async (tableId) => (
+    page.locator(`[data-floor-table-id="${tableId}"] .floor-table-turn-timer path`).getAttribute("d")
+  )));
+  expect(timerPaths).toEqual([
+    expect.stringMatching(/^M50 3H12/),
+    expect.stringMatching(/^M50 3A47 47 0 1 0/),
+    expect.stringMatching(/^M50 3A47 47 0 1 1/),
+    expect.stringMatching(/^M50 3H88/),
+  ]);
+  const timerStartPoints = await Promise.all([2, 3, 4, 5].map(async (tableId) => (
+    page.locator(`[data-floor-table-id="${tableId}"] .floor-table-turn-timer path`).evaluate((path) => {
+      const point = (path as SVGPathElement).getPointAtLength(0);
+      return [Math.round(point.x), Math.round(point.y)];
+    })
+  )));
+  expect(timerStartPoints).toEqual([[50, 3], [50, 3], [50, 3], [50, 3]]);
+  await expect(page.locator(".floor-table-turn-timer circle")).toHaveCount(0);
 
   await sectionOutlines.uncheck();
   await expect(page.locator(".floor-section-overlays")).toHaveCount(0);
