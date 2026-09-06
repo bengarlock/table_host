@@ -1915,6 +1915,19 @@ textarea {
 
 .reservation-history-button svg { width: 16px; height: 16px; }
 
+.reservation-auto-save-status {
+  display: inline-flex;
+  grid-column: 3;
+  align-items: center;
+  justify-self: end;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.reservation-auto-save-status > span { color: #efb08f; }
+
 .reservation-history-backdrop {
   position: fixed;
   z-index: 90;

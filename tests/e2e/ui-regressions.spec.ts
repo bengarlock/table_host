@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const serviceDate = "2026-09-04";
+const RESERVATION_AUTO_SAVE_WAIT = 750;
 const shift = {
   id: 1,
   name: "Dinner",
@@ -461,8 +462,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await tableAssignment.getByRole("button", { name: /Table 2, 2 seats/ }).click();
   await tableAssignment.getByRole("button", { name: "Assign selected tables" }).click();
   await expect(dialog.getByText("1 + 2", { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Save changes" }).click();
-  expect(savedUpdate).toEqual({
+  await expect.poll(() => savedUpdate).toEqual({
     party_size: 6,
     start_time: "20:30",
     duration_minutes: 105,
@@ -475,6 +475,66 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     guest_tags: ["Regular", "VIP"],
     table_ids: [1, 2],
   });
+  await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(dialog.getByText("Changes save automatically.")).toBeVisible();
+});
+
+test("reservation editor batches rapid party size changes into one automatic save", async ({ page }) => {
+  const reservation = {
+    id: 112, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Casey Brooks", party_size: 2, start_time: "19:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  const updates: Record<string, unknown>[] = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/112", async (route) => {
+    updates.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({ json: { ...reservation, ...updates.at(-1) } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Casey Brooks, party of 2/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Casey Brooks" });
+  for (let index = 0; index < 7; index += 1) {
+    await dialog.getByRole("button", { name: "Increase party size" }).click();
+  }
+
+  await expect(dialog.getByRole("status", { name: "Party size" })).toHaveText("9");
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ party_size: 9 });
+  await page.waitForTimeout(RESERVATION_AUTO_SAVE_WAIT);
+  expect(updates).toHaveLength(1);
+  await expect(dialog.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(dialog.getByText("Changes save automatically.")).toBeVisible();
+});
+
+test("reservation editor saves a pending change when it closes", async ({ page }) => {
+  const reservation = {
+    id: 113, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Jordan Lee", party_size: 2, start_time: "19:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_phone: "", guest_email: "", guest_notes: "", guest_profile_notes: "", guest_tags: [], tags: [], notes: "",
+  };
+  const updates: Record<string, unknown>[] = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [reservation], summary: { reservations: 1, covers: 2, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/113", async (route) => {
+    updates.push(route.request().postDataJSON() as Record<string, unknown>);
+    await route.fulfill({ json: { ...reservation, ...updates.at(-1) } });
+  });
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Jordan Lee, party of 2/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Jordan Lee" });
+  await dialog.getByRole("button", { name: "Increase party size" }).click();
+  await dialog.getByRole("button", { name: "Close reservation editor" }).click();
+
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ party_size: 3 });
   await expect(dialog).toHaveCount(0);
 });
 
@@ -673,9 +733,9 @@ for (const futureDate of [true, false]) {
       const seatedOption = dialog.getByRole("option", { name: "Seated" });
       await expect(seatedOption).toBeEnabled();
       await seatedOption.click();
-      await dialog.getByRole("button", { name: "Save changes" }).click();
+      await expect.poll(() => updates).toBe(1);
+      await dialog.getByRole("button", { name: "Close reservation editor" }).click();
       await expect(dialog).toHaveCount(0);
-      expect(updates).toBe(1);
       await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
       await expect(page.getByRole("button", { name: "Reassign Future Guest from Table 1" })).toBeVisible();
       await expect(page.locator(".floor-reservation-move-indicator")).toHaveCount(1);
@@ -721,7 +781,7 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     name: "5:00 PM, Large Assignment, party of 12, assigned to Tables 16, 12, 14, 10, 15, 11",
   });
   await reservationButton.click();
-  const details = page.getByRole("complementary", { name: "Reservation details for Large Assignment" });
+  const details = page.locator(".floor-reservation-detail-card");
   await expect(details).toBeVisible();
   await reservationButton.click();
   await expect(page.locator(".floor-reservation-detail-card.is-closing")).toHaveCSS("animation-name", "floor-reservation-detail-slide-out");
@@ -797,8 +857,7 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await details.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "VIP" }).click();
   await details.getByLabel("Reservation notes").fill("Updated reservation note.");
   await details.getByLabel("Guest notes").fill("Updated guest note.");
-  await details.getByRole("button", { name: "Save changes" }).click();
-  expect(savedUpdate).toEqual({
+  await expect.poll(() => savedUpdate).toEqual({
     guest_name: "Updated Assignment",
     party_size: 10,
     start_time: "21:00",
@@ -809,8 +868,51 @@ test("large table assignments use a condensed reservation-card label", async ({ 
     guest_tags: ["Regular", "VIP"],
     status: "late",
   });
+  await expect(details.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  await expect(details.getByText("Changes save automatically.")).toBeVisible();
   await details.getByRole("button", { name: "Close reservation details" }).click();
   await expect(details).toHaveCount(0);
+});
+
+test("Floor reservation editor batches rapid edits and flushes a pending change on close", async ({ page }) => {
+  let savedReservation = {
+    id: 114, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
+    guest_name: "Avery Stone", party_size: 2, start_time: "17:00", duration_minutes: 90,
+    status: "confirmed", assignment_type: "soft", is_unassigned: false,
+    guest_tags: [], tags: [], notes: "", guest_notes: "", guest_profile_notes: "",
+  };
+  const updates: Record<string, unknown>[] = [];
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: { ...gridPayload, reservations: [savedReservation], summary: { reservations: 1, covers: savedReservation.party_size, seated: 0 } },
+  }));
+  await page.route("**/api/grid/reservations/114/history", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/grid/reservations/114", async (route) => {
+    const update = route.request().postDataJSON() as Record<string, unknown>;
+    updates.push(update);
+    savedReservation = { ...savedReservation, ...update };
+    await route.fulfill({ json: savedReservation });
+  });
+
+  await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
+  await page.getByRole("button", { name: /Avery Stone, party of 2/ }).click();
+  const details = page.getByRole("complementary", { name: "Reservation details for Avery Stone" });
+  for (const partySize of [3, 4, 5, 6, 7, 8]) {
+    await details.getByRole("button", { name: `Party size ${partySize}` }).click();
+  }
+  await details.getByRole("button", { name: "Increase party size" }).click();
+
+  await expect.poll(() => updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ party_size: 9 });
+  await page.waitForTimeout(RESERVATION_AUTO_SAVE_WAIT);
+  expect(updates).toHaveLength(1);
+  await details.getByLabel("Reservation notes").fill("Window table.");
+  await details.getByRole("button", { name: "Close reservation details" }).click();
+
+  await expect.poll(() => updates).toHaveLength(2);
+  expect(updates[1]).toMatchObject({ party_size: 9, notes: "Window table." });
+  await expect(details).toHaveCount(0);
+  await page.getByRole("button", { name: /Avery Stone, party of 9/ }).click();
+  await expect(page.getByRole("complementary", { name: "Reservation details for Avery Stone" }).getByLabel("Reservation notes")).toHaveValue("Window table.");
 });
 
 test("floor reservation table badges turn red for overlapping turns", async ({ page }) => {

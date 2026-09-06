@@ -173,9 +173,25 @@ type ReservationEditDraft = {
   guestTags: string[];
 };
 
+type ReservationUpdate = {
+  party_size: number;
+  start_time: string;
+  duration_minutes: number;
+  status: Reservation["status"];
+  guest_phone: string;
+  guest_email: string;
+  notes: string;
+  tags: string[];
+  guest_notes: string;
+  guest_tags: string[];
+  table_ids?: number[];
+  assignment_type?: "soft";
+};
+
 const SLOT_MINUTES = 15;
 const SLOT_WIDTH = 74;
 const TABLE_COLUMNS_WIDTH = 140;
+const RESERVATION_AUTO_SAVE_DELAY = 600;
 const subscribeToHydration = () => () => undefined;
 
 function minutes(time: string) {
@@ -211,6 +227,46 @@ function readError(payload: unknown) {
   return typeof first === "string" ? first : "Something went wrong.";
 }
 
+function reservationUpdateFromDraft(
+  draft: ReservationEditDraft,
+  tableAssignmentChanged: boolean,
+): ReservationUpdate {
+  return {
+    party_size: Number(draft.partySize),
+    start_time: draft.startTime,
+    duration_minutes: Number(draft.durationMinutes),
+    status: draft.status,
+    guest_phone: draft.phone.trim(),
+    guest_email: draft.email.trim(),
+    notes: draft.reservationNotes.trim(),
+    tags: draft.reservationTags,
+    guest_notes: draft.guestNotes.trim(),
+    guest_tags: draft.guestTags,
+    ...(tableAssignmentChanged
+      ? draft.tableIds.length
+        ? { table_ids: draft.tableIds }
+        : { assignment_type: "soft" as const }
+      : {}),
+  };
+}
+
+function reservationUpdateError(update: ReservationUpdate, serviceStatusAllowed: boolean) {
+  if (!Number.isInteger(update.party_size) || update.party_size < 1 || update.party_size > 40) {
+    return "Enter a party size from 1 to 40.";
+  }
+  if (!Number.isInteger(update.duration_minutes) || update.duration_minutes < 15 || update.duration_minutes > 360) {
+    return "Expected turn time must be between 15 minutes and 6 hours.";
+  }
+  const reservationStart = minutes(update.start_time);
+  if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
+    return "Enter a valid reservation time.";
+  }
+  if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(update.status)) {
+    return "Reservations cannot be marked with an in-service outcome on future dates.";
+  }
+  return "";
+}
+
 type ReservationGridProps = {
   initialConfirmationId?: number;
   initialServiceDate?: string;
@@ -240,6 +296,7 @@ export function ReservationGrid({
   const [reservationTablePickerOpen, setReservationTablePickerOpen] = useState(false);
   const [reservationTableDraftIds, setReservationTableDraftIds] = useState<number[]>([]);
   const [reservationTableAssignmentChanged, setReservationTableAssignmentChanged] = useState(false);
+  const [reservationAutoSaveError, setReservationAutoSaveError] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -259,6 +316,10 @@ export function ReservationGrid({
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const reservationBlockRefs = useRef(new Map<number, HTMLButtonElement>());
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
+  const reservationAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reservationSavedUpdateKeyRef = useRef("");
+  const reservationFailedUpdateKeyRef = useRef("");
+  const reservationSaveInFlightRef = useRef(false);
   const initializedConfirmationIdRef = useRef<number | undefined>(undefined);
   const resolveCurrentService = useRef(!initialServiceDate);
   const gridRequestVersion = useRef(0);
@@ -337,6 +398,10 @@ export function ReservationGrid({
 
     window.addEventListener("popstate", restoreServiceFromUrl);
     return () => window.removeEventListener("popstate", restoreServiceFromUrl);
+  }, []);
+
+  useEffect(() => () => {
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -611,64 +676,88 @@ export function ReservationGrid({
     setReservationTablePickerOpen(false);
   }
 
-  async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected || !reservationEditDraft) return;
-    const partySize = Number(reservationEditDraft.partySize);
-    const reservationStart = minutes(reservationEditDraft.startTime);
-    const durationMinutes = Number(reservationEditDraft.durationMinutes);
-    if (!Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
-      setError("Enter a party size from 1 to 40.");
-      return;
+  const persistReservationDetails = useCallback(async () => {
+    if (!selected || !reservationEditDraft || reservationSaveInFlightRef.current) return false;
+    const update = reservationUpdateFromDraft(reservationEditDraft, reservationTableAssignmentChanged);
+    const updateKey = JSON.stringify(update);
+    if (updateKey === reservationSavedUpdateKeyRef.current) return true;
+
+    const validationError = reservationUpdateError(update, serviceStatusAllowed);
+    if (validationError) {
+      setReservationAutoSaveError(validationError);
+      return false;
     }
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
-      setError("Expected turn time must be between 15 minutes and 6 hours.");
-      return;
-    }
-    if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
-      setError("Enter a valid reservation time.");
-      return;
-    }
-    if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(reservationEditDraft.status)) {
-      setError("Reservations cannot be marked with an in-service outcome on future dates.");
-      return;
-    }
+
+    reservationSaveInFlightRef.current = true;
     setSaving(true);
-    setError("");
+    setReservationAutoSaveError("");
     try {
       const response = await fetch(appPath(`/api/grid/reservations/${selected.id}`), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          party_size: partySize,
-          start_time: reservationEditDraft.startTime,
-          duration_minutes: durationMinutes,
-          status: reservationEditDraft.status,
-          guest_phone: reservationEditDraft.phone.trim(),
-          guest_email: reservationEditDraft.email.trim(),
-          notes: reservationEditDraft.reservationNotes.trim(),
-          tags: reservationEditDraft.reservationTags,
-          guest_notes: reservationEditDraft.guestNotes.trim(),
-          guest_tags: reservationEditDraft.guestTags,
-          ...(reservationTableAssignmentChanged
-            ? reservationEditDraft.tableIds.length
-              ? { table_ids: reservationEditDraft.tableIds }
-              : { assignment_type: "soft" }
-            : {}),
-        }),
+        body: JSON.stringify(update),
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
       if (!response.ok) throw new Error(readError(payload));
-      await loadGrid();
-      setSelected(null);
-      setReservationEditDraft(null);
-      setReservationTablePickerOpen(false);
+      const savedReservation = payload as Reservation;
+      setSelected(savedReservation);
+      setData((current) => current && ({
+        ...current,
+        reservations: current.reservations.map((reservation) => (
+          reservation.id === savedReservation.id ? savedReservation : reservation
+        )),
+      }));
+      setReservationTableAssignmentChanged(false);
+      reservationFailedUpdateKeyRef.current = "";
+      reservationSavedUpdateKeyRef.current = JSON.stringify(
+        reservationUpdateFromDraft(reservationEditDraft, false),
+      );
+      return true;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
+      reservationFailedUpdateKeyRef.current = updateKey;
+      setReservationAutoSaveError(reason instanceof Error ? reason.message : "Unable to save changes automatically.");
+      return false;
     } finally {
+      reservationSaveInFlightRef.current = false;
       setSaving(false);
     }
-  }
+  }, [reservationEditDraft, reservationTableAssignmentChanged, selected, serviceStatusAllowed]);
+
+  const dismissReservationEditor = useCallback(() => {
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    reservationAutoSaveTimerRef.current = null;
+    setSelected(null);
+    setReservationEditDraft(null);
+    setReservationTablePickerOpen(false);
+    setReservationAutoSaveError("");
+  }, []);
+
+  const closeReservationEditor = useCallback(async () => {
+    if (saving) return;
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    reservationAutoSaveTimerRef.current = null;
+    if (!await persistReservationDetails()) return;
+    await loadGrid();
+    dismissReservationEditor();
+  }, [dismissReservationEditor, loadGrid, persistReservationDetails, saving]);
+
+  const reservationUpdateKey = reservationEditDraft
+    ? JSON.stringify(reservationUpdateFromDraft(reservationEditDraft, reservationTableAssignmentChanged))
+    : "";
+
+  useEffect(() => {
+    if (!selected || !reservationEditDraft || !reservationUpdateKey || saving) return;
+    if (reservationUpdateKey === reservationSavedUpdateKeyRef.current) return;
+    if (reservationUpdateKey === reservationFailedUpdateKeyRef.current) return;
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    reservationAutoSaveTimerRef.current = setTimeout(() => {
+      reservationAutoSaveTimerRef.current = null;
+      void persistReservationDetails();
+    }, RESERVATION_AUTO_SAVE_DELAY);
+    return () => {
+      if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    };
+  }, [persistReservationDetails, reservationEditDraft, reservationUpdateKey, saving, selected]);
 
   async function saveConfirmationEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -735,7 +824,7 @@ export function ReservationGrid({
     clearDraft();
     setFocusedReservationId(reservation.id);
     setSelected(reservation);
-    setReservationEditDraft({
+    const editorDraft = {
       tableIds: reservation.table_ids.length ? reservation.table_ids : [reservation.table_id],
       partySize: String(reservation.party_size),
       startTime: reservation.start_time,
@@ -747,7 +836,11 @@ export function ReservationGrid({
       reservationTags: reservation.tags || [],
       guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
       guestTags: reservation.guest_tags || [],
-    });
+    };
+    reservationSavedUpdateKeyRef.current = JSON.stringify(reservationUpdateFromDraft(editorDraft, false));
+    reservationFailedUpdateKeyRef.current = "";
+    setReservationAutoSaveError("");
+    setReservationEditDraft(editorDraft);
     setReservationTableDraftIds(reservation.table_ids.length ? reservation.table_ids : [reservation.table_id]);
     setReservationTableAssignmentChanged(false);
     setReservationTablePickerOpen(false);
@@ -993,12 +1086,10 @@ export function ReservationGrid({
         {selected && reservationEditDraft && (
           <div className="reservation-editor-backdrop" role="presentation" onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving) {
-              setSelected(null);
-              setReservationEditDraft(null);
-              setReservationTablePickerOpen(false);
+              void closeReservationEditor();
             }
           }}>
-            <form className="reservation-editor-dialog" onSubmit={saveReservationDetails} role="dialog" aria-modal="true" aria-labelledby="reservation-editor-title">
+            <form className="reservation-editor-dialog" onSubmit={(event) => event.preventDefault()} role="dialog" aria-modal="true" aria-labelledby="reservation-editor-title">
               <header>
                 <div>
                   <p>Reservation details</p>
@@ -1006,7 +1097,7 @@ export function ReservationGrid({
                   <span>{reservationEditorTableNames.length > 1 ? "Tables" : "Table"} {(reservationEditorTableNames.length ? reservationEditorTableNames : [selected.table_name]).join(" + ")}</span>
                 </div>
                 <div className="reservation-editor-header-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || minutes(reservationEditDraft.startTime) <= 0}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || minutes(reservationEditDraft.startTime) >= 23 * 60 + 45}><ChevronRight aria-hidden="true" /></button></div></div>
-                <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
+                <button type="button" className="reservation-editor-close" onClick={() => void closeReservationEditor()} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
               </header>
               <div className="reservation-editor-body">
                 <div className="reservation-editor-fields">
@@ -1025,6 +1116,7 @@ export function ReservationGrid({
                           const active = option.value === reservationEditDraft.status;
                           return (
                             <button type="button" role="option" aria-selected={active} key={option.value} onClick={() => {
+                              if (saving) return;
                               setReservationEditDraft((current) => current && ({ ...current, status: option.value }));
                               reservationStatusMenuRef.current?.removeAttribute("open");
                             }}>
@@ -1043,7 +1135,7 @@ export function ReservationGrid({
                 <section className="reservation-editor-section reservation-detail-section"><div className="booking-detail-section-heading"><TagIcon tag="Birthday" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div><fieldset className="tag-picker"><legend>Reservation tags</legend><div className="tag-options">{[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.reservationTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Reservation notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.reservationNotes} onChange={(event) => { const reservationNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, reservationNotes })); }} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label></section>
                 <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
               </div>
-              <footer><button type="button" className="reservation-history-button" onClick={() => void openReservationHistory()} disabled={saving}><History aria-hidden="true" /> Change history</button><span /><div><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></div></footer>
+              <footer><button type="button" className="reservation-history-button" onClick={() => void openReservationHistory()} disabled={saving}><History aria-hidden="true" /> Change history</button><span className="reservation-auto-save-status" role="status">{saving ? "Saving changes…" : reservationAutoSaveError ? <><span>{reservationAutoSaveError}</span><button type="button" onClick={() => { reservationFailedUpdateKeyRef.current = ""; void persistReservationDetails(); }}>Retry</button></> : "Changes save automatically."}</span></footer>
             </form>
           </div>
         )}

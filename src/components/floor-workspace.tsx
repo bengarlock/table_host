@@ -248,6 +248,7 @@ const PARTY_SIZE_PRESETS = [1, 2, 3, 4, 5, 6, 7, 8];
 const MAX_PARTY_SIZE = 40;
 const WALK_IN_TURN_TIMES = [45, 60, 75, 90, 105, 120, 135, 150, 180];
 const RESERVATION_DETAIL_ANIMATION_MS = 180;
+const RESERVATION_AUTO_SAVE_DELAY = 600;
 const FLOOR_VIEW_PREFERENCES_KEY = "tablehost.floor-view-preferences";
 const subscribeToHydration = () => () => undefined;
 
@@ -277,6 +278,50 @@ function displayTime(time: string) {
 function minutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
+}
+
+function floorReservationDraftKey(draft: ReservationEditDraft) {
+  return JSON.stringify({
+    guestName: draft.guestName.trim(),
+    partySize: Number(draft.partySize),
+    startTime: draft.startTime,
+    durationMinutes: Number(draft.durationMinutes),
+    status: draft.status,
+    reservationTags: draft.reservationTags,
+    guestTags: draft.guestTags,
+    reservationNotes: draft.reservationNotes.trim(),
+    guestNotes: draft.guestNotes.trim(),
+  });
+}
+
+function floorReservationUpdateFromDraft(draft: ReservationEditDraft, reservation: Reservation): ReservationUpdate {
+  return {
+    guest_name: draft.guestName.trim(),
+    party_size: Number(draft.partySize),
+    start_time: draft.startTime,
+    duration_minutes: Number(draft.durationMinutes),
+    notes: draft.reservationNotes.trim(),
+    tags: draft.reservationTags,
+    guest_notes: draft.guestNotes.trim(),
+    guest_tags: draft.guestTags,
+    ...(draft.status === reservation.status ? {} : { status: draft.status }),
+  };
+}
+
+function floorReservationDraftError(draft: ReservationEditDraft) {
+  const partySize = Number(draft.partySize);
+  const durationMinutes = Number(draft.durationMinutes);
+  const reservationStart = minutes(draft.startTime);
+  if (!draft.guestName.trim() || !Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
+    return "Enter a guest name and a party size from 1 to 40.";
+  }
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
+    return "Expected turn time must be between 15 minutes and 6 hours.";
+  }
+  if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
+    return "Enter a valid reservation time.";
+  }
+  return "";
 }
 
 function reservationTurnsOverlap(left: Reservation, right: Reservation) {
@@ -683,6 +728,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const [selectedPendingId, setSelectedPendingId] = useState<number | null>(null);
   const [focusedReservationId, setFocusedReservationId] = useState<number | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
+  const [reservationAutoSaveError, setReservationAutoSaveError] = useState("");
   const [reservationDetailClosing, setReservationDetailClosing] = useState(false);
   const [activityEvents, setActivityEvents] = useState<ReservationActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -690,6 +736,10 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   const viewMenuRef = useRef<HTMLDetailsElement>(null);
   const serversMenuRef = useRef<HTMLDetailsElement>(null);
   const reservationDetailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reservationAutoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reservationSavedDraftKeyRef = useRef("");
+  const reservationFailedDraftKeyRef = useRef("");
+  const reservationSavePromiseRef = useRef<Promise<boolean> | null>(null);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [seatingMode, setSeatingMode] = useState<"reservation" | "reassignment" | "walk-in" | null>(null);
@@ -872,6 +922,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
   useEffect(() => {
     return () => {
       if (reservationDetailCloseTimerRef.current) clearTimeout(reservationDetailCloseTimerRef.current);
+      if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
     };
   }, []);
 
@@ -1118,7 +1169,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function openReservationDetails(reservation: Reservation) {
     if (focusedReservationId === reservation.id && !reservationDetailClosing) {
-      closeReservationDetails();
+      void closeReservationDetails();
       return;
     }
     if (reservationDetailCloseTimerRef.current) {
@@ -1129,7 +1180,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     setFocusedReservationId(reservation.id);
     setActivityEvents([]);
     void loadReservationActivity(reservation.id);
-    setReservationEditDraft({
+    const draft = {
       guestName: reservation.guest_name,
       partySize: String(reservation.party_size),
       startTime: reservation.start_time,
@@ -1139,7 +1190,11 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       guestTags: reservation.guest_tags || [],
       reservationNotes: reservation.notes || "",
       guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
-    });
+    };
+    reservationSavedDraftKeyRef.current = floorReservationDraftKey(draft);
+    reservationFailedDraftKeyRef.current = "";
+    setReservationAutoSaveError("");
+    setReservationEditDraft(draft);
   }
 
   async function loadReservationActivity(reservationId: number) {
@@ -1187,7 +1242,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
     });
   }
 
-  function closeReservationDetails() {
+  const dismissReservationDetails = useCallback(() => {
     if (focusedReservationId === null) return;
     if (reservationDetailCloseTimerRef.current) clearTimeout(reservationDetailCloseTimerRef.current);
     setReservationDetailClosing(true);
@@ -1197,7 +1252,92 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       setReservationDetailClosing(false);
       reservationDetailCloseTimerRef.current = null;
     }, RESERVATION_DETAIL_ANIMATION_MS);
+  }, [focusedReservationId]);
+
+  const persistFloorReservationDetails = useCallback(async () => {
+    if (reservationSavePromiseRef.current) await reservationSavePromiseRef.current;
+    if (!focusedReservation || !reservationEditDraft) return true;
+
+    const draftKey = floorReservationDraftKey(reservationEditDraft);
+    if (draftKey === reservationSavedDraftKeyRef.current) return true;
+    const validationError = floorReservationDraftError(reservationEditDraft);
+    if (validationError) {
+      reservationFailedDraftKeyRef.current = draftKey;
+      setReservationAutoSaveError(validationError);
+      return false;
+    }
+    if (
+      reservationEditDraft.status !== focusedReservation.status
+      && !liveService
+      && SERVICE_LIFECYCLE_STATUSES.includes(reservationEditDraft.status)
+    ) {
+      reservationFailedDraftKeyRef.current = draftKey;
+      setReservationAutoSaveError("Reservations cannot be marked with an in-service outcome on future dates.");
+      return false;
+    }
+
+    const updates = floorReservationUpdateFromDraft(reservationEditDraft, focusedReservation);
+    const savePromise = (async () => {
+      setSaving(true);
+      setReservationAutoSaveError("");
+      try {
+        const response = await fetch(appPath(`/api/grid/reservations/${focusedReservation.id}`), {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+        const payload = (await response.json()) as Reservation | Record<string, unknown>;
+        if (!response.ok) throw new Error(readError(payload));
+        const savedReservation = payload as Reservation;
+        setData((current) => current && ({
+          ...current,
+          reservations: current.reservations.map((reservation) => (
+            reservation.id === savedReservation.id ? savedReservation : reservation
+          )),
+        }));
+        setSelectedPendingId(null);
+        reservationSavedDraftKeyRef.current = draftKey;
+        reservationFailedDraftKeyRef.current = "";
+        if (savedReservation.status === "complete") dismissReservationDetails();
+        return true;
+      } catch (reason) {
+        reservationFailedDraftKeyRef.current = draftKey;
+        setReservationAutoSaveError(reason instanceof Error ? reason.message : "Unable to save changes automatically.");
+        return false;
+      } finally {
+        reservationSavePromiseRef.current = null;
+        setSaving(false);
+      }
+    })();
+    reservationSavePromiseRef.current = savePromise;
+    return savePromise;
+  }, [dismissReservationDetails, focusedReservation, liveService, reservationEditDraft]);
+
+  async function closeReservationDetails() {
+    if (focusedReservationId === null) return;
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    reservationAutoSaveTimerRef.current = null;
+    if (!await persistFloorReservationDetails()) return;
+    dismissReservationDetails();
   }
+
+  const floorReservationEditKey = reservationEditDraft
+    ? floorReservationDraftKey(reservationEditDraft)
+    : "";
+
+  useEffect(() => {
+    if (!focusedReservation || !reservationEditDraft || !floorReservationEditKey || saving) return;
+    if (floorReservationEditKey === reservationSavedDraftKeyRef.current) return;
+    if (floorReservationEditKey === reservationFailedDraftKeyRef.current) return;
+    if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    reservationAutoSaveTimerRef.current = setTimeout(() => {
+      reservationAutoSaveTimerRef.current = null;
+      void persistFloorReservationDetails();
+    }, RESERVATION_AUTO_SAVE_DELAY);
+    return () => {
+      if (reservationAutoSaveTimerRef.current) clearTimeout(reservationAutoSaveTimerRef.current);
+    };
+  }, [floorReservationEditKey, focusedReservation, persistFloorReservationDetails, reservationEditDraft, saving]);
 
   function captureFloorEditorSnapshot(
     tables = editedTables,
@@ -1952,40 +2092,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
         : reservation.table_id === null ? [] : [reservation.table_id],
     );
     setSeatingMode("reassignment");
-  }
-
-  async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!focusedReservation || !reservationEditDraft) return;
-    const partySize = Number(reservationEditDraft.partySize);
-    const reservationStart = minutes(reservationEditDraft.startTime);
-    const durationMinutes = Number(reservationEditDraft.durationMinutes);
-    if (!reservationEditDraft.guestName.trim() || !Number.isInteger(partySize) || partySize < 1 || partySize > 40) {
-      setError("Enter a guest name and a party size from 1 to 40.");
-      return;
-    }
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 360) {
-      setError("Expected turn time must be between 15 minutes and 6 hours.");
-      return;
-    }
-    if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
-      setError("Enter a valid reservation time.");
-      return;
-    }
-    const updates: ReservationUpdate = {
-      guest_name: reservationEditDraft.guestName.trim(),
-      party_size: partySize,
-      start_time: reservationEditDraft.startTime,
-      duration_minutes: durationMinutes,
-      notes: reservationEditDraft.reservationNotes.trim(),
-      tags: reservationEditDraft.reservationTags,
-      guest_notes: reservationEditDraft.guestNotes.trim(),
-      guest_tags: reservationEditDraft.guestTags,
-    };
-    if (reservationEditDraft.status !== focusedReservation.status) {
-      updates.status = reservationEditDraft.status;
-    }
-    await updateReservation(focusedReservation, updates);
   }
 
   async function createWalkInGuest() {
@@ -2847,7 +2953,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
               {focusedReservation && reservationEditDraft && (
                 <aside className={`floor-reservation-detail-card${reservationDetailClosing ? " is-closing" : ""}`} aria-label={`Reservation details for ${focusedReservation.guest_name}`} aria-hidden={reservationDetailClosing}>
-                  <form onSubmit={saveReservationDetails}>
+                  <form onSubmit={(event) => event.preventDefault()}>
                     <header>
                       <div>
                         <span>Reservation details</span>
@@ -2983,8 +3089,17 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                       </section>
                     </div>
                     <footer className="floor-reservation-detail-actions">
-                      <button type="button" onClick={closeReservationDetails}>Cancel</button>
-                      <button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+                      <span className="reservation-auto-save-status" role="status">
+                        {saving ? "Saving changes…" : reservationAutoSaveError ? (
+                          <>
+                            <span>{reservationAutoSaveError}</span>
+                            <button type="button" onClick={() => {
+                              reservationFailedDraftKeyRef.current = "";
+                              void persistFloorReservationDetails();
+                            }}>Retry</button>
+                          </>
+                        ) : "Changes save automatically."}
+                      </span>
                     </footer>
                   </form>
                 </aside>
