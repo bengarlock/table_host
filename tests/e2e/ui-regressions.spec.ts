@@ -77,11 +77,15 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
   const bookingPage = page.locator(".booking-page-shell");
+  const bookingMain = page.locator(".booking-main-content");
   const wizard = page.locator(".booking-wizard.date-step");
+  const progress = page.locator(".wizard-progress");
   const calendar = page.locator(".wizard-date-field .calendar-inline");
   const dateTile = page.locator(".wizard-date-field .calendar-days button:not(:disabled):not(.outside-month)").first();
   await expect(bookingPage).toHaveCSS("background-image", /radial-gradient/);
+  await expect(bookingMain).toHaveCSS("padding-top", "0px");
   await expect(wizard).toHaveCSS("border-top-width", "0px");
+  await expect(progress).toHaveCSS("border-bottom-width", "0px");
   await expect(calendar).toHaveCSS("background-image", /radial-gradient/);
   await expect(dateTile).toHaveCSS("background-image", /linear-gradient/);
 });

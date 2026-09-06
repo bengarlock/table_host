@@ -2502,7 +2502,7 @@ textarea {
 .booking-main-content {
   height: 100vh;
   overflow-y: auto;
-  padding: 28px;
+  padding: 0;
 }
 
 .booking-page-shell {
@@ -2510,7 +2510,7 @@ textarea {
   isolation: isolate;
   display: grid;
   width: 100%;
-  min-height: calc(100vh - 56px);
+  min-height: 100vh;
   place-items: center;
   overflow: hidden;
   background:
@@ -2518,19 +2518,6 @@ textarea {
     radial-gradient(circle at 12% 18%, rgba(201, 151, 73, 0.13), transparent 24%),
     radial-gradient(circle at 86% 82%, rgba(42, 103, 83, 0.14), transparent 28%),
     #0b0e0b;
-}
-
-.booking-page-shell::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  content: "";
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(183, 166, 118, 0.042) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(183, 166, 118, 0.042) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: radial-gradient(ellipse 82% 76% at 50% 50%, #000 18%, transparent 78%);
 }
 
 .booking-page-shell > * {
@@ -2626,7 +2613,6 @@ textarea {
   grid-template-columns: repeat(5, 1fr);
   margin: 0;
   padding: 0 26px 20px;
-  border-bottom: 1px solid var(--line);
   list-style: none;
 }
 
@@ -2668,17 +2654,6 @@ textarea {
   border-radius: 6px;
   outline: 1px solid var(--accent-line);
   outline-offset: 4px;
-}
-
-.wizard-progress li:not(:last-child)::after {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  left: 40px;
-  height: 1px;
-  pointer-events: none;
-  background: var(--line-strong);
-  content: "";
 }
 
 .wizard-progress-number {
@@ -2723,7 +2698,6 @@ textarea {
 .wizard-progress-label {
   position: relative;
   z-index: 1;
-  background: #181b18;
   transition: color 140ms ease;
 }
 
@@ -2734,7 +2708,6 @@ textarea {
   min-width: 0;
   gap: 3px;
   padding-right: 10px;
-  background: #181b18;
 }
 
 .wizard-progress-value {
@@ -2783,9 +2756,7 @@ textarea {
 }
 
 .booking-wizard.date-step .wizard-body {
-  border-top: 1px solid rgba(139, 153, 132, 0.13);
-  border-bottom: 1px solid rgba(139, 153, 132, 0.13);
-  background: linear-gradient(90deg, rgba(11, 14, 11, 0.08), rgba(11, 14, 11, 0.28), rgba(11, 14, 11, 0.08));
+  background: transparent;
 }
 
 .booking-wizard.date-step .wizard-step {
@@ -7743,16 +7714,16 @@ textarea {
   }
 
   .booking-main-content {
-    padding: 10px;
+    padding: 0;
   }
 
   .booking-page-shell {
-    min-height: calc(100vh - 20px);
+    min-height: 100vh;
   }
 
   .booking-wizard {
-    height: calc(100vh - 20px);
-    max-height: calc(100vh - 20px);
+    height: 100vh;
+    max-height: 100vh;
   }
 
   .booking-wizard.time-party-step .wizard-body {
