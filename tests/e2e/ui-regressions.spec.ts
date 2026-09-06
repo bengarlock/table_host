@@ -325,6 +325,9 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
   await expect(dialog.getByText("Confirmation emails are not being sent yet.")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(dialog).toBeHidden();
+  const bookedReservation = page.getByRole("button", { name: /Alex Morgan, party of 2, 5:00 PM/ });
+  await expect(bookedReservation).toHaveClass(/is-focused/);
+  await expect(bookedReservation).toBeFocused();
 });
 
 test("grid reservation editor saves details in a centered dialog", async ({ page }) => {

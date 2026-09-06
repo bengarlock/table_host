@@ -2178,6 +2178,11 @@ textarea {
   outline: none;
 }
 
+.reservation-block.is-focused {
+  border-color: #fff0bd;
+  box-shadow: 0 0 0 3px rgba(244, 203, 111, 0.48), 0 5px 20px rgba(0, 0, 0, 0.42);
+}
+
 .reservation-block span {
   overflow: hidden;
   font-size: 0.72rem;

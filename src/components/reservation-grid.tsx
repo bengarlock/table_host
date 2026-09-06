@@ -235,6 +235,7 @@ export function ReservationGrid({
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
+  const [focusedReservationId, setFocusedReservationId] = useState<number | undefined>(initialConfirmationId);
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [confirmationEmailSaving, setConfirmationEmailSaving] = useState(false);
   const [confirmationEmailMessage, setConfirmationEmailMessage] = useState("");
@@ -243,6 +244,7 @@ export function ReservationGrid({
   const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const reservationBlockRefs = useRef(new Map<number, HTMLButtonElement>());
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const initializedConfirmationIdRef = useRef<number | undefined>(undefined);
   const resolveCurrentService = useRef(!initialServiceDate);
@@ -366,6 +368,17 @@ export function ReservationGrid({
     setConfirmationEmailMessage("");
   }, [confirmationId, confirmedReservation]);
 
+  useEffect(() => {
+    if (!focusedReservationId || !data?.reservations.some((reservation) => reservation.id === focusedReservationId)) return;
+    const reservationBlock = reservationBlockRefs.current.get(focusedReservationId);
+    if (!reservationBlock) return;
+    const frame = window.requestAnimationFrame(() => {
+      reservationBlock.scrollIntoView({ block: "nearest", inline: "center" });
+      if (!confirmationId) reservationBlock.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [confirmationId, data, focusedReservationId]);
+
   const currentTimeMarker = useMemo(() => {
     if (!data || data.service_date !== data.current_service_date) return null;
     const shiftStart = minutes(data.selected_shift.start_time);
@@ -463,6 +476,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     syncServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(next);
   }
@@ -471,6 +485,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     syncServiceUrl(serviceDate, next);
     setShiftSlug(next);
   }
@@ -479,6 +494,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     const closest = closestServiceOccurrence(data?.shifts || []);
     const currentDate = data?.current_service_date || closest?.date || todayLocal();
     const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
@@ -704,6 +720,7 @@ export function ReservationGrid({
 
   async function openReservation(reservation: Reservation) {
     clearDraft();
+    setFocusedReservationId(reservation.id);
     setSelected(reservation);
     setReservationEditDraft({
       tableIds: reservation.table_ids.length ? reservation.table_ids : [reservation.table_id],
@@ -883,8 +900,12 @@ export function ReservationGrid({
                           return (
                             <button
                               type="button"
-                              className={`reservation-block status-${reservation.status}${reservation.assignment_type === "hard" ? " hard-assigned" : ""}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
+                              className={`reservation-block status-${reservation.status}${reservation.assignment_type === "hard" ? " hard-assigned" : ""}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}${focusedReservationId === reservation.id ? " is-focused" : ""}`}
                               key={reservation.id}
+                              ref={(element) => {
+                                if (element) reservationBlockRefs.current.set(reservation.id, element);
+                                else reservationBlockRefs.current.delete(reservation.id);
+                              }}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
                               onClick={() => void openReservation(reservation)}
                               draggable={!saving}
