@@ -568,7 +568,10 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   expect(Math.abs(detailsBox - floorBox)).toBeLessThan(2);
   await expect(details.getByLabel("Guest name")).toHaveValue("Large Assignment");
   await expect(details.getByLabel("Enter party size")).toHaveValue("12");
-  await expect(details.getByRole("textbox", { name: "Time", exact: true })).toHaveValue("17:00");
+  const reservationTimeInput = details.getByRole("textbox", { name: "Time", exact: true });
+  await expect(reservationTimeInput).toHaveValue("17:00");
+  await expect(reservationTimeInput).toHaveAttribute("min", "17:00");
+  await expect(reservationTimeInput).toHaveAttribute("max", "20:30");
   await expect(details.getByRole("textbox", { name: "Turn time", exact: true })).toHaveValue("1:30");
   const statusButton = details.getByRole("button", { name: "Status" });
   await expect(statusButton).toContainText("Confirmed");
@@ -599,7 +602,10 @@ test("large table assignments use a condensed reservation-card label", async ({ 
 
   await details.getByLabel("Guest name").fill("Updated Assignment");
   await details.getByLabel("Enter party size").fill("10");
-  await details.getByRole("textbox", { name: "Time", exact: true }).fill("18:15");
+  await reservationTimeInput.fill("21:00");
+  await details.getByRole("button", { name: "Save changes" }).click();
+  expect(savedUpdate).toBeNull();
+  await reservationTimeInput.fill("18:15");
   await details.getByRole("button", { name: "Increase turn time" }).click();
   await details.getByRole("button", { name: "Increase turn time" }).click();
   const reservationTags = details.getByRole("group", { name: "Reservation tags" });
