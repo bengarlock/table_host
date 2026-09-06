@@ -466,6 +466,21 @@ test("reservation grid date controls do not overlap shift buttons", async ({ pag
   }
 });
 
+test("past grid services retain booking guards without an advisory banner", async ({ page }) => {
+  await page.route("**/api/grid?*", (route) => route.fulfill({
+    json: {
+      ...gridPayload,
+      service_date: "2026-09-03",
+      current_service_date: serviceDate,
+      booking_allowed: false,
+    },
+  }));
+
+  await page.goto("/reservations?date=2026-09-03&shift=dinner");
+  await expect(page.getByText("Past service · view only")).toHaveCount(0);
+  await expect(page.locator(".empty-slot").first()).toBeDisabled();
+});
+
 test("Floor server tables can be unassigned and switched", async ({ page }) => {
   const servers = [
     { id: 1, name: "Jordan", color: "#3C8FA8", table_ids: [1], section_ids: [] },

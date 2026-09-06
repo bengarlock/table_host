@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   CakeSlice,
-  CalendarX2,
   CalendarCheck,
   Ban,
   Check,
@@ -776,13 +775,6 @@ export function ReservationGrid({
       </section>
 
       {error && <div className="grid-alert" role="alert">{error}</div>}
-
-      {data && !bookingAllowed && (
-        <div className="grid-read-only-notice" role="status">
-          <CalendarX2 aria-hidden="true" />
-          <span><strong>Past service · view only</strong> New reservations cannot be added to a previous day.</span>
-        </div>
-      )}
 
       <div className="grid-and-panel">
         <section className="grid-card" aria-label="Table reservation timeline">
