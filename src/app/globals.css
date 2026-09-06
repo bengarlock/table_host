@@ -1524,8 +1524,14 @@ textarea {
 }
 
 .reservation-editor-dialog > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
   border-bottom: 1px solid var(--line);
 }
+
+.reservation-editor-dialog > header > :first-child { min-width: 0; }
+.reservation-editor-dialog > header > .reservation-editor-close { justify-self: end; }
 
 .reservation-editor-dialog > header p {
   margin: 0 0 5px;
@@ -1706,7 +1712,7 @@ textarea {
 
 .reservation-editor-turn,
 .reservation-editor-party-size,
-.reservation-editor-time {
+.reservation-editor-header-time {
   display: grid;
   gap: 7px;
   color: var(--text-soft);
@@ -1714,11 +1720,16 @@ textarea {
   font-weight: 650;
 }
 
-.reservation-editor-time { grid-column: 1 / -1; }
+.reservation-editor-header-time { width: 226px; }
+.reservation-editor-header-time > span {
+  margin-top: 0;
+  color: var(--text-soft);
+  font-size: 0.67rem;
+}
 
 .reservation-editor-turn > div,
 .reservation-editor-party-size > div,
-.reservation-editor-time > div {
+.reservation-editor-header-time > div {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   min-height: 44px;
@@ -1730,7 +1741,7 @@ textarea {
 
 .reservation-editor-turn button,
 .reservation-editor-party-size button,
-.reservation-editor-time button {
+.reservation-editor-header-time button {
   display: grid;
   cursor: pointer;
   place-items: center;
@@ -1743,27 +1754,31 @@ textarea {
 .reservation-editor-turn button:focus-visible,
 .reservation-editor-party-size button:hover:not(:disabled),
 .reservation-editor-party-size button:focus-visible,
-.reservation-editor-time button:hover:not(:disabled),
-.reservation-editor-time button:focus-visible {
+.reservation-editor-header-time button:hover:not(:disabled),
+.reservation-editor-header-time button:focus-visible {
   background: var(--surface-hover);
   color: var(--text);
   outline: none;
 }
 
 .reservation-editor-turn button:disabled,
-.reservation-editor-party-size button:disabled,
-.reservation-editor-time button:disabled {
+.reservation-editor-party-size button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.reservation-editor-header-time button:disabled {
   cursor: default;
   opacity: 0.4;
 }
 
 .reservation-editor-turn svg,
 .reservation-editor-party-size svg,
-.reservation-editor-time svg { width: 15px; }
+.reservation-editor-header-time svg { width: 15px; }
 
 .reservation-editor-turn output,
 .reservation-editor-party-size output,
-.reservation-editor-time output {
+.reservation-editor-header-time output {
   display: grid;
   place-items: center;
   border-inline: 1px solid var(--line);

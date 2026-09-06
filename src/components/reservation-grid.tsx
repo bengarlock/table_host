@@ -912,8 +912,9 @@ export function ReservationGrid({
                 <div>
                   <p>Reservation details</p>
                   <h2 id="reservation-editor-title">{selected.guest_name}</h2>
-                  <span><Clock3 aria-hidden="true" /> {displayTime(reservationEditDraft.startTime)} · {selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
+                  <span>{selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
                 </div>
+                <div className="reservation-editor-header-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) <= minutes(data.selected_shift.start_time)}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) + Number(reservationEditDraft.durationMinutes) >= minutes(data.selected_shift.end_time)}><ChevronRight aria-hidden="true" /></button></div></div>
                 <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
               </header>
               <div className="reservation-editor-body">
@@ -945,7 +946,6 @@ export function ReservationGrid({
                       </div>
                     </details>
                   </div>
-                  <div className="reservation-editor-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) <= minutes(data.selected_shift.start_time)}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) + Number(reservationEditDraft.durationMinutes) >= minutes(data.selected_shift.end_time)}><ChevronRight aria-hidden="true" /></button></div></div>
                   <div className="reservation-editor-turn"><span>Turn time</span><div><button type="button" aria-label="Decrease turn time" onClick={() => changeTurnTime(-15)} disabled={saving || Number(reservationEditDraft.durationMinutes) <= 15}><Minus aria-hidden="true" /></button><output aria-label="Turn time">{formatTurnTime(Number(reservationEditDraft.durationMinutes))}</output><button type="button" aria-label="Increase turn time" onClick={() => changeTurnTime(15)} disabled={saving || Number(reservationEditDraft.durationMinutes) >= 360}><Plus aria-hidden="true" /></button></div></div>
                   <label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label>
                 </div>

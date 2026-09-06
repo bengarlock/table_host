@@ -249,6 +249,14 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   const [dialogBox, viewport] = await Promise.all([dialog.boundingBox(), page.evaluate(() => ({ width: innerWidth, height: innerHeight }))]);
   expect(dialogBox).not.toBeNull();
   expect(Math.abs(dialogBox!.x + dialogBox!.width / 2 - viewport.width / 2)).toBeLessThan(2);
+  const [headerBox, reservationTimeBox] = await Promise.all([
+    dialog.locator("header").boundingBox(),
+    dialog.locator(".reservation-editor-header-time").boundingBox(),
+  ]);
+  expect(headerBox).not.toBeNull();
+  expect(reservationTimeBox).not.toBeNull();
+  expect(reservationTimeBox!.width).toBeLessThan(240);
+  expect(Math.abs(reservationTimeBox!.x + reservationTimeBox!.width / 2 - (headerBox!.x + headerBox!.width / 2))).toBeLessThan(2);
   const [reservationSection, guestSection] = await Promise.all([
     dialog.locator(".reservation-editor-section.reservation-detail-section").boundingBox(),
     dialog.locator(".reservation-editor-section.guest-detail-section").boundingBox(),
