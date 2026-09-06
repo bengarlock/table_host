@@ -128,9 +128,9 @@ export function ServiceDatePicker({
                   setOpen(false);
                 }
               }}
-              aria-label={`${dateLabel(dateString)}${unavailable ? ", unavailable for booking" : pastDate ? ", past date, view only" : ""}`}
+              aria-label={`${dateLabel(dateString)}${unavailable ? ", unavailable for booking" : pastDate ? ", past date" : ""}`}
               aria-current={today && dateString === today ? "date" : undefined}
-              title={unavailable ? "Past dates cannot be booked" : pastDate ? "Past date · view only" : undefined}
+              title={unavailable ? "Past dates cannot be booked" : pastDate ? "Past date" : undefined}
             >
               {date.getDate()}
             </button>
@@ -164,11 +164,10 @@ export function ServiceDatePicker({
         onClick={toggleCalendar}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`${fieldLabel}: ${dateLabel(value)}${today && value < today ? ", past date, view only" : ""}`}
+        aria-label={`${fieldLabel}: ${dateLabel(value)}${today && value < today ? ", past date" : ""}`}
       >
         <CalendarDays aria-hidden="true" />
         <span>{useRelativeLabel && today && value === today ? "Today" : dateLabel(value)}</span>
-        {today && value < today && <small>View only</small>}
       </button>
 
       {open && calendar}

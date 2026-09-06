@@ -449,6 +449,7 @@ test("reservation grid date controls do not overlap shift buttons", async ({ pag
   for (const viewport of [{ width: 2048, height: 1130 }, { width: 1180, height: 800 }]) {
     await page.setViewportSize(viewport);
     await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+    await expect(page.locator(".date-picker-trigger small")).toHaveCount(0);
     const [shiftTabs, dateControl] = await Promise.all([
       page.locator(".shift-tabs").boundingBox(),
       page.getByLabel("Choose service date").boundingBox(),
