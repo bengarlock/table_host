@@ -1554,7 +1554,10 @@ textarea {
 }
 
 .reservation-editor-dialog > header > :first-child { min-width: 0; }
-.reservation-editor-dialog > header > .reservation-editor-close { justify-self: end; }
+.reservation-editor-dialog > header > .reservation-editor-close {
+  align-self: start;
+  justify-self: end;
+}
 
 .reservation-editor-dialog > header p {
   margin: 0 0 5px;

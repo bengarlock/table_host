@@ -395,6 +395,9 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(reservationTimeBox).not.toBeNull();
   expect(reservationTimeBox!.width).toBeLessThan(240);
   expect(Math.abs(reservationTimeBox!.x + reservationTimeBox!.width / 2 - (headerBox!.x + headerBox!.width / 2))).toBeLessThan(2);
+  const closeButtonBox = await dialog.getByRole("button", { name: "Close reservation editor" }).boundingBox();
+  expect(closeButtonBox).not.toBeNull();
+  expect(closeButtonBox!.y).toBeLessThan(reservationTimeBox!.y);
   const [reservationSection, guestSection] = await Promise.all([
     dialog.locator(".reservation-editor-section.reservation-detail-section").boundingBox(),
     dialog.locator(".reservation-editor-section.guest-detail-section").boundingBox(),
