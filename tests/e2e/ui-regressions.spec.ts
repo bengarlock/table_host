@@ -149,6 +149,16 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   await expect(page.getByLabel("New reservation selection")).toContainText("Tables 1 + 2");
   await expect(page.getByLabel("New reservation selection")).toContainText("seats 4");
   await expect(page.locator(".grid-hold-block")).toHaveCount(2);
+  const [selectionBounds, bookReservationBounds] = await Promise.all([
+    page.getByLabel("New reservation selection").boundingBox(),
+    page.getByRole("button", { name: "Book Reservation", exact: true }).boundingBox(),
+  ]);
+  expect(selectionBounds).not.toBeNull();
+  expect(bookReservationBounds).not.toBeNull();
+  expect(Math.abs(
+    (bookReservationBounds!.x + bookReservationBounds!.width / 2) -
+    (selectionBounds!.x + selectionBounds!.width / 2),
+  )).toBeLessThanOrEqual(1);
 
   await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=4&duration=90&tables=1%2C2$`));
@@ -208,6 +218,18 @@ test("booking guest search waits for two characters", async ({ page }) => {
 
   await search.fill("al");
   await expect.poll(() => searchRequests).toBe(1);
+});
+
+test("selecting an available booking time advances directly to guest search", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:00 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^5:00 PM,/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
 });
 
 test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
@@ -325,6 +347,9 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
   await expect(dialog.getByText("Confirmation emails are not being sent yet.")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Done" }).click();
   await expect(dialog).toBeHidden();
+  const bookedReservation = page.getByRole("button", { name: /Alex Morgan, party of 2, 5:00 PM/ });
+  await expect(bookedReservation).toHaveClass(/is-focused/);
+  await expect(bookedReservation).toBeFocused();
 });
 
 test("grid reservation editor saves details in a centered dialog", async ({ page }) => {
@@ -343,6 +368,16 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     savedUpdate = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({ json: { ...reservation, ...savedUpdate } });
   });
+  await page.route("**/api/grid/reservations/111/history", (route) => route.fulfill({ json: [{
+    id: 1,
+    action: "updated",
+    summary: "Updated reservation time, party size",
+    changes: {
+      start_time: { from: "20:15", to: "20:30" },
+      party_size: { from: 4, to: 6 },
+    },
+    created_at: "2026-09-04T20:30:00Z",
+  }] }));
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
   await page.getByRole("button", { name: /Taylor Brooks, party of 4/ }).click();
@@ -360,6 +395,9 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(reservationTimeBox).not.toBeNull();
   expect(reservationTimeBox!.width).toBeLessThan(240);
   expect(Math.abs(reservationTimeBox!.x + reservationTimeBox!.width / 2 - (headerBox!.x + headerBox!.width / 2))).toBeLessThan(2);
+  const closeButtonBox = await dialog.getByRole("button", { name: "Close reservation editor" }).boundingBox();
+  expect(closeButtonBox).not.toBeNull();
+  expect(closeButtonBox!.y).toBeLessThan(reservationTimeBox!.y);
   const [reservationSection, guestSection] = await Promise.all([
     dialog.locator(".reservation-editor-section.reservation-detail-section").boundingBox(),
     dialog.locator(".reservation-editor-section.guest-detail-section").boundingBox(),
@@ -384,6 +422,14 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(emailField).not.toBeNull();
   expect(Math.abs(phoneField!.y - emailField!.y)).toBeLessThan(2);
   expect(emailField!.x).toBeGreaterThan(phoneField!.x + phoneField!.width);
+  await dialog.getByRole("button", { name: "Change history" }).click();
+  const historyDialog = page.locator(".reservation-history-dialog");
+  await expect(historyDialog).toBeVisible();
+  await expect(historyDialog).toContainText("Updated reservation time, party size");
+  await expect(historyDialog).toContainText("8:15 PM");
+  await expect(historyDialog).toContainText("8:30 PM");
+  await historyDialog.getByRole("button", { name: "Close change history" }).click();
+  await expect(historyDialog).toHaveCount(0);
   const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
   await statusMenu.click();
   await expect(dialog.getByRole("listbox", { name: "Reservation status options" })).toBeVisible();
@@ -1017,7 +1063,7 @@ test("booking availability is centered around the guest's desired time", async (
   });
 
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
 
   const compactTimePartyLayout = await page.locator(".wizard-body").evaluate((element) => ({
     clientHeight: element.clientHeight,
@@ -1088,7 +1134,7 @@ test("booking time and party controls stay in one column on short desktops", asy
   await page.setViewportSize({ width: 2048, height: 800 });
   await mockGrid(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
 
   const [partyBounds, desiredBounds, availableBounds] = await Promise.all([
     page.locator(".booking-party-panel").boundingBox(),
@@ -1417,7 +1463,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
   const wizardHeight = await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height));
 
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
@@ -1448,10 +1494,11 @@ test("booking restores time selection before optional table assignment", async (
 
   const selectedTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await selectedTime.click();
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
   await expect(selectedTime).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".time-and-tables-selection strong")).toHaveText("7:30 PM");
   await expect(assignTables).toBeEnabled();
-  await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
 
   await assignTables.click();
   await expect(page.getByRole("heading", { name: "Assign tables" })).toBeVisible();
@@ -1462,11 +1509,11 @@ test("booking restores time selection before optional table assignment", async (
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 4 guests · Tables 1, 2");
 
-  await page.locator("footer").getByRole("button", { name: "Guest" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
   await page.getByRole("button", { name: /Alyssa Garcia/ }).click();
-  await page.locator("footer").getByRole("button", { name: "Details" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.setViewportSize({ width: 1280, height: 900 });

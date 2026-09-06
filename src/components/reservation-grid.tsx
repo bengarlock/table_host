@@ -19,6 +19,7 @@ import {
   LoaderCircle,
   LayoutGrid,
   Lock,
+  History,
   Minus,
   Plus,
   ReceiptText,
@@ -109,6 +110,14 @@ type TableBlock = {
   start_time: string;
   duration_minutes: number;
   notes: string;
+};
+
+type ReservationHistoryEvent = {
+  id: number;
+  action: string;
+  summary: string;
+  changes: Record<string, unknown>;
+  created_at: string;
 };
 
 const RESERVATION_STATUS_OPTIONS = [
@@ -231,10 +240,15 @@ export function ReservationGrid({
   const [reservationTablePickerOpen, setReservationTablePickerOpen] = useState(false);
   const [reservationTableDraftIds, setReservationTableDraftIds] = useState<number[]>([]);
   const [reservationTableAssignmentChanged, setReservationTableAssignmentChanged] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyEvents, setHistoryEvents] = useState<ReservationHistoryEvent[]>([]);
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
   const [confirmationId, setConfirmationId] = useState(initialConfirmationId);
+  const [focusedReservationId, setFocusedReservationId] = useState<number | undefined>(initialConfirmationId);
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [confirmationEmailSaving, setConfirmationEmailSaving] = useState(false);
   const [confirmationEmailMessage, setConfirmationEmailMessage] = useState("");
@@ -243,6 +257,7 @@ export function ReservationGrid({
   const [blockScope, setBlockScope] = useState<"turn" | "shift">("turn");
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const reservationBlockRefs = useRef(new Map<number, HTMLButtonElement>());
   const reservationStatusMenuRef = useRef<HTMLDetailsElement>(null);
   const initializedConfirmationIdRef = useRef<number | undefined>(undefined);
   const resolveCurrentService = useRef(!initialServiceDate);
@@ -366,6 +381,17 @@ export function ReservationGrid({
     setConfirmationEmailMessage("");
   }, [confirmationId, confirmedReservation]);
 
+  useEffect(() => {
+    if (!focusedReservationId || !data?.reservations.some((reservation) => reservation.id === focusedReservationId)) return;
+    const reservationBlock = reservationBlockRefs.current.get(focusedReservationId);
+    if (!reservationBlock) return;
+    const frame = window.requestAnimationFrame(() => {
+      reservationBlock.scrollIntoView({ block: "nearest", inline: "center" });
+      if (!confirmationId) reservationBlock.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [confirmationId, data, focusedReservationId]);
+
   const currentTimeMarker = useMemo(() => {
     if (!data || data.service_date !== data.current_service_date) return null;
     const shiftStart = minutes(data.selected_shift.start_time);
@@ -463,6 +489,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     syncServiceUrl(next, shiftSlug || data?.selected_shift.slug || "dinner");
     setServiceDate(next);
   }
@@ -471,6 +498,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     syncServiceUrl(serviceDate, next);
     setShiftSlug(next);
   }
@@ -479,6 +507,7 @@ export function ReservationGrid({
     gridRequestVersion.current += 1;
     clearDraft();
     setSelected(null);
+    setFocusedReservationId(undefined);
     const closest = closestServiceOccurrence(data?.shifts || []);
     const currentDate = data?.current_service_date || closest?.date || todayLocal();
     const currentShift = closest?.shiftSlug || data?.selected_shift.slug || shiftSlug || "dinner";
@@ -704,6 +733,7 @@ export function ReservationGrid({
 
   async function openReservation(reservation: Reservation) {
     clearDraft();
+    setFocusedReservationId(reservation.id);
     setSelected(reservation);
     setReservationEditDraft({
       tableIds: reservation.table_ids.length ? reservation.table_ids : [reservation.table_id],
@@ -721,6 +751,25 @@ export function ReservationGrid({
     setReservationTableDraftIds(reservation.table_ids.length ? reservation.table_ids : [reservation.table_id]);
     setReservationTableAssignmentChanged(false);
     setReservationTablePickerOpen(false);
+    setHistoryOpen(false);
+    setHistoryError("");
+  }
+
+  async function openReservationHistory() {
+    if (!selected) return;
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const response = await fetch(appPath(`/api/grid/reservations/${selected.id}/history`), { cache: "no-store" });
+      const payload = (await response.json()) as ReservationHistoryEvent[] | Record<string, unknown>;
+      if (!response.ok || !Array.isArray(payload)) throw new Error(readError(payload));
+      setHistoryEvents(payload);
+    } catch (reason) {
+      setHistoryError(reason instanceof Error ? reason.message : "Unable to load reservation history.");
+    } finally {
+      setHistoryLoading(false);
+    }
   }
 
   const reservationEditorTableNames = reservationEditDraft && data
@@ -883,8 +932,12 @@ export function ReservationGrid({
                           return (
                             <button
                               type="button"
-                              className={`reservation-block status-${reservation.status}${reservation.assignment_type === "hard" ? " hard-assigned" : ""}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}`}
+                              className={`reservation-block status-${reservation.status}${reservation.assignment_type === "hard" ? " hard-assigned" : ""}${overCapacity ? " over-capacity" : ""}${timeConflict ? " time-conflict" : ""}${focusedReservationId === reservation.id ? " is-focused" : ""}`}
                               key={reservation.id}
+                              ref={(element) => {
+                                if (element) reservationBlockRefs.current.set(reservation.id, element);
+                                else reservationBlockRefs.current.delete(reservation.id);
+                              }}
                               style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
                               onClick={() => void openReservation(reservation)}
                               draggable={!saving}
@@ -990,8 +1043,18 @@ export function ReservationGrid({
                 <section className="reservation-editor-section reservation-detail-section"><div className="booking-detail-section-heading"><TagIcon tag="Birthday" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div><fieldset className="tag-picker"><legend>Reservation tags</legend><div className="tag-options">{[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.reservationTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Reservation notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.reservationNotes} onChange={(event) => { const reservationNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, reservationNotes })); }} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label></section>
                 <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
               </div>
-              <footer><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></footer>
+              <footer><button type="button" className="reservation-history-button" onClick={() => void openReservationHistory()} disabled={saving}><History aria-hidden="true" /> Change history</button><span /><div><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></div></footer>
             </form>
+          </div>
+        )}
+        {historyOpen && selected && (
+          <div className="reservation-history-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setHistoryOpen(false)}>
+            <section className="reservation-history-dialog" role="dialog" aria-modal="true" aria-labelledby="reservation-history-title">
+              <header><div><p>Reservation history</p><h2 id="reservation-history-title">{selected.guest_name}</h2></div><button type="button" onClick={() => setHistoryOpen(false)} aria-label="Close change history"><X aria-hidden="true" /></button></header>
+              <div className="reservation-history-list">
+                {historyLoading ? <p className="reservation-history-state"><LoaderCircle className="spin" aria-hidden="true" /> Loading every change…</p> : historyError ? <p className="reservation-history-state" role="alert">{historyError}</p> : historyEvents.length ? historyEvents.map((event) => <article key={event.id} className="reservation-history-event"><time>{formatHistoryTimestamp(event.created_at)}</time><strong>{event.summary}</strong><HistoryChanges changes={event.changes} /></article>) : <p className="reservation-history-state">No changes have been recorded yet.</p>}
+              </div>
+            </section>
           </div>
         )}
         {reservationTablePickerOpen && data && selected && reservationEditDraft && (
@@ -1027,8 +1090,10 @@ export function ReservationGrid({
               <span>{displayTime(draft.time)} · {formatTurnTime(draft.durationMinutes)} hold · seats {draft.capacity}</span>
             </div>
             <div className="grid-draft-actions">
-              <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
-              <button className="secondary-action" type="button" onClick={() => { setBlockScope("turn"); setBlockDialogOpen(true); }}>Block Tables</button>
+              <div className="grid-draft-secondary-actions">
+                <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
+                <button className="secondary-action" type="button" onClick={() => { setBlockScope("turn"); setBlockDialogOpen(true); }}>Block Tables</button>
+              </div>
               <button className="primary-action" type="button" onClick={continueDraftInBookingFlow}>Book Reservation</button>
             </div>
           </>
@@ -1120,4 +1185,49 @@ function displayServiceDate(value: string) {
     month: "long",
     day: "numeric",
   }).format(new Date(year, month - 1, day));
+}
+
+const HISTORY_FIELD_LABELS: Record<string, string> = {
+  assignment_type: "Assignment",
+  duration_minutes: "Turn time",
+  guest_email: "Guest email",
+  guest_name: "Guest name",
+  guest_notes: "Guest notes",
+  guest_phone: "Phone number",
+  guest_tags: "Guest tags",
+  is_unassigned: "Table assignment",
+  notes: "Reservation notes",
+  party_size: "Party size",
+  start_time: "Reservation time",
+  status: "Status",
+  tables: "Tables",
+  tags: "Reservation tags",
+};
+
+function formatHistoryTimestamp(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatHistoryValue(value: unknown, field?: string) {
+  if (field === "start_time" && typeof value === "string" && /^\d{2}:\d{2}$/.test(value)) return displayTime(value);
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
+  if (value === null || value === undefined || value === "") return "None";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value).replaceAll("_", " ");
+}
+
+function HistoryChanges({ changes }: { changes: Record<string, unknown> }) {
+  const rows = Object.entries(changes).filter(([field, value]) => (
+    field !== "triggered_by" && value && typeof value === "object" && "from" in value && "to" in value
+  )) as Array<[string, { from: unknown; to: unknown }]>;
+  if (!rows.length) return null;
+  return <dl>{rows.map(([field, value]) => <div key={field}><dt>{HISTORY_FIELD_LABELS[field] || field.replaceAll("_", " ")}</dt><dd><span>{formatHistoryValue(value.from, field)}</span><span aria-hidden="true">→</span><strong>{formatHistoryValue(value.to, field)}</strong></dd></div>)}</dl>;
 }

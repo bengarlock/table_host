@@ -38,7 +38,7 @@ function reservationsUrl(serviceDate?: string, shiftSlug?: string, confirmationI
   if (serviceDate) query.set("date", serviceDate);
   if (shiftSlug) query.set("shift", shiftSlug);
   if (confirmationId) query.set("confirmation", String(confirmationId));
-  return `/reservations${query.size ? `?${query}` : ""}`;
+  return `${appPath("/reservations")}${query.size ? `?${query}` : ""}`;
 }
 
 export function BookingPageWorkspace({
