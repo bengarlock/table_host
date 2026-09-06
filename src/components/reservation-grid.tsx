@@ -1048,8 +1048,10 @@ export function ReservationGrid({
               <span>{displayTime(draft.time)} · {formatTurnTime(draft.durationMinutes)} hold · seats {draft.capacity}</span>
             </div>
             <div className="grid-draft-actions">
-              <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
-              <button className="secondary-action" type="button" onClick={() => { setBlockScope("turn"); setBlockDialogOpen(true); }}>Block Tables</button>
+              <div className="grid-draft-secondary-actions">
+                <button className="secondary-action" type="button" onClick={clearDraft}>Clear</button>
+                <button className="secondary-action" type="button" onClick={() => { setBlockScope("turn"); setBlockDialogOpen(true); }}>Block Tables</button>
+              </div>
               <button className="primary-action" type="button" onClick={continueDraftInBookingFlow}>Book Reservation</button>
             </div>
           </>

@@ -1436,15 +1436,31 @@ textarea {
 }
 
 .grid-draft-actions {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  pointer-events: none;
+}
+
+.grid-draft-secondary-actions {
   display: flex;
-  flex: 0 0 auto;
+  grid-column: 1;
+  justify-self: end;
   gap: 9px;
+  margin-right: 9px;
 }
 
 .grid-draft-actions .primary-action,
 .grid-draft-actions .secondary-action {
   width: auto;
   margin-top: 0;
+  pointer-events: auto;
+}
+
+.grid-draft-actions .primary-action {
+  grid-column: 2;
 }
 
 .table-time-block {
@@ -7524,7 +7540,17 @@ textarea {
   }
 
   .grid-draft-actions {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: flex-end;
+    pointer-events: auto;
+  }
+
+  .grid-draft-secondary-actions {
+    justify-content: center;
+    margin-right: 0;
   }
 
   .grid-toolbar {

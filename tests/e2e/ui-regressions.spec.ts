@@ -149,6 +149,16 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   await expect(page.getByLabel("New reservation selection")).toContainText("Tables 1 + 2");
   await expect(page.getByLabel("New reservation selection")).toContainText("seats 4");
   await expect(page.locator(".grid-hold-block")).toHaveCount(2);
+  const [selectionBounds, bookReservationBounds] = await Promise.all([
+    page.getByLabel("New reservation selection").boundingBox(),
+    page.getByRole("button", { name: "Book Reservation", exact: true }).boundingBox(),
+  ]);
+  expect(selectionBounds).not.toBeNull();
+  expect(bookReservationBounds).not.toBeNull();
+  expect(Math.abs(
+    (bookReservationBounds!.x + bookReservationBounds!.width / 2) -
+    (selectionBounds!.x + selectionBounds!.width / 2),
+  )).toBeLessThanOrEqual(1);
 
   await page.getByRole("button", { name: "Book Reservation", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/reservations/book\\?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=4&duration=90&tables=1%2C2$`));
