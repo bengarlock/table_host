@@ -210,6 +210,18 @@ test("booking guest search waits for two characters", async ({ page }) => {
   await expect.poll(() => searchRequests).toBe(1);
 });
 
+test("selecting an available booking time advances directly to guest search", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:00 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^5:00 PM,/ }).click();
+
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
+});
+
 test("grid blocks selected tables for the remainder of a shift with notes", async ({ page }) => {
   await mockGrid(page);
   await page.route("**/api/grid/blocks", async (route) => {
@@ -1020,7 +1032,7 @@ test("booking availability is centered around the guest's desired time", async (
   });
 
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
 
   const compactTimePartyLayout = await page.locator(".wizard-body").evaluate((element) => ({
     clientHeight: element.clientHeight,
@@ -1091,7 +1103,7 @@ test("booking time and party controls stay in one column on short desktops", asy
   await page.setViewportSize({ width: 2048, height: 800 });
   await mockGrid(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
 
   const [partyBounds, desiredBounds, availableBounds] = await Promise.all([
     page.locator(".booking-party-panel").boundingBox(),
@@ -1420,7 +1432,7 @@ test("booking restores time selection before optional table assignment", async (
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
   const wizardHeight = await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height));
 
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   const manualPartySize = page.getByRole("spinbutton", { name: "Enter party size" });
@@ -1451,10 +1463,11 @@ test("booking restores time selection before optional table assignment", async (
 
   const selectedTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ });
   await selectedTime.click();
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
   await expect(selectedTime).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".time-and-tables-selection strong")).toHaveText("7:30 PM");
   await expect(assignTables).toBeEnabled();
-  await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
 
   await assignTables.click();
   await expect(page.getByRole("heading", { name: "Assign tables" })).toBeVisible();
@@ -1465,11 +1478,11 @@ test("booking restores time selection before optional table assignment", async (
   await expect(page.locator(".time-and-tables-selection span")).toHaveText("Tables 1, 2");
   await expect(page.locator(".wizard-progress-value").nth(1)).toHaveText("7:30 PM · 4 guests · Tables 1, 2");
 
-  await page.locator("footer").getByRole("button", { name: "Guest" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.getByRole("searchbox", { name: "Guest search" }).fill("Alyssa");
   await page.getByRole("button", { name: /Alyssa Garcia/ }).click();
-  await page.locator("footer").getByRole("button", { name: "Details" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   await expect(page.getByRole("heading", { name: "Reservation details" })).toBeVisible();
   expect(await page.locator(".booking-wizard").evaluate((element) => Math.round(element.getBoundingClientRect().height))).toBe(wizardHeight);
   await page.setViewportSize({ width: 1280, height: 900 });

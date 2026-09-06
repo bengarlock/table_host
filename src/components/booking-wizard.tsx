@@ -448,6 +448,7 @@ export function BookingWizard({
     setSelectedOption(option);
     setSelectedTableIds([]);
     setAssignmentDraftTableIds([]);
+    if (option.available) advanceTo(3);
   }
 
   async function loadAssignmentContext(shiftSlug: string, preserveSelection = false) {
