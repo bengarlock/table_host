@@ -377,6 +377,12 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await dialog.getByLabel("Guest notes").fill("Updated guest note.");
   await dialog.getByRole("group", { name: "Reservation tags" }).getByRole("button", { name: "Anniversary" }).click();
   await dialog.getByRole("group", { name: "Guest tags" }).getByRole("button", { name: "VIP" }).click();
+  await dialog.getByRole("button", { name: "Assign tables" }).click();
+  const tableAssignment = page.getByRole("dialog", { name: "Assign tables" });
+  await expect(tableAssignment).toBeVisible();
+  await tableAssignment.getByRole("button", { name: /Table 2, 2 seats/ }).click();
+  await tableAssignment.getByRole("button", { name: "Assign selected tables" }).click();
+  await expect(dialog.getByText("1 + 2", { exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Save changes" }).click();
   expect(savedUpdate).toEqual({
     party_size: 6,
@@ -389,6 +395,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
     tags: ["Birthday", "Anniversary"],
     guest_notes: "Updated guest note.",
     guest_tags: ["Regular", "VIP"],
+    table_ids: [1, 2],
   });
   await expect(dialog).toHaveCount(0);
 });

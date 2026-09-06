@@ -18,6 +18,7 @@ import {
   Clock3,
   ClockAlert,
   LoaderCircle,
+  LayoutGrid,
   Lock,
   Minus,
   Plus,
@@ -32,6 +33,7 @@ import { DragEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo,
 import { ServiceDatePicker } from "@/components/service-date-picker";
 import { TagIcon } from "@/components/tag-icon";
 import { PhoneInput } from "@/components/phone-input";
+import { ReservationTablePicker } from "@/components/reservation-table-picker";
 import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { formatTurnTime } from "@/lib/turn-time";
@@ -61,6 +63,10 @@ type DiningTable = {
   shape: "rectangle" | "round";
   position_x: number;
   position_y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  chair_layout: "wrap" | "across" | "across_horizontal";
 };
 
 type Reservation = {
@@ -146,6 +152,7 @@ type BookingDraft = {
 };
 
 type ReservationEditDraft = {
+  tableIds: number[];
   partySize: string;
   startTime: string;
   durationMinutes: string;
@@ -222,6 +229,9 @@ export function ReservationGrid({
   const [draft, setDraft] = useState<BookingDraft | null>(null);
   const [selected, setSelected] = useState<Reservation | null>(null);
   const [reservationEditDraft, setReservationEditDraft] = useState<ReservationEditDraft | null>(null);
+  const [reservationTablePickerOpen, setReservationTablePickerOpen] = useState(false);
+  const [reservationTableDraftIds, setReservationTableDraftIds] = useState<number[]>([]);
+  const [reservationTableAssignmentChanged, setReservationTableAssignmentChanged] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draggedReservationId, setDraggedReservationId] = useState<number | null>(null);
   const [dropTargetTableId, setDropTargetTableId] = useState<number | null>(null);
@@ -553,6 +563,26 @@ export function ReservationGrid({
     });
   }
 
+  function openReservationTablePicker() {
+    if (!reservationEditDraft) return;
+    setReservationTableDraftIds(reservationEditDraft.tableIds);
+    setReservationTablePickerOpen(true);
+  }
+
+  function toggleReservationEditorTable(tableId: number) {
+    setReservationTableDraftIds((current) => (
+      current.includes(tableId)
+        ? current.filter((id) => id !== tableId)
+        : [...current, tableId]
+    ));
+  }
+
+  function confirmReservationTableAssignment() {
+    setReservationEditDraft((current) => current && ({ ...current, tableIds: reservationTableDraftIds }));
+    setReservationTableAssignmentChanged(true);
+    setReservationTablePickerOpen(false);
+  }
+
   async function saveReservationDetails(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || !reservationEditDraft) return;
@@ -592,6 +622,11 @@ export function ReservationGrid({
           tags: reservationEditDraft.reservationTags,
           guest_notes: reservationEditDraft.guestNotes.trim(),
           guest_tags: reservationEditDraft.guestTags,
+          ...(reservationTableAssignmentChanged
+            ? reservationEditDraft.tableIds.length
+              ? { table_ids: reservationEditDraft.tableIds }
+              : { assignment_type: "soft" }
+            : {}),
         }),
       });
       const payload = (await response.json()) as Reservation | Record<string, unknown>;
@@ -599,6 +634,7 @@ export function ReservationGrid({
       await loadGrid();
       setSelected(null);
       setReservationEditDraft(null);
+      setReservationTablePickerOpen(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update the reservation.");
     } finally {
@@ -671,6 +707,7 @@ export function ReservationGrid({
     clearDraft();
     setSelected(reservation);
     setReservationEditDraft({
+      tableIds: reservation.table_ids.length ? reservation.table_ids : [reservation.table_id],
       partySize: String(reservation.party_size),
       startTime: reservation.start_time,
       durationMinutes: String(reservation.duration_minutes),
@@ -682,7 +719,17 @@ export function ReservationGrid({
       guestNotes: reservation.guest_profile_notes || reservation.guest_notes || "",
       guestTags: reservation.guest_tags || [],
     });
+    setReservationTableDraftIds(reservation.table_ids.length ? reservation.table_ids : [reservation.table_id]);
+    setReservationTableAssignmentChanged(false);
+    setReservationTablePickerOpen(false);
   }
+
+  const reservationEditorTableNames = reservationEditDraft && data
+    ? reservationEditDraft.tableIds.flatMap((tableId) => {
+      const table = data.tables.find((item) => item.id === tableId);
+      return table ? [table.name] : [];
+    })
+    : [];
 
   return (
     <div className="reservation-page">
@@ -903,6 +950,7 @@ export function ReservationGrid({
             if (event.target === event.currentTarget && !saving) {
               setSelected(null);
               setReservationEditDraft(null);
+              setReservationTablePickerOpen(false);
             }
           }}>
             <form className="reservation-editor-dialog" onSubmit={saveReservationDetails} role="dialog" aria-modal="true" aria-labelledby="reservation-editor-title">
@@ -910,10 +958,10 @@ export function ReservationGrid({
                 <div>
                   <p>Reservation details</p>
                   <h2 id="reservation-editor-title">{selected.guest_name}</h2>
-                  <span>{selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
+                  <span>{reservationEditorTableNames.length > 1 ? "Tables" : "Table"} {(reservationEditorTableNames.length ? reservationEditorTableNames : [selected.table_name]).join(" + ")}</span>
                 </div>
                 <div className="reservation-editor-header-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || minutes(reservationEditDraft.startTime) <= 0}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || minutes(reservationEditDraft.startTime) >= 23 * 60 + 45}><ChevronRight aria-hidden="true" /></button></div></div>
-                <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
+                <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
               </header>
               <div className="reservation-editor-body">
                 <div className="reservation-editor-fields">
@@ -945,13 +993,33 @@ export function ReservationGrid({
                     </details>
                   </div>
                   <div className="reservation-editor-contact-fields"><label>Phone number<PhoneInput value={reservationEditDraft.phone} onChange={(phone) => setReservationEditDraft((current) => current && ({ ...current, phone }))} /></label><label>Guest email<input type="email" value={reservationEditDraft.email} onChange={(event) => { const email = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, email })); }} placeholder="guest@example.com" /></label></div>
+                  <div className="reservation-editor-table-assignment"><span><small>Tables</small><strong>{reservationEditorTableNames.length ? reservationEditorTableNames.join(" + ") : "Unassigned"}</strong></span><button type="button" onClick={openReservationTablePicker} disabled={saving}><LayoutGrid aria-hidden="true" /> Assign tables</button></div>
                 </div>
                 <section className="reservation-editor-section reservation-detail-section"><div className="booking-detail-section-heading"><TagIcon tag="Birthday" /><div><h3>This reservation</h3><p>Saved only for this visit.</p></div></div><fieldset className="tag-picker"><legend>Reservation tags</legend><div className="tag-options">{[...RESERVATION_TAGS, ...reservationEditDraft.reservationTags.filter((tag) => !RESERVATION_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.reservationTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("reservationTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Reservation notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.reservationNotes} onChange={(event) => { const reservationNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, reservationNotes })); }} maxLength={5000} placeholder="Occasion, seating request, accessibility…" /></label></section>
                 <section className="reservation-editor-section guest-detail-section"><div className="booking-detail-section-heading"><Users aria-hidden="true" /><div><h3>Guest profile</h3><p>Persists for this guest on future visits.</p></div></div><fieldset className="tag-picker"><legend>Guest tags</legend><div className="tag-options">{[...GUEST_TAGS, ...reservationEditDraft.guestTags.filter((tag) => !GUEST_TAGS.includes(tag))].map((tag) => { const active = reservationEditDraft.guestTags.includes(tag); return <button type="button" key={tag} className={active ? "selected" : ""} aria-pressed={active} onClick={() => toggleReservationEditTag("guestTags", tag)}><TagIcon tag={tag} /><span>{tag}</span><Check className={active ? "tag-selected-check" : "tag-selected-check tag-check-placeholder"} aria-hidden="true" /></button>; })}</div></fieldset><label>Guest notes<textarea {...IGNORE_AUTOFILL} rows={3} value={reservationEditDraft.guestNotes} onChange={(event) => { const guestNotes = event.currentTarget.value; setReservationEditDraft((current) => current && ({ ...current, guestNotes })); }} maxLength={5000} placeholder="Preferences to remember for future visits…" /></label></section>
               </div>
-              <footer><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></footer>
+              <footer><button type="button" onClick={() => { setSelected(null); setReservationEditDraft(null); setReservationTablePickerOpen(false); }} disabled={saving}>Cancel</button><button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</button></footer>
             </form>
           </div>
+        )}
+        {reservationTablePickerOpen && data && selected && reservationEditDraft && (
+          <ReservationTablePicker
+            tables={data.tables}
+            reservations={data.reservations.filter((reservation) => reservation.id !== selected.id)}
+            selectedTableIds={reservationTableDraftIds}
+            partySize={Number(reservationEditDraft.partySize)}
+            startTime={reservationEditDraft.startTime}
+            durationMinutes={Number(reservationEditDraft.durationMinutes)}
+            shifts={[data.selected_shift]}
+            selectedShiftSlug={data.selected_shift.slug}
+            timeOptions={[{ start_time: reservationEditDraft.startTime, available: true }]}
+            loading={false}
+            onShiftChange={() => undefined}
+            onTimeChange={(startTime) => setReservationEditDraft((current) => current && ({ ...current, startTime }))}
+            onToggleTable={toggleReservationEditorTable}
+            onClose={() => setReservationTablePickerOpen(false)}
+            onConfirm={confirmReservationTableAssignment}
+          />
         )}
       </div>
 
