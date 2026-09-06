@@ -279,10 +279,6 @@ function minutes(time: string) {
   return hour * 60 + minute;
 }
 
-function timeFromMinutes(total: number) {
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 function reservationTurnsOverlap(left: Reservation, right: Reservation) {
   const leftStart = minutes(left.start_time);
   const rightStart = minutes(right.start_time);
@@ -1173,10 +1169,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
 
   function adjustReservationTurnTime(delta: number) {
     const currentMinutes = Number(reservationEditDraft?.durationMinutes);
-    const reservationStart = minutes(reservationEditDraft?.startTime || data?.selected_shift.start_time || "00:00");
-    const shiftEnd = data ? minutes(data.selected_shift.end_time) : reservationStart + 360;
-    const maximumDuration = Math.min(360, Math.max(15, shiftEnd - reservationStart));
-    const nextMinutes = clamp(Number.isInteger(currentMinutes) ? currentMinutes + delta : 90, 15, maximumDuration);
+    const nextMinutes = clamp(Number.isInteger(currentMinutes) ? currentMinutes + delta : 90, 15, 360);
     setReservationEditDraft((current) => current && ({ ...current, durationMinutes: String(nextMinutes) }));
   }
 
@@ -1974,8 +1967,8 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
       setError("Expected turn time must be between 15 minutes and 6 hours.");
       return;
     }
-    if (!data || reservationStart < minutes(data.selected_shift.start_time) || reservationStart + durationMinutes > minutes(data.selected_shift.end_time)) {
-      setError("The reservation time must fit within the selected service.");
+    if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
+      setError("Enter a valid reservation time.");
       return;
     }
     const updates: ReservationUpdate = {
@@ -2905,8 +2898,6 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                         <input
                           type="time"
                           step={900}
-                          min={data?.selected_shift.start_time ?? reservationEditDraft.startTime}
-                          max={data ? timeFromMinutes(minutes(data.selected_shift.end_time) - Number(reservationEditDraft.durationMinutes)) : reservationEditDraft.startTime}
                           value={reservationEditDraft.startTime}
                           onChange={(event) => setReservationEditDraft((current) => current && ({ ...current, startTime: event.target.value }))}
                           required

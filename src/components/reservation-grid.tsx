@@ -547,10 +547,8 @@ export function ReservationGrid({
 
   function changeReservationTime(delta: number) {
     setReservationEditDraft((current) => {
-      if (!current || !data) return current;
-      const earliestStart = minutes(data.selected_shift.start_time);
-      const latestStart = minutes(data.selected_shift.end_time) - Number(current.durationMinutes);
-      const startTime = timeFromMinutes(Math.min(latestStart, Math.max(earliestStart, minutes(current.startTime) + delta)));
+      if (!current) return current;
+      const startTime = timeFromMinutes(Math.min(23 * 60 + 45, Math.max(0, minutes(current.startTime) + delta)));
       return { ...current, startTime };
     });
   }
@@ -569,8 +567,8 @@ export function ReservationGrid({
       setError("Expected turn time must be between 15 minutes and 6 hours.");
       return;
     }
-    if (!data || reservationStart < minutes(data.selected_shift.start_time) || reservationStart + durationMinutes > minutes(data.selected_shift.end_time)) {
-      setError("The reservation time must fit within the selected service.");
+    if (!Number.isInteger(reservationStart) || reservationStart < 0 || reservationStart >= 24 * 60) {
+      setError("Enter a valid reservation time.");
       return;
     }
     if (!serviceStatusAllowed && SERVICE_STATUS_VALUES.includes(reservationEditDraft.status)) {
@@ -914,7 +912,7 @@ export function ReservationGrid({
                   <h2 id="reservation-editor-title">{selected.guest_name}</h2>
                   <span>{selected.table_names.length > 1 ? "Tables" : "Table"} {(selected.table_names.length ? selected.table_names : [selected.table_name]).join(" + ")}</span>
                 </div>
-                <div className="reservation-editor-header-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) <= minutes(data.selected_shift.start_time)}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || !data || minutes(reservationEditDraft.startTime) + Number(reservationEditDraft.durationMinutes) >= minutes(data.selected_shift.end_time)}><ChevronRight aria-hidden="true" /></button></div></div>
+                <div className="reservation-editor-header-time"><span>Reservation time</span><div><button type="button" aria-label="Earlier reservation time" onClick={() => changeReservationTime(-15)} disabled={saving || minutes(reservationEditDraft.startTime) <= 0}><ChevronLeft aria-hidden="true" /></button><output aria-label="Reservation time">{displayTime(reservationEditDraft.startTime)}</output><button type="button" aria-label="Later reservation time" onClick={() => changeReservationTime(15)} disabled={saving || minutes(reservationEditDraft.startTime) >= 23 * 60 + 45}><ChevronRight aria-hidden="true" /></button></div></div>
                 <button type="button" className="reservation-editor-close" onClick={() => { setSelected(null); setReservationEditDraft(null); }} disabled={saving} aria-label="Close reservation editor"><X aria-hidden="true" /></button>
               </header>
               <div className="reservation-editor-body">

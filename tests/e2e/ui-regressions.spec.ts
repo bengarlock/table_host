@@ -227,7 +227,7 @@ test("new reservation confirmation is readable from the grid", async ({ page }) 
 test("grid reservation editor saves details in a centered dialog", async ({ page }) => {
   const reservation = {
     id: 111, table_id: 1, table_name: "1", table_ids: [1], table_names: ["1"],
-    guest_name: "Taylor Brooks", party_size: 4, start_time: "17:00", duration_minutes: 90,
+    guest_name: "Taylor Brooks", party_size: 4, start_time: "20:15", duration_minutes: 90,
     status: "confirmed", assignment_type: "soft", is_unassigned: false,
     guest_phone: "555-0101", guest_email: "taylor@example.com", guest_notes: "Likes a quiet table.", guest_profile_notes: "Likes a quiet table.",
     guest_tags: ["Regular"], tags: ["Birthday"], notes: "Window if available.",
@@ -292,10 +292,10 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await dialog.getByRole("button", { name: "Increase party size" }).click();
   await expect(partySize).toHaveText("6");
   const reservationTime = dialog.getByRole("status", { name: "Reservation time" });
-  await expect(reservationTime).toHaveText("5:00 PM");
+  await expect(reservationTime).toHaveText("8:15 PM");
   await dialog.getByRole("button", { name: "Later reservation time" }).click();
-  await expect(reservationTime).toHaveText("5:15 PM");
-  await expect(dialog.locator("header")).toContainText("5:15 PM");
+  await expect(reservationTime).toHaveText("8:30 PM");
+  await expect(dialog.locator("header")).toContainText("8:30 PM");
   await dialog.getByRole("button", { name: "Increase turn time" }).click();
   await statusMenu.click();
   await dialog.getByRole("option", { name: "Late" }).click();
@@ -309,7 +309,7 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   await dialog.getByRole("button", { name: "Save changes" }).click();
   expect(savedUpdate).toEqual({
     party_size: 6,
-    start_time: "17:15",
+    start_time: "20:30",
     duration_minutes: 105,
     status: "late",
     guest_phone: "+1 5550199",
@@ -570,8 +570,6 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await expect(details.getByLabel("Enter party size")).toHaveValue("12");
   const reservationTimeInput = details.getByRole("textbox", { name: "Time", exact: true });
   await expect(reservationTimeInput).toHaveValue("17:00");
-  await expect(reservationTimeInput).toHaveAttribute("min", "17:00");
-  await expect(reservationTimeInput).toHaveAttribute("max", "20:30");
   await expect(details.getByRole("textbox", { name: "Turn time", exact: true })).toHaveValue("1:30");
   const statusButton = details.getByRole("button", { name: "Status" });
   await expect(statusButton).toContainText("Confirmed");
@@ -603,9 +601,6 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   await details.getByLabel("Guest name").fill("Updated Assignment");
   await details.getByLabel("Enter party size").fill("10");
   await reservationTimeInput.fill("21:00");
-  await details.getByRole("button", { name: "Save changes" }).click();
-  expect(savedUpdate).toBeNull();
-  await reservationTimeInput.fill("18:15");
   await details.getByRole("button", { name: "Increase turn time" }).click();
   await details.getByRole("button", { name: "Increase turn time" }).click();
   const reservationTags = details.getByRole("group", { name: "Reservation tags" });
@@ -618,7 +613,7 @@ test("large table assignments use a condensed reservation-card label", async ({ 
   expect(savedUpdate).toEqual({
     guest_name: "Updated Assignment",
     party_size: 10,
-    start_time: "18:15",
+    start_time: "21:00",
     duration_minutes: 120,
     notes: "Updated reservation note.",
     tags: ["VIP", "Anniversary"],
