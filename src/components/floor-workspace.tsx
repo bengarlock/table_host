@@ -582,6 +582,18 @@ type FloorTableBounds = {
   bottom: number;
 };
 
+type FloorPoint = {
+  x: number;
+  y: number;
+};
+
+type FloorTableFootprint = {
+  id: number;
+  points: FloorPoint[];
+};
+
+const FLOOR_OVERLAP_TOLERANCE = 0.5;
+
 function floorTableVisualBounds(element: HTMLElement): FloorTableBounds {
   const surface = element.querySelector<HTMLElement>(".floor-table-surface");
   const rectangles = [
@@ -608,16 +620,95 @@ function floorTableBoundsOverlap(
     && left.bottom > right.top - clearance;
 }
 
+function rotateFloorPoint(point: FloorPoint, center: FloorPoint, radians: number): FloorPoint {
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const relativeX = point.x - center.x;
+  const relativeY = point.y - center.y;
+  return {
+    x: center.x + relativeX * cosine - relativeY * sine,
+    y: center.y + relativeX * sine + relativeY * cosine,
+  };
+}
+
+function floorTableSurfaceFootprint(element: HTMLElement, stage: HTMLElement): FloorTableFootprint | null {
+  const surface = element.querySelector<HTMLElement>(".floor-table-surface");
+  if (!surface || !surface.offsetWidth || !surface.offsetHeight) return null;
+
+  const stageBounds = stage.getBoundingClientRect();
+  const scale = stage.offsetWidth ? stageBounds.width / stage.offsetWidth : 1;
+  const surfaceBounds = surface.getBoundingClientRect();
+  const center = {
+    x: (surfaceBounds.left + surfaceBounds.right) / 2,
+    y: (surfaceBounds.top + surfaceBounds.bottom) / 2,
+  };
+  const halfWidth = surface.offsetWidth * scale / 2;
+  const halfHeight = surface.offsetHeight * scale / 2;
+  const rotation = Number.parseFloat(
+    window.getComputedStyle(element).getPropertyValue("--table-rotation"),
+  ) || 0;
+  const isRound = element.classList.contains("floor-table-round");
+  const unrotatedPoints = isRound
+    ? Array.from({ length: 24 }, (_, index) => {
+      const angle = index * (Math.PI * 2 / 24);
+      return {
+        x: center.x + Math.cos(angle) * halfWidth,
+        y: center.y + Math.sin(angle) * halfHeight,
+      };
+    })
+    : [
+      { x: center.x - halfWidth, y: center.y - halfHeight },
+      { x: center.x + halfWidth, y: center.y - halfHeight },
+      { x: center.x + halfWidth, y: center.y + halfHeight },
+      { x: center.x - halfWidth, y: center.y + halfHeight },
+    ];
+
+  return {
+    id: Number(element.dataset.floorTableId),
+    points: unrotatedPoints.map((point) => rotateFloorPoint(point, center, rotation * Math.PI / 180)),
+  };
+}
+
+function projectFloorFootprint(points: FloorPoint[], axis: FloorPoint) {
+  const projections = points.map((point) => point.x * axis.x + point.y * axis.y);
+  return {
+    min: Math.min(...projections),
+    max: Math.max(...projections),
+  };
+}
+
+function floorTableFootprintsOverlap(left: FloorTableFootprint, right: FloorTableFootprint) {
+  for (const footprint of [left, right]) {
+    for (let index = 0; index < footprint.points.length; index += 1) {
+      const start = footprint.points[index];
+      const end = footprint.points[(index + 1) % footprint.points.length];
+      const length = Math.hypot(end.x - start.x, end.y - start.y);
+      if (!length) continue;
+      const axis = {
+        x: -(end.y - start.y) / length,
+        y: (end.x - start.x) / length,
+      };
+      const leftProjection = projectFloorFootprint(left.points, axis);
+      const rightProjection = projectFloorFootprint(right.points, axis);
+      if (
+        leftProjection.max <= rightProjection.min + FLOOR_OVERLAP_TOLERANCE
+        || rightProjection.max <= leftProjection.min + FLOOR_OVERLAP_TOLERANCE
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 function floorTableOverlapIds(stage: HTMLElement) {
   const tables = Array.from(stage.querySelectorAll<HTMLElement>("[data-floor-table-id]"))
-    .map((element) => ({
-      id: Number(element.dataset.floorTableId),
-      bounds: floorTableVisualBounds(element),
-    }));
+    .map((element) => floorTableSurfaceFootprint(element, stage))
+    .filter((table): table is FloorTableFootprint => table !== null);
   const overlappingIds = new Set<number>();
   tables.forEach((table, index) => {
     tables.slice(index + 1).forEach((other) => {
-      if (!floorTableBoundsOverlap(table.bounds, other.bounds)) return;
+      if (!floorTableFootprintsOverlap(table, other)) return;
       overlappingIds.add(table.id);
       overlappingIds.add(other.id);
     });
