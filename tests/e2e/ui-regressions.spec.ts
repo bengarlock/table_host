@@ -102,6 +102,7 @@ test("grid holds selected tables before opening a prefilled reservation", async 
 
   await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
   const gridBefore = await page.locator(".grid-card").boundingBox();
+  await expect(page.getByLabel("New reservation selection")).toBeHidden();
   await page.getByRole("button", { name: "Book table 1 at 5:00 PM", exact: true }).click();
 
   await expect(page.getByLabel("New reservation", { exact: true })).toHaveCount(0);
@@ -112,6 +113,9 @@ test("grid holds selected tables before opening a prefilled reservation", async 
   expect(gridBefore).not.toBeNull();
   expect(gridAfter!.y).toBe(gridBefore!.y);
   expect(gridAfter!.height).toBe(gridBefore!.height);
+  const selectionBar = await page.getByLabel("New reservation selection").boundingBox();
+  expect(selectionBar).not.toBeNull();
+  expect(selectionBar!.y + selectionBar!.height).toBeLessThanOrEqual(gridAfter!.y + gridAfter!.height);
 
   await page.getByRole("button", { name: "Book table 2 at 5:00 PM", exact: true }).click();
   await expect(page.getByLabel("New reservation selection")).toContainText("Tables 1 + 2");
