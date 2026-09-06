@@ -975,13 +975,13 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
     ...gridPayload.tables[1], rotation: 270,
   };
   const roundTable = {
-    ...gridPayload.tables[1], id: 3, name: "3", shape: "round" as const, width: 92, height: 92, position_x: 40, position_y: 45, rotation: 45,
+    ...gridPayload.tables[1], id: 3, name: "3", shape: "round" as const, position_x: 40, position_y: 45, rotation: 45,
   };
   const expiredRoundTable = {
-    ...gridPayload.tables[1], id: 4, name: "4", shape: "round" as const, width: 92, height: 92, position_x: 55, position_y: 45, rotation: 225,
+    ...gridPayload.tables[1], id: 4, name: "4", shape: "round" as const, width: 76, height: 108, position_x: 55, position_y: 45, rotation: 225,
   };
   const expiredRectangleTable = {
-    ...gridPayload.tables[1], id: 5, name: "5", position_x: 70, position_y: 45, rotation: 90,
+    ...gridPayload.tables[1], id: 5, name: "5", position_x: 70, position_y: 45, rotation: 117,
   };
   const reservations = [
     {
@@ -1054,35 +1054,29 @@ test("floor plan can toggle stacked reservation times for each table", async ({ 
     page.locator(`[data-floor-table-id="${tableId}"] .floor-table-turn-timer path`).getAttribute("d")
   )));
   expect(timerPaths).toEqual([
-    expect.stringMatching(/^M97 50V12/),
-    expect.stringMatching(/^M16\.766 16\.766A47 47 0 1 0/),
-    expect.stringMatching(/^M83\.234 83\.234A47 47 0 1 1/),
-    expect.stringMatching(/^M3 50V12/),
+    expect.stringMatching(/^M97 50L 97 12/),
+    expect.stringMatching(/^M[\d.]+ [\d.]+A47 47 0 1 0/),
+    expect.stringMatching(/^M[\d.]+ [\d.]+A47 47 0 1 1/),
+    expect.stringMatching(/^M[\d.]+ [\d.]+/),
   ]);
   const timerStartOffsets = await Promise.all([2, 3, 4, 5].map(async (tableId) => (
     page.locator(`[data-floor-table-id="${tableId}"] .floor-table-turn-timer path`).evaluate((path) => {
       const point = (path as SVGPathElement).getPointAtLength(0);
       const matrix = (path as SVGPathElement).getScreenCTM();
-      if (!matrix) return null;
+      const table = path.closest<HTMLElement>("[data-floor-table-id]");
+      if (!matrix || !table) return null;
       const screenPoint = new DOMPoint(point.x, point.y).matrixTransform(matrix);
-      const totalLength = (path as SVGPathElement).getTotalLength();
-      const outlinePoints = Array.from({ length: 401 }, (_, index) => {
-        const outlinePoint = (path as SVGPathElement).getPointAtLength(totalLength * index / 400);
-        return new DOMPoint(outlinePoint.x, outlinePoint.y).matrixTransform(matrix);
-      });
-      const top = Math.min(...outlinePoints.map((outlinePoint) => outlinePoint.y));
-      const topPoints = outlinePoints.filter((outlinePoint) => outlinePoint.y < top + 0.25);
-      const topCenter = topPoints.reduce((sum, outlinePoint) => sum + outlinePoint.x, 0) / topPoints.length;
+      const tableBounds = table.getBoundingClientRect();
       return {
-        x: screenPoint.x - topCenter,
-        y: screenPoint.y - top,
+        x: screenPoint.x - (tableBounds.left + tableBounds.width / 2),
+        y: screenPoint.y - (tableBounds.top + tableBounds.height / 2),
       };
     })
   )));
   timerStartOffsets.forEach((offset) => {
     expect(offset).not.toBeNull();
     expect(Math.abs(offset!.x), JSON.stringify(timerStartOffsets)).toBeLessThan(1);
-    expect(offset!.y, JSON.stringify(timerStartOffsets)).toBeLessThan(4);
+    expect(offset!.y, JSON.stringify(timerStartOffsets)).toBeLessThan(-20);
   });
   await expect(page.locator(".floor-table-turn-timer circle")).toHaveCount(0);
 

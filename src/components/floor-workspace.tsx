@@ -351,43 +351,114 @@ function turnProgress(
   };
 }
 
-type FloorTimerStartSide = "top" | "right" | "bottom" | "left";
-
-function floorTimerStartSide(rotation: number): FloorTimerStartSide {
-  const quarterTurn = Math.round((((rotation % 360) + 360) % 360) / 90) % 4;
-  return (["top", "left", "bottom", "right"] as const)[quarterTurn];
-}
-
-function floorRectangleTimerPath(start: FloorTimerStartSide, clockwise: boolean) {
-  const paths = clockwise ? {
-    top: "M50 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H50",
-    right: "M97 50V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V50",
-    bottom: "M50 97H12A9 9 0 0 1 3 88V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H50",
-    left: "M3 50V12A9 9 0 0 1 12 3H88A9 9 0 0 1 97 12V88A9 9 0 0 1 88 97H12A9 9 0 0 1 3 88V50",
-  } : {
-    top: "M50 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H50",
-    right: "M97 50V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V50",
-    bottom: "M50 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V88A9 9 0 0 0 12 97H50",
-    left: "M3 50V88A9 9 0 0 0 12 97H88A9 9 0 0 0 97 88V12A9 9 0 0 0 88 3H12A9 9 0 0 0 3 12V50",
-  };
-  return paths[start];
-}
-
 function formatFloorTimerCoordinate(value: number) {
   return Number(value.toFixed(3));
 }
 
-function floorTimerPath(shape: DiningTable["shape"], expired: boolean, rotation: number) {
+type FloorTimerPoint = { x: number; y: number };
+type FloorTimerSegment = {
+  key: string;
+  start: FloorTimerPoint;
+  end: FloorTimerPoint;
+  arc?: true;
+};
+
+const clockwiseFloorTimerSegments: FloorTimerSegment[] = [
+  { key: "top", start: { x: 12, y: 3 }, end: { x: 88, y: 3 } },
+  { key: "top-right", start: { x: 88, y: 3 }, end: { x: 97, y: 12 }, arc: true },
+  { key: "right", start: { x: 97, y: 12 }, end: { x: 97, y: 88 } },
+  { key: "bottom-right", start: { x: 97, y: 88 }, end: { x: 88, y: 97 }, arc: true },
+  { key: "bottom", start: { x: 88, y: 97 }, end: { x: 12, y: 97 } },
+  { key: "bottom-left", start: { x: 12, y: 97 }, end: { x: 3, y: 88 }, arc: true },
+  { key: "left", start: { x: 3, y: 88 }, end: { x: 3, y: 12 } },
+  { key: "top-left", start: { x: 3, y: 12 }, end: { x: 12, y: 3 }, arc: true },
+];
+
+function floorTimerRay(rotation: number, width: number, height: number) {
+  const radians = rotation * Math.PI / 180;
+  const x = -Math.sin(radians) / Math.max(width - 18, 1);
+  const y = -Math.cos(radians) / Math.max(height - 18, 1);
+  const magnitude = Math.hypot(x, y);
+  return { x: x / magnitude, y: y / magnitude };
+}
+
+function floorRectangleTimerStart(rotation: number, width: number, height: number) {
+  const direction = floorTimerRay(rotation, width, height);
+  const candidates: Array<{ point: FloorTimerPoint; segmentKey: string; distance: number }> = [];
+  const addCandidate = (distance: number, segmentKey: string, matches: (point: FloorTimerPoint) => boolean) => {
+    if (distance <= 0 || !Number.isFinite(distance)) return;
+    const point = { x: 50 + direction.x * distance, y: 50 + direction.y * distance };
+    if (matches(point)) candidates.push({ point, segmentKey, distance });
+  };
+
+  [
+    { value: 3, key: "left" },
+    { value: 97, key: "right" },
+  ].forEach(({ value, key }) => addCandidate(
+    (value - 50) / direction.x,
+    key,
+    (point) => point.y >= 12 && point.y <= 88,
+  ));
+  [
+    { value: 3, key: "top" },
+    { value: 97, key: "bottom" },
+  ].forEach(({ value, key }) => addCandidate(
+    (value - 50) / direction.y,
+    key,
+    (point) => point.x >= 12 && point.x <= 88,
+  ));
+
+  [
+    { center: { x: 12, y: 12 }, key: "top-left", matches: (point: FloorTimerPoint) => point.x <= 12 && point.y <= 12 },
+    { center: { x: 88, y: 12 }, key: "top-right", matches: (point: FloorTimerPoint) => point.x >= 88 && point.y <= 12 },
+    { center: { x: 88, y: 88 }, key: "bottom-right", matches: (point: FloorTimerPoint) => point.x >= 88 && point.y >= 88 },
+    { center: { x: 12, y: 88 }, key: "bottom-left", matches: (point: FloorTimerPoint) => point.x <= 12 && point.y >= 88 },
+  ].forEach(({ center, key, matches }) => {
+    const offsetX = 50 - center.x;
+    const offsetY = 50 - center.y;
+    const projection = offsetX * direction.x + offsetY * direction.y;
+    const discriminant = projection ** 2 - (offsetX ** 2 + offsetY ** 2 - 81);
+    if (discriminant < 0) return;
+    const root = Math.sqrt(discriminant);
+    addCandidate(-projection - root, key, matches);
+    addCandidate(-projection + root, key, matches);
+  });
+
+  return candidates.reduce((nearest, candidate) => candidate.distance < nearest.distance ? candidate : nearest);
+}
+
+function floorRectangleTimerPath(expired: boolean, rotation: number, width: number, height: number) {
+  const start = floorRectangleTimerStart(rotation, width, height);
+  const segments = expired
+    ? clockwiseFloorTimerSegments
+    : clockwiseFloorTimerSegments.toReversed().map((segment) => ({
+      ...segment,
+      start: segment.end,
+      end: segment.start,
+    }));
+  const startIndex = segments.findIndex((segment) => segment.key === start.segmentKey);
+  const command = (segment: FloorTimerSegment, point: FloorTimerPoint) => `${segment.arc ? `A9 9 0 0 ${expired ? 1 : 0}` : "L"} ${formatFloorTimerCoordinate(point.x)} ${formatFloorTimerCoordinate(point.y)}`;
+  const path = [`M${formatFloorTimerCoordinate(start.point.x)} ${formatFloorTimerCoordinate(start.point.y)}`];
+  path.push(command(segments[startIndex], segments[startIndex].end));
+  for (let offset = 1; offset < segments.length; offset += 1) {
+    const segment = segments[(startIndex + offset) % segments.length];
+    path.push(command(segment, segment.end));
+  }
+  path.push(command(segments[startIndex], start.point));
+  return path.join("");
+}
+
+function floorTimerPath(shape: DiningTable["shape"], expired: boolean, rotation: number, width: number, height: number) {
+  const direction = floorTimerRay(rotation, width, height);
   if (shape === "round") {
-    const radians = (-90 - rotation) * Math.PI / 180;
-    const startX = formatFloorTimerCoordinate(50 + Math.cos(radians) * 47);
-    const startY = formatFloorTimerCoordinate(50 + Math.sin(radians) * 47);
+    const startX = formatFloorTimerCoordinate(50 + direction.x * 47);
+    const startY = formatFloorTimerCoordinate(50 + direction.y * 47);
     const oppositeX = formatFloorTimerCoordinate(100 - startX);
     const oppositeY = formatFloorTimerCoordinate(100 - startY);
     const sweep = expired ? 1 : 0;
     return `M${startX} ${startY}A47 47 0 1 ${sweep} ${oppositeX} ${oppositeY}A47 47 0 1 ${sweep} ${startX} ${startY}`;
   }
-  return floorRectangleTimerPath(floorTimerStartSide(rotation), expired);
+  return floorRectangleTimerPath(expired, rotation, width, height);
 }
 
 function displayTableAssignment(tableNames: string[]) {
@@ -2964,7 +3035,7 @@ export function FloorWorkspace({ initialServiceDate, initialShiftSlug }: FloorWo
                             "--turn-overdue-duration": `${floorTurn.overdueRemainingMilliseconds}ms`,
                           } as CSSProperties}
                         >
-                          <path d={floorTimerPath(table.shape, floorTurn.expired, table.rotation)} pathLength="100" />
+                          <path d={floorTimerPath(table.shape, floorTurn.expired, table.rotation, table.width, table.height)} pathLength="100" />
                         </svg>
                       )}
                       <span
