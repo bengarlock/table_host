@@ -2558,35 +2558,20 @@ textarea {
   width: min(960px, 100%);
   height: min(820px, calc(100vh - 56px));
   max-height: calc(100vh - 56px);
-  grid-template-rows: 64px auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: visible;
 }
 
-.wizard-header {
-  display: flex;
+.wizard-topbar {
+  display: grid;
   min-height: 64px;
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr) minmax(160px, auto);
   align-items: center;
-  justify-content: space-between;
+  gap: 24px;
   padding: 10px 26px;
 }
 
-.wizard-header p {
-  margin: 0 0 5px;
-  color: var(--accent);
-  font-size: 0.62rem;
-  font-weight: 760;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.wizard-header h2 {
-  margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.65rem;
-  font-weight: 400;
-}
-
-.wizard-header > button {
+.wizard-topbar > button {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -2599,25 +2584,25 @@ textarea {
   font-weight: 720;
 }
 
-.wizard-header > button:hover,
-.wizard-header > button:focus-visible {
+.wizard-topbar > button:hover,
+.wizard-topbar > button:focus-visible {
   outline: none;
 }
 
-.wizard-header > button:disabled {
+.wizard-topbar > button:disabled {
   cursor: wait;
   opacity: 0.5;
 }
 
-.wizard-header svg {
+.wizard-topbar svg {
   width: 15px;
 }
 
 .wizard-progress {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
-  padding: 0 26px 20px;
+  padding: 0;
   list-style: none;
 }
 
@@ -7713,7 +7698,7 @@ textarea {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .wizard-header,
+  .wizard-topbar,
   .wizard-body {
     padding-right: 18px;
     padding-left: 18px;

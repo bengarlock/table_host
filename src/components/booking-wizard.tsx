@@ -833,48 +833,47 @@ export function BookingWizard({
         aria-modal={presentation === "modal" ? true : undefined}
         aria-label="New reservation"
       >
-        <header className="wizard-header">
+        <div className="wizard-topbar">
           {step > 1 ? <button type="button" className="wizard-back" onClick={() => { setError(""); setStep((value) => value - 1); }} disabled={loading}><ArrowLeft aria-hidden="true" /> Back</button> : <span />}
+          <ol className="wizard-progress" aria-label="Booking progress">
+            {["Date", "Time & Party", "Guest", "Details"].map((label, index) => {
+              const stage = index + 1;
+              const filled = stageIsFilled(stage);
+              const visited = stage <= furthestStep;
+              const navigable = stage !== step && visited && filled;
+              const selectedValue = stageValue(stage);
+              const capacityWarning = stage === 2 && partyExceedsFloorCapacity;
+              return (
+                <li key={label} className={`${step === stage ? "active" : visited && filled ? "complete" : ""}${capacityWarning ? " capacity-warning" : ""}`}>
+                  <button
+                    type="button"
+                    className="wizard-progress-button"
+                    onClick={() => {
+                      if (!navigable) return;
+                      setError("");
+                      setStep(stage);
+                    }}
+                    disabled={!navigable}
+                    aria-current={step === stage ? "step" : undefined}
+                    aria-label={`${label}${selectedValue ? `: ${selectedValue}` : ""}${visited && filled ? ", completed" : ""}`}
+                  >
+                    <span className="wizard-progress-number">{visited && filled && step !== stage ? <Check aria-hidden="true" /> : stage}</span>
+                    <span className="wizard-progress-copy">
+                      <span className="wizard-progress-label">{label}</span>
+                      <span className="wizard-progress-value">{selectedValue}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
           {step === 1 && <button type="button" className="wizard-next" onClick={openDesiredTimeStep} disabled={!serviceDate}>Time & Party <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && !selectedOption && !options.length && <button type="button" className={`wizard-next${partyExceedsFloorCapacity ? " capacity-warning" : ""}`} onClick={() => void findTimes()} disabled={assignmentLoading || !desiredTime || partySize <= 0 || durationMinutes <= 0}>{assignmentLoading ? "Checking availability…" : "Check availability"} <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && !selectedOption && options.length > 0 && <button type="button" className="wizard-next" disabled>Select a reservation time <ArrowRight aria-hidden="true" /></button>}
           {step === 2 && selectedOption && <button type="button" className="wizard-next" onClick={() => advanceTo(3)}>Guest <ArrowRight aria-hidden="true" /></button>}
           {step === 3 && selectedGuest && <button type="button" className="wizard-next" onClick={() => advanceTo(4)}>Details <ArrowRight aria-hidden="true" /></button>}
           {step === 4 && <button type="submit" form="booking-details-form" className={`wizard-next${selectedOption && !selectedOption.available ? " overbook-warning" : ""}`} disabled={loading || !selectedGuest}>{loading ? <LoaderCircle className="spin" aria-hidden="true" /> : <Check aria-hidden="true" />} Book reservation</button>}
-        </header>
-
-        <ol className="wizard-progress" aria-label="Booking progress">
-          {["Date", "Time & Party", "Guest", "Details"].map((label, index) => {
-            const stage = index + 1;
-            const filled = stageIsFilled(stage);
-            const visited = stage <= furthestStep;
-            const navigable = stage !== step && visited && filled;
-            const selectedValue = stageValue(stage);
-            const capacityWarning = stage === 2 && partyExceedsFloorCapacity;
-            return (
-              <li key={label} className={`${step === stage ? "active" : visited && filled ? "complete" : ""}${capacityWarning ? " capacity-warning" : ""}`}>
-                <button
-                  type="button"
-                  className="wizard-progress-button"
-                  onClick={() => {
-                    if (!navigable) return;
-                    setError("");
-                    setStep(stage);
-                  }}
-                  disabled={!navigable}
-                  aria-current={step === stage ? "step" : undefined}
-                  aria-label={`${label}${selectedValue ? `: ${selectedValue}` : ""}${visited && filled ? ", completed" : ""}`}
-                >
-                  <span className="wizard-progress-number">{visited && filled && step !== stage ? <Check aria-hidden="true" /> : stage}</span>
-                  <span className="wizard-progress-copy">
-                    <span className="wizard-progress-label">{label}</span>
-                    <span className="wizard-progress-value">{selectedValue}</span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+        </div>
 
         <div className="wizard-body">
           {step === 1 && (

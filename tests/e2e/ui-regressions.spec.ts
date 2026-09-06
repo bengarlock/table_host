@@ -79,7 +79,7 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
   const bookingPage = page.locator(".booking-page-shell");
   const bookingMain = page.locator(".booking-main-content");
   const wizard = page.locator(".booking-wizard");
-  const wizardHeader = page.locator(".wizard-header");
+  const wizardTopbar = page.locator(".wizard-topbar");
   const progress = page.locator(".wizard-progress");
   const calendar = page.locator(".wizard-date-field .calendar-inline");
   const dateTile = page.locator(".wizard-date-field .calendar-days button:not(:disabled):not(.outside-month)").first();
@@ -87,7 +87,7 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
   await expect(bookingMain).toHaveCSS("padding-top", "0px");
   await expect(wizard).toHaveClass(/date-step/);
   await expect(wizard).toHaveCSS("border-top-width", "0px");
-  await expect(wizardHeader.getByRole("button", { name: "Time & Party" })).toBeVisible();
+  await expect(wizardTopbar.locator(".wizard-next")).toHaveText("Time & Party");
   await expect(progress).toHaveCSS("border-bottom-width", "0px");
   await expect(calendar).toHaveCSS("background-image", /radial-gradient/);
   await expect(dateTile).toHaveCSS("background-image", /linear-gradient/);
@@ -99,6 +99,13 @@ test("booking calendar uses an integrated date surface and tiles", async ({ page
   const advancedProgressBox = await progress.boundingBox();
   expect(advancedProgressBox).not.toBeNull();
   expect(advancedProgressBox!.y).toBe(progressBox!.y);
+  const backBox = await wizardTopbar.getByRole("button", { name: "Back" }).boundingBox();
+  const nextBox = await wizardTopbar.getByRole("button", { name: "Check availability" }).boundingBox();
+  expect(backBox).not.toBeNull();
+  expect(nextBox).not.toBeNull();
+  const progressCenter = advancedProgressBox!.y + (advancedProgressBox!.height / 2);
+  expect(Math.abs((backBox!.y + (backBox!.height / 2)) - progressCenter)).toBeLessThanOrEqual(1);
+  expect(Math.abs((nextBox!.y + (nextBox!.height / 2)) - progressCenter)).toBeLessThanOrEqual(1);
   await expect(page.locator(".wizard-footer")).toHaveCount(0);
   await expect(page.getByLabel("Close booking wizard")).toHaveCount(0);
 });
