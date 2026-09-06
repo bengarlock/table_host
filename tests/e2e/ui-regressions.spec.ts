@@ -265,6 +265,14 @@ test("grid reservation editor saves details in a centered dialog", async ({ page
   expect(guestSection).not.toBeNull();
   expect(Math.abs(reservationSection!.y - guestSection!.y)).toBeLessThan(2);
   expect(guestSection!.x).toBeGreaterThan(reservationSection!.x + reservationSection!.width);
+  const [partySizeControl, turnTimeControl] = await Promise.all([
+    dialog.locator(".reservation-editor-party-size").boundingBox(),
+    dialog.locator(".reservation-editor-turn").boundingBox(),
+  ]);
+  expect(partySizeControl).not.toBeNull();
+  expect(turnTimeControl).not.toBeNull();
+  expect(Math.abs(partySizeControl!.y - turnTimeControl!.y)).toBeLessThan(2);
+  expect(turnTimeControl!.x).toBeGreaterThan(partySizeControl!.x + partySizeControl!.width);
   const statusMenu = dialog.getByRole("button", { name: "Status", exact: true });
   await statusMenu.click();
   await expect(dialog.getByRole("listbox", { name: "Reservation status options" })).toBeVisible();
