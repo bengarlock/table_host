@@ -235,6 +235,7 @@ test("booking completion returns to the reservation grid with its confirmation",
 test("booking guest search waits for two characters", async ({ page }) => {
   let searchRequests = 0;
   await mockGrid(page);
+  await mockAvailability(page);
   await page.route("**/api/guests?q=*", async (route) => {
     searchRequests += 1;
     await route.fulfill({ json: { count: 0, results: [] } });
@@ -989,14 +990,14 @@ test("seated reservations only offer touch-friendly service statuses", async ({ 
 
   await page.goto(`/floor?date=${serviceDate}&shift=dinner`);
   await page.getByRole("button", { name: "Table 1, Service Guest, Seated" }).click();
-  const statusButton = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByRole("button", { name: "Status" });
-  expect((await statusButton.boundingBox())!.height).toBe(44);
-  await statusButton.click();
-  const statusOptions = page.getByRole("complementary", { name: "Reservation details for Service Guest" }).getByRole("option");
-  await expect(statusOptions).toHaveText([
+  const statusDialog = page.getByRole("dialog", { name: "Service status for Service Guest" });
+  await expect(statusDialog).toBeVisible();
+  const entree = statusDialog.getByRole("button", { name: "Entree" });
+  expect((await entree.boundingBox())!.height).toBe(44);
+  await expect(statusDialog.getByRole("button").filter({ hasText: /^(Seated|Entree|Dessert|Check dropped|Paid|Done)$/ })).toHaveText([
     "Seated", "Entree", "Dessert", "Check dropped", "Paid", "Done",
   ]);
-  await expect(page.getByRole("option", { name: "Confirmed" })).toHaveCount(0);
+  await expect(statusDialog.getByRole("button", { name: "Confirmed" })).toHaveCount(0);
 });
 
 test("floor plan can toggle stacked reservation times for each table", async ({ page }) => {
@@ -1316,20 +1317,7 @@ test("booking availability is centered around the guest's desired time", async (
   const alternateAvailableTime = page.getByRole("button", { name: "7:45 PM, seats up to 4" });
   await expect(requestedAvailableTime).toHaveAttribute("aria-pressed", "false");
   await alternateAvailableTime.click();
-  await expect(alternateAvailableTime).toHaveAttribute("aria-pressed", "true");
-  await expect(requestedAvailableTime).toHaveAttribute("aria-pressed", "false");
-  await expect(availableResults.locator("button.selected")).toHaveCount(1);
-  await expect(availableResults.locator('button[aria-pressed="true"]')).toHaveCount(1);
-  const [requestedBackground, selectedBackground] = await Promise.all([
-    requestedAvailableTime.evaluate((element) => getComputedStyle(element).backgroundColor),
-    alternateAvailableTime.evaluate((element) => getComputedStyle(element).backgroundColor),
-  ]);
-  expect(requestedBackground).not.toBe(selectedBackground);
-  await page.getByRole("button", { name: "Show later available times" }).click();
-  await expect(page.locator(".time-carousel-track.time-carousel-slide-later")).toBeVisible();
-  await expect(availableResults.locator("button strong")).toHaveText([
-    "7:15 PM", "7:30 PM", "7:45 PM", "8:00 PM", "8:15 PM",
-  ]);
+  await expect(page.getByRole("heading", { name: "Find the guest" })).toBeVisible();
 });
 
 test("booking time and party controls stay in one column on short desktops", async ({ page }) => {
@@ -1801,9 +1789,10 @@ test("table assignment stacks every active reservation time on its table", async
   }));
 
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   await page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ }).click();
+  await page.getByRole("button", { name: "Back" }).click();
   await page.getByRole("button", { name: "Assign Tables" }).click();
 
   const table = page.getByRole("button", { name: /Table 1, 2 seats, reservations at 5PM, 7:30PM/ });
@@ -1817,7 +1806,7 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await mockAvailability(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
 
-  await page.locator("footer").getByRole("button", { name: "Time & Party" }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
   await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
   await page.getByRole("spinbutton", { name: "Enter party size" }).fill("200");
 
@@ -1837,5 +1826,5 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await expect(unavailableTime).toHaveAttribute("aria-pressed", "true");
   await expect(unavailableTime).toHaveClass(/confirm-overbook/);
   await expect(unavailableTime).toHaveCSS("background-color", "rgba(164, 44, 35, 0.28)");
-  await expect(page.locator("footer").getByRole("button", { name: "Guest" })).toBeEnabled();
+  await expect(page.locator(".wizard-topbar .wizard-next")).toBeEnabled();
 });
