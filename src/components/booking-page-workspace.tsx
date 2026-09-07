@@ -38,7 +38,9 @@ function reservationsUrl(serviceDate?: string, shiftSlug?: string, confirmationI
   if (serviceDate) query.set("date", serviceDate);
   if (shiftSlug) query.set("shift", shiftSlug);
   if (confirmationId) query.set("confirmation", String(confirmationId));
-  return `${appPath("/reservations")}${query.size ? `?${query}` : ""}`;
+  // Next.js applies `basePath` to client router destinations.  `appPath` is
+  // appropriate for fetch URLs, but would duplicate `/tablehost` here.
+  return `/reservations${query.size ? `?${query}` : ""}`;
 }
 
 export function BookingPageWorkspace({

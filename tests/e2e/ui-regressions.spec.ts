@@ -202,6 +202,36 @@ test("creating a guest continues directly to reservation details", async ({ page
   await expect(page.getByRole("heading", { name: "Find the guest" })).toHaveCount(0);
 });
 
+test("booking completion returns to the reservation grid with its confirmation", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  await page.route("**/api/guests?q=*", (route) => route.fulfill({
+    json: { results: [{
+      id: 42,
+      first_name: "Jamie",
+      last_name: "Lee",
+      full_name: "Jamie Lee",
+      phone_number: "",
+      email: "",
+      company: "",
+      guest_notes: "",
+      tags: [],
+    }] },
+  }));
+  await page.route("**/api/grid", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({ status: 201, json: { id: 106 } });
+  });
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner&time=17%3A00&party_size=2&duration=90&tables=1`);
+  await page.getByRole("searchbox", { name: "Guest search" }).fill("Jamie");
+  await page.getByRole("button", { name: /Jamie Lee/ }).click();
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByRole("button", { name: "Book reservation" }).click();
+
+  await expect(page).toHaveURL(/\/reservations\?date=\d{4}-\d{2}-\d{2}&shift=dinner&confirmation=106$/);
+});
+
 test("booking guest search waits for two characters", async ({ page }) => {
   let searchRequests = 0;
   await mockGrid(page);
