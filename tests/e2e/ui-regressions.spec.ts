@@ -73,6 +73,25 @@ async function mockGrid(page: Page, delayMs = 0) {
   });
 }
 
+test("reservation grid fits below the staging banner without document overflow", async ({ page }) => {
+  await mockGrid(page);
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--ds9-staging-banner-height", "28px");
+    document.documentElement.style.paddingTop = "28px";
+  });
+
+  const metrics = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+    gridHeight: document.querySelector<HTMLElement>(".reservation-page")?.clientHeight,
+    viewportHeight: window.innerHeight,
+  }));
+
+  expect(metrics.scrollHeight).toBe(metrics.clientHeight);
+  expect(metrics.gridHeight).toBe(metrics.viewportHeight - 28);
+});
+
 test("booking calendar uses an integrated date surface and tiles", async ({ page }) => {
   await mockGrid(page);
   await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
