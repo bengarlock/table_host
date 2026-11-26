@@ -4,7 +4,7 @@ Table Host is a restaurant reservation and floor-management app for hosts runnin
 room. It covers the whole service: booking a party, planning the night on a timeline, and seating
 guests on a live floor plan.
 
-**Live demo:** [bengarlock.com/tablehost](https://www.bengarlock.com/tablehost/) (runs in Training
+**Live demo:** [bengarlock.com/tablehost/floor](https://www.bengarlock.com/tablehost/floor) (runs in Training
 Mode with sample guests)
 
 This repository contains the Next.js frontend. The Django REST Framework API lives in a separate
