@@ -34,6 +34,15 @@ import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { capitalizeNameInitial } from "@/lib/guest-names";
 import { ReservationFloorBooking } from "@/lib/reservation-table-availability";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
+import {
+  type HoldEvent,
+  getTabHolderToken,
+  isOwnHold,
+  placeHold,
+  releaseHolds,
+  renewHolds,
+  useLiveHolds,
+} from "@/lib/booking-holds";
 
 type AvailabilityOption = {
   service_date: string;
@@ -44,6 +53,7 @@ type AvailabilityOption = {
   table_name: string | null;
   table_capacity: number | null;
   available: boolean;
+  held?: boolean;
   unavailable_reason: string;
   is_exact?: boolean;
   difference_minutes?: number;
@@ -296,6 +306,142 @@ export function BookingWizard({
     availabilityWindowStart + VISIBLE_TIME_COUNT,
   );
 
+  /* ---------- Booking holds: keep this time and table for us while we book ---------- */
+
+  const [holdNotice, setHoldNotice] = useState("");
+  const [holdAttempt, setHoldAttempt] = useState(0);
+  const [heldRequestKey, setHeldRequestKey] = useState("");
+  const renewIntervalSeconds = useRef(30);
+  const holdNoticeTimer = useRef<number | undefined>(undefined);
+  const availabilityRefreshTimer = useRef<number | undefined>(undefined);
+
+  const holdTableIds = selectedTableIds.length
+    ? selectedTableIds
+    : selectedOption?.table_id ? [selectedOption.table_id] : [];
+  // Deliberate overbooks are not held: the host has already chosen to override availability.
+  const holdRequestKey = selectedOption && selectedOption.available && holdTableIds.length
+    ? JSON.stringify({
+      service_date: serviceDate,
+      shift_slug: selectedOption.shift_slug,
+      start_time: selectedOption.start_time,
+      duration_minutes: durationMinutes,
+      party_size: partySize,
+      table_ids: [...holdTableIds].sort((a, b) => a - b),
+    })
+    : "";
+  const holdActive = Boolean(holdRequestKey) && heldRequestKey === holdRequestKey;
+
+  async function refreshAvailability() {
+    if (!availabilityChecked || !desiredTime) return;
+    const query = new URLSearchParams({
+      service_date: serviceDate,
+      desired_time: desiredTime,
+      party_size: String(partySize),
+      duration_minutes: String(durationMinutes),
+      holder_token: getTabHolderToken(),
+    });
+    try {
+      const response = await fetch(`${appPath("/api/grid/availability")}?${query}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const payload = (await response.json()) as AvailabilityResponse;
+      const shiftOptions = availabilityOptionsForShift(payload.options, selectedShiftSlug);
+      setOptions(shiftOptions);
+      setSelectedOption((current) => {
+        if (!current) return current;
+        return shiftOptions.find((option) => option.shift_slug === current.shift_slug && option.start_time === current.start_time) || current;
+      });
+    } catch {
+      // Keep the current times; the next live update or booking check will correct them.
+    }
+  }
+
+  function scheduleAvailabilityRefresh() {
+    window.clearTimeout(availabilityRefreshTimer.current);
+    availabilityRefreshTimer.current = window.setTimeout(() => { void refreshAvailability(); }, 250);
+  }
+
+  function showHoldNotice(message: string) {
+    setHoldNotice(message);
+    window.clearTimeout(holdNoticeTimer.current);
+    holdNoticeTimer.current = window.setTimeout(() => setHoldNotice(""), 6_000);
+  }
+
+  // Place, replace, or release our hold whenever the chosen time or tables change.
+  useEffect(() => {
+    if (!holdRequestKey) {
+      releaseHolds();
+      return;
+    }
+    let active = true;
+    void placeHold(JSON.parse(holdRequestKey)).then((result) => {
+      if (!active) return;
+      if (result.status === "held") {
+        renewIntervalSeconds.current = result.renewIntervalSeconds;
+        setHeldRequestKey(holdRequestKey);
+        return;
+      }
+      setHeldRequestKey("");
+      if (result.status === "conflict") {
+        setError(result.detail);
+        setSelectedOption(null);
+        setSelectedTableIds([]);
+        setAssignmentDraftTableIds([]);
+        setStep(2);
+        scheduleAvailabilityRefresh();
+      }
+      // A service error leaves the selection alone; the booking itself is still validated on save.
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [holdRequestKey, holdAttempt]);
+
+  // Keep the hold alive while the booking flow stays open; re-acquire it if it lapsed.
+  useEffect(() => {
+    if (!holdActive) return;
+    const timer = window.setInterval(() => {
+      void renewHolds().then((stillHeld) => {
+        if (!stillHeld) {
+          setHeldRequestKey("");
+          setHoldAttempt((value) => value + 1);
+        }
+      });
+    }, renewIntervalSeconds.current * 1_000);
+    return () => window.clearInterval(timer);
+  }, [holdActive]);
+
+  // Release immediately when the page goes away or the flow closes.
+  useEffect(() => {
+    const releaseOnPageHide = () => releaseHolds();
+    window.addEventListener("pagehide", releaseOnPageHide);
+    return () => {
+      window.removeEventListener("pagehide", releaseOnPageHide);
+      window.clearTimeout(holdNoticeTimer.current);
+      window.clearTimeout(availabilityRefreshTimer.current);
+      releaseHolds();
+    };
+  }, []);
+
+  // Other hosts' holds: alert and refresh times as soon as they change.
+  function handleHoldEvent(event: HoldEvent) {
+    if (isOwnHold(event.hold.id) || event.hold.service_date !== serviceDate) return;
+    if (holdRequestKey) {
+      const ours = JSON.parse(holdRequestKey) as { start_time: string; table_ids: number[]; shift_slug: string };
+      const sameSelection = ours.shift_slug === event.hold.shift_slug
+        && ours.start_time === event.hold.start_time
+        && ours.table_ids.join(",") === [...event.hold.table_ids].sort((a, b) => a - b).join(",");
+      if (sameSelection) return; // Our own hold, seen before the API call returned.
+    }
+    if (event.hold.shift_slug !== selectedShiftSlug) return;
+    if (event.type === "hold.created") {
+      const names = event.hold.table_names;
+      const tables = names.length ? `${names.length === 1 ? "Table" : "Tables"} ${names.join(", ")} at ` : "";
+      showHoldNotice(`${tables}${displayTime(event.hold.start_time)} is being booked by another host.`);
+    }
+    scheduleAvailabilityRefresh();
+  }
+
+  useLiveHolds(step >= 2 ? serviceDate : null, handleHoldEvent);
+
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") onClose();
@@ -320,6 +466,7 @@ export function BookingWizard({
         desired_time: prefilledTime,
         party_size: String(prefilledPartySize),
         duration_minutes: String(durationMinutes),
+        holder_token: getTabHolderToken(),
       });
       const gridQuery = new URLSearchParams({ date: serviceDate, shift: shift.slug });
       try {
@@ -445,6 +592,11 @@ export function BookingWizard({
   }
 
   function chooseTime(option: AvailabilityOption) {
+    if (option.held && !option.available) {
+      setError(`${displayTime(option.start_time)} is being booked by another host. Choose another time.`);
+      return;
+    }
+    setError("");
     setSelectedOption(option);
     setSelectedTableIds([]);
     setAssignmentDraftTableIds([]);
@@ -461,6 +613,7 @@ export function BookingWizard({
       desired_time: desiredTime || shift.start_time,
       party_size: String(partySize),
       duration_minutes: String(durationMinutes),
+      holder_token: getTabHolderToken(),
     });
     const gridQuery = new URLSearchParams({
       date: serviceDate,
@@ -540,6 +693,7 @@ export function BookingWizard({
       desired_time: requestedTime,
       party_size: String(requestedPartySize),
       duration_minutes: String(durationMinutes),
+      holder_token: getTabHolderToken(),
     });
     try {
       const response = await fetch(`${appPath("/api/grid/availability")}?${availabilityQuery}`, {
@@ -808,6 +962,7 @@ export function BookingWizard({
           start_time: selectedOption.start_time,
           duration_minutes: durationMinutes,
           allow_overbook: !selectedOption.available,
+          holder_token: getTabHolderToken(),
         }),
       });
       const payload = (await response.json()) as Record<string, unknown>;
@@ -1027,6 +1182,7 @@ export function BookingWizard({
                               key={optionKey}
                               className={[
                                 option.available ? "" : "is-unavailable",
+                                option.held && !option.available ? "is-held" : "",
                                 option.start_time === desiredTime ? "requested-time" : "",
                                 selected ? "selected" : "",
                                 selected && !option.available ? "confirm-overbook" : "",
@@ -1037,7 +1193,7 @@ export function BookingWizard({
                               onClick={(event) => { if (event.detail === 0) chooseTime(option); }}
                             >
                               <strong>{displayTime(option.start_time)}</strong>
-                              {!option.available && <span>Unavailable</span>}
+                              {!option.available && <span>{option.held ? "Being booked" : "Unavailable"}</span>}
                             </button>
                           );
                         })}
@@ -1232,6 +1388,7 @@ export function BookingWizard({
             </form>
           )}
 
+          {holdNotice && <div className="wizard-hold-notice" role="status">{holdNotice}</div>}
           {error && <div className="wizard-error" role="alert">{error}</div>}
         </div>
       </section>

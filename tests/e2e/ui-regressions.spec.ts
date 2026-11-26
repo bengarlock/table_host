@@ -1847,3 +1847,154 @@ test("oversized parties warn but can continue to time selection", async ({ page 
   await expect(unavailableTime).toHaveCSS("background-color", "rgba(164, 44, 35, 0.28)");
   await expect(page.locator(".wizard-topbar .wizard-next")).toBeEnabled();
 });
+
+/* ---------- Live booking holds ---------- */
+
+type MockHoldServer = { send: (message: unknown) => void };
+
+async function mockHoldsSocket(page: Page, snapshot: unknown[] = []) {
+  // React StrictMode opens and closes a socket in development, so broadcast to every connection.
+  const sockets: { send: (message: string) => void }[] = [];
+  await page.routeWebSocket(/\/ws\/tablehost\/holds\//, (socket) => {
+    sockets.push(socket);
+    socket.send(JSON.stringify({ type: "holds.snapshot", service_date: serviceDate, holds: snapshot }));
+  });
+  return {
+    async ready() {
+      await expect.poll(() => sockets.length).toBeGreaterThan(0);
+      return {
+        send: (message: unknown) => sockets.forEach((socket) => {
+          try { socket.send(JSON.stringify(message)); } catch { /* closed by StrictMode */ }
+        }),
+      } satisfies MockHoldServer;
+    },
+  };
+}
+
+function otherHostHold(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 901,
+    service_date: serviceDate,
+    shift_slug: shift.slug,
+    start_time: "17:00",
+    duration_minutes: 90,
+    party_size: 2,
+    table_ids: [1],
+    table_names: ["1"],
+    expires_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+    is_training: false,
+    ...overrides,
+  };
+}
+
+test("choosing a time holds it, alerts on other hosts' holds, and releases on leave", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  const holdRequests: Record<string, unknown>[] = [];
+  const releases: string[] = [];
+  await page.route("**/api/grid/holds", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    holdRequests.push(body);
+    await route.fulfill({
+      status: 201,
+      json: {
+        hold: { ...otherHostHold({ id: 900, start_time: body.start_time, table_ids: body.table_ids, table_names: ["2"] }) },
+        ttl_seconds: 300,
+        renew_interval_seconds: 30,
+      },
+    });
+  });
+  await page.route("**/api/grid/holds?*", async (route) => {
+    releases.push(route.request().method());
+    await route.fulfill({ status: 204, body: "" });
+  });
+  const socket = await mockHoldsSocket(page);
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ }).click();
+
+  await expect.poll(() => holdRequests.length).toBe(1);
+  expect(holdRequests[0]).toMatchObject({ start_time: "19:30", table_ids: [2], shift_slug: "dinner", party_size: 2 });
+  expect(String(holdRequests[0].holder_token)).toMatch(/^[A-Za-z0-9-]{16,64}$/);
+
+  // The booking page moves past dates forward, so use the date the wizard actually holds.
+  const bookingDate = String(holdRequests[0].service_date);
+  const server = await socket.ready();
+  server.send({ type: "hold.created", hold: otherHostHold({ service_date: bookingDate }) });
+  await expect(page.locator(".wizard-hold-notice")).toHaveText("Table 1 at 5:00 PM is being booked by another host.");
+
+  // Leaving the booking flow releases the hold immediately.
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/\/reservations\?/);
+  await expect.poll(() => releases).toContain("DELETE");
+});
+
+test("a time another host is booking shows as being booked and cannot be chosen", async ({ page }) => {
+  await mockGrid(page);
+  await mockHoldsSocket(page);
+  await page.route("**/api/grid/availability?*", (route) => route.fulfill({
+    json: {
+      options: [{
+        service_date: serviceDate,
+        shift_slug: shift.slug,
+        shift_name: shift.name,
+        start_time: "19:30",
+        table_id: 2,
+        table_name: "2",
+        table_capacity: 2,
+        available: false,
+        held: true,
+        unavailable_reason: "Being booked by another host",
+      }],
+    },
+  }));
+  let holdAttempts = 0;
+  await page.route("**/api/grid/holds", (route) => {
+    holdAttempts += 1;
+    return route.fulfill({ status: 500, body: "" });
+  });
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  const heldTime = page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,.*Being booked by another host/ });
+  await expect(heldTime).toContainText("Being booked");
+  await heldTime.click();
+
+  await expect(page.locator(".wizard-error")).toHaveText("7:30 PM is being booked by another host. Choose another time.");
+  await expect(heldTime).toHaveAttribute("aria-pressed", "false");
+  expect(holdAttempts).toBe(0);
+});
+
+test("losing a hold race clears the time and explains why", async ({ page }) => {
+  await mockGrid(page);
+  await mockAvailability(page);
+  await mockHoldsSocket(page);
+  await page.route("**/api/grid/holds", (route) => route.fulfill({
+    status: 409,
+    json: { detail: "Table 2 is being booked by another host right now.", code: "hold_conflict" },
+  }));
+
+  await page.goto(`/reservations/book?date=${serviceDate}&shift=dinner`);
+  await page.locator(".wizard-topbar .wizard-next").click();
+  await page.getByLabel("Desired reservation times").getByRole("button", { name: "7:30 PM" }).click();
+  await page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ }).click();
+
+  await expect(page.locator(".wizard-error")).toHaveText("Table 2 is being booked by another host right now.");
+  await expect(page.getByLabel("Available reservation times").getByRole("button", { name: /^7:30 PM,/ })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("reservation grid shows tables other hosts are booking and clears them on release", async ({ page }) => {
+  await mockGrid(page);
+  const socket = await mockHoldsSocket(page, [otherHostHold()]);
+
+  await page.goto(`/reservations?date=${serviceDate}&shift=dinner`);
+  const placeholder = page.getByRole("status", { name: "Table 1 is being booked by another host for a party of 2" });
+  await expect(placeholder).toHaveText("Being booked");
+
+  const server = await socket.ready();
+  server.send({ type: "hold.released", hold: otherHostHold(), reason: "released" });
+  await expect(placeholder).toHaveCount(0);
+});

@@ -38,6 +38,7 @@ import { appPath } from "@/lib/app-paths";
 import { IGNORE_AUTOFILL } from "@/lib/autofill";
 import { formatTurnTime } from "@/lib/turn-time";
 import { GUEST_TAGS, RESERVATION_TAGS } from "@/lib/reservation-tags";
+import { type BookingHold, type HoldEvent, getTabHolderToken, useLiveHolds } from "@/lib/booking-holds";
 import {
   closestServiceOccurrence,
   moveServiceDate,
@@ -148,6 +149,7 @@ type GridData = {
   tables: DiningTable[];
   reservations: Reservation[];
   blocks?: TableBlock[];
+  holds?: BookingHold[];
   summary: { reservations: number; covers: number; seated: number };
 };
 
@@ -342,7 +344,7 @@ export function ReservationGrid({
     const requestVersion = ++gridRequestVersion.current;
     setLoading(true);
     setError("");
-    const query = new URLSearchParams({ date: serviceDate });
+    const query = new URLSearchParams({ date: serviceDate, holder_token: getTabHolderToken() });
     if (shiftSlug) query.set("shift", shiftSlug);
     try {
       const response = await fetch(`${appPath("/api/grid")}?${query}`, { cache: "no-store" });
@@ -373,6 +375,15 @@ export function ReservationGrid({
       if (requestVersion === gridRequestVersion.current) setLoading(false);
     }
   }, [serviceDate, shiftSlug, syncServiceUrl]);
+
+  // Live booking holds from other hosts. When one turns into a booking, reload
+  // so the new reservation appears straight away.
+  const handleGridHoldEvent = useCallback((event: HoldEvent) => {
+    if (event.type === "hold.released" && event.reason === "booked") void loadGrid();
+  }, [loadGrid]);
+  const { holds: liveHolds, connected: holdsLive } = useLiveHolds(serviceDate || null, handleGridHoldEvent);
+  const shiftHolds = (holdsLive ? liveHolds : data?.holds || [])
+    .filter((hold) => hold.shift_slug === data?.selected_shift.slug);
 
   useEffect(() => {
     // The grid is intentionally refreshed whenever the active service date or shift changes.
@@ -951,6 +962,7 @@ export function ReservationGrid({
                     (item.table_ids.length ? item.table_ids : [item.table_id]).includes(table.id),
                   );
                   const tableBlocks = (data.blocks || []).filter((item) => item.table_ids.includes(table.id));
+                  const tableHolds = shiftHolds.filter((hold) => hold.table_ids.includes(table.id));
                   const isOriginalTable = draggedReservation?.table_id === table.id;
                   const isSuggested = Boolean(
                     draggedReservation &&
@@ -1057,6 +1069,19 @@ export function ReservationGrid({
                           const width = (block.duration_minutes / SLOT_MINUTES) * SLOT_WIDTH;
                           return <div key={`block-${block.id}`} className="table-time-block" style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }} title={block.notes || "Table block"}>
                             <Ban aria-hidden="true" /><span>Blocked</span>{block.notes && <small>{block.notes}</small>}
+                          </div>;
+                        })}
+                        {tableHolds.map((hold) => {
+                          const offset = (minutes(hold.start_time) - minutes(data.selected_shift.start_time)) / SLOT_MINUTES;
+                          const width = (hold.duration_minutes / SLOT_MINUTES) * SLOT_WIDTH;
+                          return <div
+                            key={`hold-${hold.id}`}
+                            className="table-time-hold"
+                            style={{ left: offset * SLOT_WIDTH + 2, width: width - 4 }}
+                            role="status"
+                            aria-label={`Table ${table.name} is being booked by another host for a party of ${hold.party_size}`}
+                          >
+                            <Clock3 aria-hidden="true" /><span>Being booked</span>
                           </div>;
                         })}
                         {draft?.tableIds.includes(table.id) && (

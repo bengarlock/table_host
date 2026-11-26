@@ -1485,6 +1485,30 @@ textarea {
 }
 .table-time-block svg { width: 13px; flex: 0 0 auto; }
 .table-time-block small { overflow: hidden; color: #f2d8a7; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+/* Another host is mid-booking on this table and time (live booking hold). */
+.table-time-hold {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  top: 7px;
+  bottom: 7px;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 0 8px;
+  border: 1px dashed rgba(126, 182, 214, .85);
+  border-radius: 6px;
+  background: rgba(46, 86, 110, .55);
+  color: #dcecf5;
+  font-size: .62rem;
+  font-weight: 750;
+  animation: table-time-hold-pulse 1.6s ease-in-out infinite;
+}
+.table-time-hold svg { width: 13px; flex: 0 0 auto; }
+@keyframes table-time-hold-pulse { 50% { opacity: .65; } }
+@media (prefers-reduced-motion: reduce) { .table-time-hold { animation: none; } }
 .table-block-scope { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text-soft); font-size: .68rem; }
 .table-block-scope legend { padding: 0 5px; color: var(--text-muted); font-size: .6rem; }
 .table-block-scope label { display: flex; gap: 8px; align-items: center; }
@@ -4011,6 +4035,12 @@ textarea {
   text-decoration-color: #4d524c;
 }
 
+.time-carousel-track button.is-held {
+  border-style: dashed;
+  border-color: rgba(126, 182, 214, .55);
+  cursor: not-allowed;
+}
+.time-carousel-track button.is-held span { color: #a9cde2; }
 .time-carousel-track button.confirm-overbook,
 .time-carousel-track button.confirm-overbook:hover,
 .time-carousel-track button.confirm-overbook:focus-visible {
@@ -4585,6 +4615,15 @@ textarea {
   }
 }
 
+.wizard-hold-notice {
+  margin-top: 18px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 182, 214, 0.4);
+  border-radius: 8px;
+  background: rgba(46, 86, 110, 0.28);
+  color: #cfe5f2;
+  font-size: 0.7rem;
+}
 .wizard-error {
   margin-top: 18px;
   padding: 10px 12px;
